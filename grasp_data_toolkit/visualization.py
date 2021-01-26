@@ -1,7 +1,7 @@
 import open3d as o3d
 import numpy as np
 from . import core_types
-from PIL import Image
+from matplotlib import pyplot as plt
 
 
 def _numpy_pc_to_o3d(point_clouds):
@@ -65,14 +65,20 @@ def show_np_point_clouds(point_clouds):
     show_o3d_point_clouds(pc_objs)
 
 
-def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_objs=True):
+def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_objs=True, colorize=True):
     """
     gathers list of o3d point clouds for the given scene
     :param scene: the scene
     :param object_library: list of object types
     :param with_bg_objs: if True, list includes point clouds of background objects as well
+    :param colorize: if True, each object gets a unique color
     :return: list of o3d point clouds
     """
+
+    # this colormap offers 20 different qualitative colors
+    colormap = plt.get_cmap('tab20')
+    color_idx = 0
+
     o3d_pcs = []
     for obj in scene.objects:
         # stored indices are 1..14 instead of 0..13 because of MATLAB, so subtract one
@@ -86,6 +92,11 @@ def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_ob
         # apply transformation according to scene
         o3d_pc.transform(obj.pose)
 
+        if colorize:
+            color = np.asarray(colormap(color_idx)[0:3])
+            o3d_pc.paint_uniform_color(color)
+            color_idx = (color_idx + 1) % colormap.N
+
         o3d_pcs.append(o3d_pc)
 
     # also add background objects
@@ -94,6 +105,12 @@ def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_ob
             # convert point cloud, apply tf and append
             o3d_pc = _numpy_pc_to_o3d(bg_obj.point_cloud)
             o3d_pc.transform(bg_obj.pose)
+
+            if colorize:
+                color = np.asarray(colormap(color_idx)[0:3])
+                o3d_pc.paint_uniform_color(color)
+                color_idx = (color_idx + 1) % colormap.N
+
             o3d_pcs.append(o3d_pc)
 
     return o3d_pcs

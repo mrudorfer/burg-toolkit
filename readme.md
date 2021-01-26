@@ -19,7 +19,6 @@ pip install -r requirements.txt
 
 ## plans for the project
 ### todos
-- paint GT point clouds according to segmentation (what about partial?)
 - have a script to export (segmented, partial) point clouds
 
 ### longer-term todos:
@@ -29,3 +28,4 @@ pip install -r requirements.txt
 - poisson disk sampling:
     - point densities are not uniform, instead it is relative to the size of the object
     - i think uniform density would be better, but we can skip some part of the table
+    - o3d has a voxel-based down-sample method - maybe that could be an approach?
