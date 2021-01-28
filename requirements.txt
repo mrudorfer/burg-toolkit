@@ -5,3 +5,4 @@ pymeshlab~=0.1.8
 mat73~=0.46
 scipy~=1.5.4
 matplotlib~=3.3.3
+h5py~=3.1.0

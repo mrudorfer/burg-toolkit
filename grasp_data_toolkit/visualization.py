@@ -65,6 +65,26 @@ def show_np_point_clouds(point_clouds):
     show_o3d_point_clouds(pc_objs)
 
 
+def colorize_point_clouds(point_clouds, colormap_name='tab20'):
+    """
+    gets a list of o3d point clouds and adds unique colors to them
+    :param point_clouds: list of o3d point clouds
+    :param colormap_name: name of the matplotlib colormap to use, defaults to 'tab20'
+    :return: the same list of o3d point clouds (but they are also adjusted in-place)
+    """
+
+    # this colormap offers 20 different qualitative colors
+    colormap = plt.get_cmap(colormap_name)
+    color_idx = 0
+
+    for o3d_pc in point_clouds:
+        color = np.asarray(colormap(color_idx)[0:3])
+        o3d_pc.paint_uniform_color(color)
+        color_idx = (color_idx + 1) % colormap.N
+
+    return point_clouds
+
+
 def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_objs=True, colorize=True):
     """
     gathers list of o3d point clouds for the given scene
@@ -74,10 +94,6 @@ def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_ob
     :param colorize: if True, each object gets a unique color
     :return: list of o3d point clouds
     """
-
-    # this colormap offers 20 different qualitative colors
-    colormap = plt.get_cmap('tab20')
-    color_idx = 0
 
     o3d_pcs = []
     for obj in scene.objects:
@@ -92,11 +108,6 @@ def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_ob
         # apply transformation according to scene
         o3d_pc.transform(obj.pose)
 
-        if colorize:
-            color = np.asarray(colormap(color_idx)[0:3])
-            o3d_pc.paint_uniform_color(color)
-            color_idx = (color_idx + 1) % colormap.N
-
         o3d_pcs.append(o3d_pc)
 
     # also add background objects
@@ -105,13 +116,10 @@ def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_ob
             # convert point cloud, apply tf and append
             o3d_pc = _numpy_pc_to_o3d(bg_obj.point_cloud)
             o3d_pc.transform(bg_obj.pose)
-
-            if colorize:
-                color = np.asarray(colormap(color_idx)[0:3])
-                o3d_pc.paint_uniform_color(color)
-                color_idx = (color_idx + 1) % colormap.N
-
             o3d_pcs.append(o3d_pc)
+
+    if colorize:
+        colorize_point_clouds(o3d_pcs)
 
     return o3d_pcs
 

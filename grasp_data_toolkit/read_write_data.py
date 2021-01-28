@@ -1,6 +1,7 @@
 import glob
 import mat73
 import scipy.io as spio
+import h5py
 from . import core_types
 
 
@@ -69,3 +70,28 @@ def read_object_library(object_lib_path):
                       in zip(input_dict['objectCentres'], input_dict['objectInformation'])]
 
     return object_library
+
+
+def read_grasp_file_eppner2019(grasp_fn):
+    """
+    reads grasps from the grasp file of dataset provided with publication of Eppner et al. 2019
+    it should contain densely sampled, successful grasps
+    :param grasp_fn: the filename
+    :return:
+    """
+
+    hf = h5py.File(grasp_fn, 'r')
+    print('just keys:', list(hf.keys()))
+
+    print_keys = ['gripper', 'object', 'object_class', 'object_dataset']
+    for key in print_keys:
+        print(key, hf[key][()].decode())
+
+    print('object_scale:', hf['object_scale'][()])
+    print('poses.shape:', hf['poses'].shape)
+    print('com', hf['object_com'][:])
+
+    # Obtain the dataset of references
+    # Obtain the dataset pointed to by the first reference
+
+    return hf['poses'], hf['object_com'][:]
