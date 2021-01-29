@@ -19,6 +19,10 @@ pip install -r requirements.txt
 
 ## plans for the project
 ### todos
+- implement PPF grasp sampler
+- implement baseline grasp sampler
+- implement metrics (precision, coverage) from eppner2019
+- implement metrics (force-closure) from fang2020
 - have a script to export (segmented, partial) point clouds
 
 ### longer-term todos:

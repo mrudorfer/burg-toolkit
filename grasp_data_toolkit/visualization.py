@@ -146,8 +146,8 @@ def _get_partial_point_cloud_from_view(view: core_types.CameraView):
     # create point cloud from depth
     pc = o3d.geometry.PointCloud.create_from_depth_image(
         o3d_depth_image,
-        view.cam_intrinsics,
-        extrinsic=view.cam_pose,
+        view.camera.get_o3d_intrinsics(),
+        extrinsic=view.camera.pose,
         depth_scale=1.0,
         depth_trunc=1.0,
         stride=2,
