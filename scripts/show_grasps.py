@@ -42,10 +42,10 @@ print('object displacement:', target_obj.displacement[:])
 
 grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
 grasp_file = '061_foam_brick/grasps.h5'
-grasp_data, com = read_write_data.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
+grasp_set, com = read_write_data.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
 
 complete_grasps = o3d.geometry.PointCloud()
-complete_grasps.points = o3d.utility.Vector3dVector(grasp_data[:, 0:3])
+complete_grasps.points = o3d.utility.Vector3dVector(grasp_set.translations)
 print('com', complete_grasps.get_center())
 complete_grasps.translate(-com)
 print('com', complete_grasps.get_center())
@@ -54,7 +54,7 @@ print('com', complete_grasps.get_center())
 # we also already put the object point cloud into the list, so it will be object 0 in visualization
 grasps_list = [o3d_pc, complete_grasps]
 subset_size = 500000
-print('grasp_data.shape[0]', grasp_data.shape[0])
+print('number of grasps', len(grasp_set))
 #for i in range(0, grasp_data.shape[0], subset_size):
 #    grasps = o3d.geometry.PointCloud()
 #    print(i)

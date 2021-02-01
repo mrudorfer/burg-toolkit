@@ -77,7 +77,7 @@ def read_grasp_file_eppner2019(grasp_fn):
     reads grasps from the grasp file of dataset provided with publication of Eppner et al. 2019
     it should contain densely sampled, successful grasps
     :param grasp_fn: the filename
-    :return:
+    :return: a core_types.GraspSet, np array with length 3 with object center of mass
     """
 
     hf = h5py.File(grasp_fn, 'r')
@@ -91,7 +91,8 @@ def read_grasp_file_eppner2019(grasp_fn):
     print('poses.shape:', hf['poses'].shape)
     print('com', hf['object_com'][:])
 
-    # Obtain the dataset of references
-    # Obtain the dataset pointed to by the first reference
+    print('creating grasp set...')
+    gs = core_types.GraspSet.from_translations_and_quaternions(hf['poses'])
+    print('done')
 
-    return hf['poses'], hf['object_com'][:]
+    return gs, hf['object_com'][:]
