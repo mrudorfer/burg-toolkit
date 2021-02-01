@@ -64,13 +64,19 @@ class BackgroundObject:
         self.pose = pose or np.eye(4)
         self.point_cloud = np.asarray([])
 
-    def __init__(self, name, translation, rotation):
-        self.name = name or ""
+    @classmethod
+    def from_translation_rotation(cls, name, translation, rotation):
+        """
+        create instance of BackgroundObject from translation and rotation
+        :param name: string with object name
+        :param translation: [x, y, z]
+        :param rotation: 3x3 rotation matrix
+        :return: instance of BackgroundObject with name and corresponding pose
+        """
         pose = np.eye(4)
         pose[0:3, 0:3] = rotation
         pose[0:3, 3] = translation
-        self.pose = pose
-        self.point_cloud = np.asarray([])
+        return cls(name, pose)
 
 
 class Camera:

@@ -44,7 +44,7 @@ def read_scene_files(filenames):
     objects = [core_types.ObjectInstance(obj) for obj in heap_mat['heap']]
     views = [core_types.CameraView(v) for v in image_data_mat['imageData']]
 
-    table = core_types.BackgroundObject(
+    table = core_types.BackgroundObject.from_translation_rotation(
         name='table',
         translation=heap_mat['backgroundInformation']['tableCentre'],
         rotation=heap_mat['backgroundInformation']['tableBasis']
