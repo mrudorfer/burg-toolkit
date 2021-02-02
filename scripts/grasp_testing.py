@@ -8,8 +8,8 @@ import grasp_data_toolkit as gdt
 # then check if the grasp set is affected
 
 
-initial_grasp_set = np.zeros((3, gdt.core_types.Grasp.ARRAY_LEN), dtype=np.float32)
-gs = gdt.core_types.GraspSet(initial_grasp_set)
+initial_grasp_set = np.zeros((3, gdt.grasp.Grasp.ARRAY_LEN), dtype=np.float32)
+gs = gdt.grasp.GraspSet(initial_grasp_set)
 print(gs.translations)  # should be zeros
 
 translations = np.ones((3, 3), dtype=np.float32)

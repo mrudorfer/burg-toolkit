@@ -1,8 +1,11 @@
 import glob
+
 import mat73
 import scipy.io as spio
 import h5py
-from . import core_types
+
+from . import scene
+from . import grasp
 
 
 # get scene file names
@@ -41,18 +44,17 @@ def read_scene_files(filenames):
     # image_data is a v7.3 mat stored in hdf5 format, thus needs different reader
     image_data_mat = mat73.loadmat(filenames['image_data_fn'])
 
-    objects = [core_types.ObjectInstance(obj) for obj in heap_mat['heap']]
-    views = [core_types.CameraView(v) for v in image_data_mat['imageData']]
+    objects = [scene.ObjectInstance(obj) for obj in heap_mat['heap']]
+    views = [scene.CameraView(v) for v in image_data_mat['imageData']]
 
-    table = core_types.BackgroundObject.from_translation_rotation(
+    table = scene.BackgroundObject.from_translation_rotation(
         name='table',
         translation=heap_mat['backgroundInformation']['tableCentre'],
         rotation=heap_mat['backgroundInformation']['tableBasis']
     )
     bg_objects = [table]
 
-    scene = core_types.Scene(objects, bg_objects, views)
-    return scene
+    return scene.Scene(objects, bg_objects, views)
 
 
 def read_object_library(object_lib_path):
@@ -65,7 +67,7 @@ def read_object_library(object_lib_path):
 
     input_dict = spio.loadmat(object_lib_path, simplify_cells=True)
 
-    object_library = [core_types.ObjectType(obj_dict, displacement)
+    object_library = [scene.ObjectType(obj_dict, displacement)
                       for displacement, obj_dict
                       in zip(input_dict['objectCentres'], input_dict['objectInformation'])]
 
@@ -92,7 +94,7 @@ def read_grasp_file_eppner2019(grasp_fn):
     print('com', hf['object_com'][:])
 
     print('creating grasp set...')
-    gs = core_types.GraspSet.from_translations_and_quaternions(hf['poses'])
+    gs = grasp.GraspSet.from_translations_and_quaternions(hf['poses'])
     print('done')
 
     return gs, hf['object_com'][:]

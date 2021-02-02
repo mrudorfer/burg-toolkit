@@ -1,6 +1,6 @@
 import open3d as o3d
 import numpy as np
-from . import core_types
+from . import scene
 from matplotlib import pyplot as plt
 
 
@@ -85,7 +85,7 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
     return point_clouds
 
 
-def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_objs=True, colorize=True):
+def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=True, colorize=True):
     """
     gathers list of o3d point clouds for the given scene
     :param scene: the scene
@@ -124,7 +124,7 @@ def _get_object_point_clouds(scene: core_types.Scene, object_library, with_bg_ob
     return o3d_pcs
 
 
-def _get_partial_point_cloud_from_view(view: core_types.CameraView):
+def _get_partial_point_cloud_from_view(view: scene.CameraView):
     """
     creates a partial point cloud from the depth image and given intrinsic/extrinsic parameters
     :param view: instance of core_types.CameraView
@@ -157,7 +157,7 @@ def _get_partial_point_cloud_from_view(view: core_types.CameraView):
     return pc
 
 
-def show_full_scene_point_cloud(scene: core_types.Scene, object_library, with_bg_objs=True):
+def show_full_scene_point_cloud(scene: scene.Scene, object_library, with_bg_objs=True):
     """
     shows the complete (ground truth) point cloud of a scene
     :param scene: a core_types.Scene object
@@ -171,7 +171,7 @@ def show_full_scene_point_cloud(scene: core_types.Scene, object_library, with_bg
     show_o3d_point_clouds(o3d_pcs)
 
 
-def show_partial_point_cloud(view: core_types.CameraView):
+def show_partial_point_cloud(view: scene.CameraView):
     """
     shows the scene point cloud generated from a depth image
     :param view: the scene view that is to be shown
@@ -182,7 +182,7 @@ def show_partial_point_cloud(view: core_types.CameraView):
     show_o3d_point_clouds(pc)
 
 
-def show_aligned_scene_point_clouds(scene: core_types.Scene, views, object_library):
+def show_aligned_scene_point_clouds(scene: scene.Scene, views, object_library):
     """
     shows the full point cloud and overlays the partial point cloud from a view (or a list of views)
     :param scene: the scene
