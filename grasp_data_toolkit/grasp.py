@@ -24,6 +24,21 @@ class Grasp:
         self._grasp_array = np_array.astype(np.float32)
 
     @property
+    def internal_array(self):
+        """
+        :return: the internal ndarray representation. only use when you know what you're doing.
+        """
+        return self._grasp_array
+
+    @internal_array.setter
+    def internal_array(self, np_array):
+        """
+        :param np_array: the new internal array, must be of length Grasp.ARRAY_LEN. use with caution.
+        """
+        assert(len(np_array) == self.ARRAY_LEN), 'provided np_array has wrong length.'
+        self._grasp_array = np_array.astype(np.float32)
+
+    @property
     def translation(self):
         """
         :return: translation as np-array with length 3
@@ -49,7 +64,7 @@ class Grasp:
         """
         :param rotation_matrix: the rotation matrix, 3x3 numpy array
         """
-        self._grasp_array[3:12] = rotation_matrix[:].astype(np.float32)
+        self._grasp_array[3:12] = rotation_matrix.reshape(9).astype(np.float32)
 
     @property
     def pose(self):
@@ -82,6 +97,31 @@ class Grasp:
         :param score: a float value as the score
         """
         self._grasp_array[13] = float(score)
+
+    def distance_to(self, other_grasp):
+        """
+        computes the distance of this grasp to the other_grasp according to Eppner et al., 2019
+        translation and rotation terms are weighted so that a distance of 1 equals to either 1 mm or 1 degree
+        :param other_grasp: the other grasp of type Grasp
+        :return: the distance between this grasp and the other grasp as float value
+        """
+        q1 = quaternion.from_rotation_matrix(self.rotation_matrix)
+        q2 = quaternion.from_rotation_matrix(other_grasp.rotation_matrix)
+
+        q1 = quaternion.as_float_array(q1)
+        q2 = quaternion.as_float_array(q2)
+
+        t1 = self.translation
+        t2 = other_grasp.translation
+
+        # scale up so that 1mm -> distance=1
+        translation_dist = 1000 * np.linalg.norm(t1 - t2)
+        # scale so that 1deg -> distance=1 (I'm not exactly sure why I need to multiply with 360 instead of 180, but
+        # else the values will be too small. Also the dot product does not conjugate q2, but when I did this it
+        # gave unreasonable values. This version here seems to work reasonably well now.
+        rotation_dist = np.arccos(np.abs(np.dot(q1, q2)))/np.pi*360
+
+        return translation_dist + rotation_dist
 
 
 class GraspSet:
@@ -150,6 +190,42 @@ class GraspSet:
             return GraspSet(self._gs_array[item])
         else:
             raise TypeError('unknown index type calling GraspSet.__getitem__')
+
+    def __setitem__(self, key, value):
+        """
+        :param key: can be index, slice or array
+        :param value: if single index: Grasp object or GraspSet, else: GraspSet object
+        """
+        if type(key) == int:
+            if type(value) is GraspSet:
+                if len(value) != 1:
+                    raise ValueError('If type(index) is int, value needs to be Grasp or GraspSet of length 1.')
+                value = Grasp(value.internal_array)
+            if type(value) is not Grasp:
+                raise TypeError('Provided value has wrong type. Expected Grasp or GraspSet of length 1.')
+            self._gs_array[key] = value.internal_array
+
+        elif (type(key) == slice) or (type(key) == list) or (type(key) == np.ndarray):
+            if type(value) is not GraspSet:
+                raise TypeError('Provided value has wrong type. Expected GraspSet.')
+            self._gs_array[key] = value.internal_array
+        else:
+            raise TypeError('unknown index type calling GraspSet.__setitem__')
+
+    @property
+    def internal_array(self):
+        """
+        :return: gives the internal numpy array representation of shape (N, Grasp.ARRAY_LEN)
+        """
+        return self._gs_array
+
+    @internal_array.setter
+    def internal_array(self, np_array):
+        """
+        :param np_array: sets the new internal np array, must be of dim (n, Grasp.ARRAY_LEN). use with caution.
+        """
+        assert(np_array.shape[1] == Grasp.ARRAY_LEN), 'provided np_array has wrong shape.'
+        self._gs_array = np_array.astype(np.float32)
 
     @property
     def translations(self):

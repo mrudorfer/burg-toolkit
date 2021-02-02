@@ -1,25 +1,26 @@
 import numpy as np
 import grasp_data_toolkit as gdt
 
-# test if setting properties of GraspSet performs deep copies or not
-# to check this, i will initialise some grasp set
-# i then need to set the translations with some other np array
-# then change the other np array
-# then check if the grasp set is affected
+# testing the distance function
+initial_translations = np.zeros((2, 3), dtype=np.float32)
+gs = gdt.grasp.GraspSet.from_translations(initial_translations)
 
+theta = 0 / 180 * np.pi
+rot_mat = np.asarray([[1, 0, 0],
+                      [0, np.cos(theta), -np.sin(theta)],
+                      [0, np.sin(theta), np.cos(theta)]])
 
-initial_grasp_set = np.zeros((3, gdt.grasp.Grasp.ARRAY_LEN), dtype=np.float32)
-gs = gdt.grasp.GraspSet(initial_grasp_set)
-print(gs.translations)  # should be zeros
+grasp = gs[0]
+grasp.translation = np.asarray([0, 0, 0.003]) # 1mm
+grasp.rotation_matrix = rot_mat
+gs[0] = grasp
 
-translations = np.ones((3, 3), dtype=np.float32)
-gs.translations = translations
-print(gs.translations)  # should be ones
+theta = 15 / 180 * np.pi
+rot_mat = np.asarray([[np.cos(theta), 0, np.sin(theta)],
+                      [0, 1, 0],
+                      [-np.sin(theta), 0, np.cos(theta)]])
 
-translations[0] = np.asarray([3, 3, 3])
-translations[1] = 3
-print(gs.translations)  # should be ones if deep copied, or contains threes if shallow copied
-# result: does contain only ones, so there are no unwanted side effects
-
-print(translations)
-
+grasp = gs[1]
+grasp.rotation_matrix = rot_mat
+gs[1] = grasp
+print('distance:', gs[0].distance_to(gs[1]))
