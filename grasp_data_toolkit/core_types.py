@@ -60,9 +60,9 @@ class BackgroundObject:
     describes the table, or other possible background objects
     """
 
-    def __init__(self, name, pose):
-        self.name = name or ""
-        self.pose = pose or np.eye(4)
+    def __init__(self, name="", pose=None):
+        self.name = name
+        self.pose = pose if pose is not None else np.eye(4)
         self.point_cloud = np.asarray([])
 
     @classmethod
