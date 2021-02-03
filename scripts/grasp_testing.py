@@ -1,8 +1,9 @@
+import os
 import numpy as np
 import grasp_data_toolkit as gdt
 
 # testing the distance function
-initial_translations = np.zeros((2, 3), dtype=np.float32)
+initial_translations = np.random.random((50, 3))
 gs = gdt.grasp.GraspSet.from_translations(initial_translations)
 
 theta = 0 / 180 * np.pi
@@ -11,7 +12,7 @@ rot_mat = np.asarray([[1, 0, 0],
                       [0, np.sin(theta), np.cos(theta)]])
 
 grasp = gs[0]
-grasp.translation = np.asarray([0, 0, 0.003]) # 1mm
+grasp.translation = np.asarray([0, 0, 0.003])
 grasp.rotation_matrix = rot_mat
 gs[0] = grasp
 
@@ -21,6 +22,19 @@ rot_mat = np.asarray([[np.cos(theta), 0, np.sin(theta)],
                       [-np.sin(theta), 0, np.cos(theta)]])
 
 grasp = gs[1]
+grasp.translation = np.asarray([0, 0, 0])
 grasp.rotation_matrix = rot_mat
 gs[1] = grasp
-print('distance:', gs[0].distance_to(gs[1]))
+
+dist = gdt.grasp.pairwise_distances(gs[0], gs[1])
+print('computation of pairwise_distances (15 degree and 3 mm)', dist.shape, dist)
+dist = gs[0].distance_to(gs[1])
+print('computation of distance_to (15 degree and 3 mm)', dist.shape, dist)
+
+print('computation of coverage 20/50:', gdt.grasp.coverage(gs[0:20], gs))
+
+grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
+grasp_file = '061_foam_brick/grasps.h5'
+# grasp_set, com = gdt.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
+# dist = gdt.grasp.pairwise_distances(grasp_set, gs)
+#print('dist', dist.shape)

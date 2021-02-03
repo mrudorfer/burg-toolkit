@@ -105,23 +105,11 @@ class Grasp:
         :param other_grasp: the other grasp of type Grasp
         :return: the distance between this grasp and the other grasp as float value
         """
-        q1 = quaternion.from_rotation_matrix(self.rotation_matrix)
-        q2 = quaternion.from_rotation_matrix(other_grasp.rotation_matrix)
+        # compute using module function
+        # could also use quaternion computation:
+        # rotation_dist = 2*np.arccos(np.abs(np.dot(q1, q2)))/np.pi*180
 
-        q1 = quaternion.as_float_array(q1)
-        q2 = quaternion.as_float_array(q2)
-
-        t1 = self.translation
-        t2 = other_grasp.translation
-
-        # scale up so that 1mm -> distance=1
-        translation_dist = 1000 * np.linalg.norm(t1 - t2)
-        # scale so that 1deg -> distance=1 (I'm not exactly sure why I need to multiply with 360 instead of 180, but
-        # else the values will be too small. Also the dot product does not conjugate q2, but when I did this it
-        # gave unreasonable values. This version here seems to work reasonably well now.
-        rotation_dist = np.arccos(np.abs(np.dot(q1, q2)))/np.pi*360
-
-        return translation_dist + rotation_dist
+        return pairwise_distances(self, other_grasp)[0, 0]
 
 
 class GraspSet:
@@ -277,3 +265,76 @@ class GraspSet:
         assert(poses.shape == (len(self), 4, 4)), "provided poses have wrong shape"
         self._gs_array[:, 0:3] = poses[:, 0:3, 3]
         self._gs_array[:, 3:12] = poses[:, 0:3, 0:3].reshape((-1, 9))
+
+
+def pairwise_distances(graspset1, graspset2, print_timings=False):
+    """
+    computes the pairwisse distances between the provided grasps from set1 and set2
+    this is a vectorized implementation, but should not be used if both sets are extremely large
+    (i.e. it is not suitable for nearest-neighbor search in coverage computation)
+    :param graspset1: GraspSet of length N (or single Grasp)
+    :param graspset2: GraspSet of length M (or single Grasp)
+    :param print_timings: whether or not to print the computation time
+    :return: (N, M) matrix of distances (1 = 1mm or 1deg)
+    """
+    # convert provided arguments to GraspSets if necessary
+    if type(graspset1) is Grasp:
+        graspset1 = GraspSet(graspset1.internal_array[np.newaxis, :])
+    if type(graspset2) is Grasp:
+        graspset2 = GraspSet(graspset2.internal_array[np.newaxis, :])
+
+    if (type(graspset1) is not GraspSet) or (type(graspset2) is not GraspSet):
+        raise TypeError('Arguments have wrong type. Expected Grasp or GraspSet.')
+
+    if print_timings:
+        from timeit import default_timer as timer
+        t1 = timer()
+
+    # let's compute translation distance first
+    # shape: (N, M, 3) = (N, 2, 3) - (1, M, 3)
+    distances = np.linalg.norm(
+        graspset1.translations[:, np.newaxis, :] - graspset2.translations[np.newaxis, :, :],
+        axis=-1) * 1000  # also scale so that 1 = 1mm
+
+    if print_timings:
+        t2 = timer()
+        print('TIME: computing distances took', t2-t1, 'seconds')
+
+    # see http://boris-belousov.net/2016/12/01/quat-dist/ for explanation of basic formula
+    # basic formula: arccos((tr(R1*R2.T)-1)/2)
+    # we just have to vectorize it to compute pairwise distances
+    distances += np.rad2deg(
+        np.arccos(
+            (
+                np.trace(
+                  np.matmul(
+                      # extend the dimensions to (N, 1, 3, 3) and (1, M, 3, 3) for the pairwise computations
+                      graspset1.rotation_matrices[:, np.newaxis, ...],
+                      np.transpose(graspset2.rotation_matrices, axes=(0, 2, 1))[np.newaxis, ...]
+                  ),
+                  axis1=-2, axis2=-1  # compute trace over last two dims
+                ) - 1.0
+            ) / 2.0
+        )
+    )
+
+    if print_timings:
+        t3 = timer()
+        print('TIME: computing angles took', t3-t2, 'seconds')
+
+    return distances
+
+
+def coverage(query_grasp_set, reference_grasp_set, epsilon=15.0):
+    """
+    computes coverage, i.e. fraction of grasps from the reference grasp set which are covered by a grasp of query set
+    corresponds to coverage_1 from Eppner et al., 2019
+    :param query_grasp_set: the grasp set which shall cover the reference grasp set
+    :param reference_grasp_set: the grasp set to be covered
+    :param epsilon: the tolerance threshold used in the distance function - a grasp from the reference set will be
+                    considered as covered, if its distance to the closest query grasp is smaller than epsilon
+    :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered
+            by grasps from the query grasp set
+    """
+    cov = np.any(pairwise_distances(reference_grasp_set, query_grasp_set) <= epsilon, axis=1)
+    return np.count_nonzero(cov) / len(cov)
