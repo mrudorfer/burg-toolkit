@@ -335,9 +335,9 @@ def coverage_brute_force(reference_grasp_set, query_grasp_set, epsilon=15.0):
     :param reference_grasp_set: the grasp set to be covered
     :param query_grasp_set: the grasp set which shall cover the reference grasp set
     :param epsilon: the tolerance threshold used in the distance function - a grasp from the reference set will be
-                    considered as covered, if its distance to the closest query grasp does not exceed epsilon
+    considered as covered, if its distance to the closest query grasp does not exceed epsilon
     :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered
-            by grasps from the query grasp set
+    by grasps from the query grasp set
     """
     cov = np.any(pairwise_distances(reference_grasp_set, query_grasp_set) <= epsilon, axis=1)
     return np.count_nonzero(cov) / len(cov)
@@ -351,10 +351,10 @@ def coverage(reference_grasp_set: GraspSet, query_grasp_set: GraspSet, epsilon=1
     :param reference_grasp_set: the grasp set to be covered
     :param query_grasp_set: the grasp set which shall cover the reference grasp set
     :param epsilon: the tolerance threshold used in the distance function - a grasp from the reference set will be
-                    considered as covered, if its distance to the closest query grasp does not exceed epsilon
+    considered as covered, if its distance to the closest query grasp does not exceed epsilon
     :param print_timings: does print timing information if set to True
     :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered
-            by grasps from the query grasp set
+    by grasps from the query grasp set
     """
     # so we have to consider that both grasp sets can be very large, computing a brute-force distance matrix
     # can quickly exceed the available RAM

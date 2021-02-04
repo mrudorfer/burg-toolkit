@@ -52,3 +52,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# adding some directories for the sphinx documentation
+# not sure if _static and _templates might actually be needed some day, for now they're just empty directories
+docs/_build
+docs/_static
+docs/_templates
