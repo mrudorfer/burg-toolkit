@@ -1,4 +1,5 @@
 import os
+from timeit import default_timer as timer
 import numpy as np
 import grasp_data_toolkit as gdt
 
@@ -31,10 +32,25 @@ print('computation of pairwise_distances (15 degree and 3 mm)', dist.shape, dist
 dist = gs[0].distance_to(gs[1])
 print('computation of distance_to (15 degree and 3 mm)', dist.shape, dist)
 
-print('computation of coverage 20/50:', gdt.grasp.coverage(gs[0:20], gs))
+t1 = timer()
+print('computation of coverage 20/50:', gdt.grasp.coverage_brute_force(gs, gs[0:20]))
+print('this took:', timer() - t1, 'seconds')
+
+t1 = timer()
+print('coverage kd-tree:', gdt.grasp.coverage(gs, gs[0:20], print_timings=True))
+print('this took:', timer() - t1, 'seconds')
 
 grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
 grasp_file = '061_foam_brick/grasps.h5'
-# grasp_set, com = gdt.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
-# dist = gdt.grasp.pairwise_distances(grasp_set, gs)
-#print('dist', dist.shape)
+grasp_set, com = gdt.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
+
+t1 = timer()
+# this is unable to allocate enough memory for len(gs)=500
+#print('computation of coverage 20/50:', gdt.grasp.coverage_brute_force(grasp_set, gs))
+#print('this took:', timer() - t1, 'seconds')
+
+t1 = timer()
+print('coverage kd-tree:', gdt.grasp.coverage(grasp_set, gs, print_timings=True))
+print('in total, this took:', timer() - t1, 'seconds')
+
+
