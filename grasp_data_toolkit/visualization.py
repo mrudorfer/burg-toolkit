@@ -7,7 +7,9 @@ from matplotlib import pyplot as plt
 def _numpy_pc_to_o3d(point_clouds):
     """
     converts a point cloud or list of point clouds from numpy arrays of Nx3 or Nx6 to o3d point clouds
+
     :param point_clouds: single point cloud or list of numpy point clouds Nx3 or Nx6 (points, normals)
+
     :return: list of o3d point clouds
     """
 
@@ -46,6 +48,7 @@ def show_o3d_point_clouds(point_clouds):
     receives a list of point clouds and visualizes them interactively
 
     :param point_clouds: list of point clouds as o3d objects
+
     :return: returns when the user closed the window
     """
     o3d.visualization.draw(point_clouds)
@@ -56,6 +59,7 @@ def show_np_point_clouds(point_clouds):
     receives a list of point clouds and visualizes them interactively
 
     :param point_clouds: list of point clouds as numpy arrays Nx3 (or 6?)
+
     :return: returns when the user closed the window
     """
 
@@ -68,8 +72,10 @@ def show_np_point_clouds(point_clouds):
 def colorize_point_clouds(point_clouds, colormap_name='tab20'):
     """
     gets a list of o3d point clouds and adds unique colors to them
+
     :param point_clouds: list of o3d point clouds
     :param colormap_name: name of the matplotlib colormap to use, defaults to 'tab20'
+
     :return: the same list of o3d point clouds (but they are also adjusted in-place)
     """
 
@@ -88,10 +94,12 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
 def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=True, colorize=True):
     """
     gathers list of o3d point clouds for the given scene
+
     :param scene: the scene
     :param object_library: list of object types
     :param with_bg_objs: if True, list includes point clouds of background objects as well
     :param colorize: if True, each object gets a unique color
+
     :return: list of o3d point clouds
     """
 
@@ -127,7 +135,9 @@ def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=Tr
 def _get_partial_point_cloud_from_view(view: scene.CameraView):
     """
     creates a partial point cloud from the depth image and given intrinsic/extrinsic parameters
+
     :param view: instance of core_types.CameraView
+
     :return: an o3d point cloud
     """
 
@@ -160,9 +170,11 @@ def _get_partial_point_cloud_from_view(view: scene.CameraView):
 def show_full_scene_point_cloud(scene: scene.Scene, object_library, with_bg_objs=True):
     """
     shows the complete (ground truth) point cloud of a scene
+
     :param scene: a core_types.Scene object
     :param object_library: list of core_types.ObjectType objects
     :param with_bg_objs: whether to show background objects as well
+
     :return: returns when viewer is closed by user
     """
     o3d_pcs = _get_object_point_clouds(scene, object_library, with_bg_objs=with_bg_objs)
@@ -174,7 +186,9 @@ def show_full_scene_point_cloud(scene: scene.Scene, object_library, with_bg_objs
 def show_partial_point_cloud(view: scene.CameraView):
     """
     shows the scene point cloud generated from a depth image
+
     :param view: the scene view that is to be shown
+
     :return: returns when user closes the viewer
     """
 
@@ -185,9 +199,11 @@ def show_partial_point_cloud(view: scene.CameraView):
 def show_aligned_scene_point_clouds(scene: scene.Scene, views, object_library):
     """
     shows the full point cloud and overlays the partial point cloud from a view (or a list of views)
+
     :param scene: the scene
     :param views: instance of core_types.CameraView, or list of views
     :param object_library: list of object types
+
     :return: returns when the user closes the viewer
     """
 

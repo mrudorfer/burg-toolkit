@@ -5,18 +5,18 @@ import quaternion
 
 class Grasp:
     """
-    a grasp.
-    for efficiency, all information will be stored in an internal numpy array and can be retrieved via
-    get and set functions
+    Class representing a grasp as the pose in SE(3) in which the gripper attempts to close.
+    For efficiency, all information will be stored in an internal numpy array and can be retrieved via property
+    functions.
+    If necessary, the internal numpy array can also be used, but this has to be done with caution as dimensions might
+    change in the future.
+
+    :param np_array: optional, the internal numpy array which is structured as follows:
+                     [translation(3), rotation_matrix(3x3)[:], score], length = ARRAY_LEN
     """
     ARRAY_LEN = 13
 
     def __init__(self, np_array=None):
-        """
-        initialises a grasp
-        :param np_array: the internal numpy array, which is structured as follows:
-            [translation(3), rotation_matrix(3x3), score], i.e. length = 13
-        """
         if np_array is None:
             np_array = np.zeros(self.ARRAY_LEN)
 
@@ -101,9 +101,13 @@ class Grasp:
 
     def distance_to(self, other_grasp):
         """
-        computes the distance of this grasp to the other_grasp according to Eppner et al., 2019
-        translation and rotation terms are weighted so that a distance of 1 equals to either 1 mm or 1 degree
+        Computes the distance of this grasp to the other_grasp according to Eppner et al., 2019.
+
+        Translation and rotation terms are weighted so that a distance of 1 equals to either 1 mm translational or
+        1 degree rotational distance.
+
         :param other_grasp: the other grasp of type Grasp
+
         :return: the distance between this grasp and the other grasp as float value
         """
         # compute using module function
@@ -115,14 +119,12 @@ class Grasp:
 
 class GraspSet:
     """
-    this is a collection that holds a number of grasps
+    A GraspSet is a collection of [0 ... N] grasps.
+
+    :param np_array: optional, the internal numpy array, which is of shape (n, Grasp.ARRAY_LEN) and each row is a Grasp
     """
 
     def __init__(self, np_array=None):
-        """
-        initialises a grasp set
-        :param np_array: the internal numpy array, which is of shape (n, Grasp.ARRAY_LEN) and each row is a Grasp
-        """
         if np_array is None:
             np_array = np.zeros((0, Grasp.ARRAY_LEN), dtype=np.float32)
 
@@ -134,7 +136,9 @@ class GraspSet:
     def from_translations_and_quaternions(cls, poses):
         """
         creates a grasp set from poses specified with translation (3) and quaternion (4)
+
         :param poses: (n, 7) np array with position (0:3) and quaternion (3:7)
+
         :return: grasp set with corresponding poses, all other fields are zero-initialised
         """
         gs = cls(np.zeros((poses.shape[0], Grasp.ARRAY_LEN), dtype=np.float32))
@@ -152,8 +156,11 @@ class GraspSet:
     def from_translations(cls, translations):
         """
         creates a grasp set from translations (x, y, z) only - rotation matrices will be eye(3)
+
         :param translations: (n, 3) np array with position
-        :return: grasp set with corresponding grasping points with default orientation, other fields zero-initialised
+
+        :return: grasp set with corresponding grasping points with default orientation (i.e. np.eye(3) as rotation
+         matrix), other fields are zero-initialised
         """
         np_array = np.zeros((translations.shape[0], Grasp.ARRAY_LEN), dtype=np.float32)
         np_array[:, 0:3] = translations
@@ -270,12 +277,14 @@ class GraspSet:
 
 def pairwise_distances(graspset1, graspset2, print_timings=False):
     """
-    computes the pairwisse distances between the provided grasps from set1 and set2
-    this is a vectorized implementation, but should not be used if both sets are extremely large
-    (i.e. it is not suitable for nearest-neighbor search in coverage computation)
+    Computes the pairwisse distances between the provided grasps from set1 and set2.
+
+    This is a vectorized implementation, but should not be used if both sets are extremely large.
+
     :param graspset1: GraspSet of length N (or single Grasp)
     :param graspset2: GraspSet of length M (or single Grasp)
     :param print_timings: whether or not to print the computation time
+
     :return: (N, M) matrix of distances (1 = 1mm or 1deg)
     """
     # convert provided arguments to GraspSets if necessary
@@ -328,16 +337,19 @@ def pairwise_distances(graspset1, graspset2, print_timings=False):
 
 def coverage_brute_force(reference_grasp_set, query_grasp_set, epsilon=15.0):
     """
-    computes coverage, i.e. fraction of grasps from the reference grasp set which are covered by a grasp of query set
-    corresponds to coverage_1 from Eppner et al., 2019
-    this brute force variant computes the full distance matrix and then checks for the threshold. the vectorized
-    implementation is relatively fast but it quickly runs into memory limitations when sets become larger
+    Computes coverage, i.e. fraction of grasps from the reference grasp set which are covered by a grasp of query set
+    corresponds to coverage_1 from Eppner et al., 2019.
+
+    This brute force variant computes the full distance matrix and then checks for the threshold. the vectorized
+    implementation is relatively fast but it quickly runs into memory limitations when sets become larger.
+
     :param reference_grasp_set: the grasp set to be covered
     :param query_grasp_set: the grasp set which shall cover the reference grasp set
     :param epsilon: the tolerance threshold used in the distance function - a grasp from the reference set will be
-    considered as covered, if its distance to the closest query grasp does not exceed epsilon
-    :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered
-    by grasps from the query grasp set
+                    considered as covered, if its distance to the closest query grasp does not exceed epsilon
+
+    :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered by
+             grasps from the query grasp set
     """
     cov = np.any(pairwise_distances(reference_grasp_set, query_grasp_set) <= epsilon, axis=1)
     return np.count_nonzero(cov) / len(cov)
@@ -345,16 +357,19 @@ def coverage_brute_force(reference_grasp_set, query_grasp_set, epsilon=15.0):
 
 def coverage(reference_grasp_set: GraspSet, query_grasp_set: GraspSet, epsilon=15.0, print_timings=False):
     """
-    computes coverage, i.e. fraction of grasps from the reference grasp set which are covered by a grasp of query set
-    corresponds to coverage_1 from Eppner et al., 2019
-    this implementation uses kd-trees and can thus handle larger grasp sets, although it may take some time.
+    Computes coverage, i.e. fraction of grasps from the reference grasp set which are covered by a grasp of query set
+    corresponds to coverage_1 from Eppner et al., 2019.
+
+    This implementation uses kd-trees and can thus handle larger grasp sets, although it may take some time.
+
     :param reference_grasp_set: the grasp set to be covered
     :param query_grasp_set: the grasp set which shall cover the reference grasp set
     :param epsilon: the tolerance threshold used in the distance function - a grasp from the reference set will be
-    considered as covered, if its distance to the closest query grasp does not exceed epsilon
+                    considered as covered, if its distance to the closest query grasp does not exceed epsilon
     :param print_timings: does print timing information if set to True
+
     :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered
-    by grasps from the query grasp set
+             by grasps from the query grasp set
     """
     # so we have to consider that both grasp sets can be very large, computing a brute-force distance matrix
     # can quickly exceed the available RAM

@@ -13,6 +13,7 @@ def get_scene_filenames(directory):
     """finds heap and imagedata files in the given directory
 
     :param directory: directory containing the files
+
     :return: list of dicts with heap_fn and image_data_fn which both include the full path
     """
 
@@ -38,6 +39,7 @@ def read_scene_files(filenames):
     """reads scene data
 
     :param filenames: dict with 'heap_fn' and 'image_data_fn' (which include full path)
+
     :return: core_types.Scene object
     """
     heap_mat = spio.loadmat(filenames['heap_fn'], simplify_cells=True)
@@ -62,6 +64,7 @@ def read_object_library(object_lib_path):
     reads the object info
 
     :param object_lib_path: path of render_data.mat file
+
     :return: list of core_types.ObjectType
     """
 
@@ -76,10 +79,13 @@ def read_object_library(object_lib_path):
 
 def read_grasp_file_eppner2019(grasp_fn):
     """
-    reads grasps from the grasp file of dataset provided with publication of Eppner et al. 2019
-    it should contain densely sampled, successful grasps
+    Reads grasps from the grasp file of dataset provided with publication of Eppner et al. 2019.
+
+    It should contain densely sampled, successful grasps (verified in their simulation).
+
     :param grasp_fn: the filename
-    :return: a core_types.GraspSet, np array with length 3 with object center of mass
+
+    :return: a core_types.GraspSet, and center of mass (as np array with length 3)
     """
 
     hf = h5py.File(grasp_fn, 'r')
