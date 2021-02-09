@@ -94,7 +94,8 @@ def test_antipodal_grasp_sampling():
     grasp_set = gdt.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
         gdt.gripper.ParallelJawGripper(),
-        n=1
+        n=3,
+        visualize=True
     )
     print('grasp_set', grasp_set.internal_array.shape)
 
