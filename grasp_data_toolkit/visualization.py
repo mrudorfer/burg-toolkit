@@ -43,28 +43,34 @@ def _numpy_pc_to_o3d(point_clouds):
         return pc_objs
 
 
-def show_o3d_point_clouds(point_clouds):
+def show_o3d_point_clouds(point_clouds, colorize=True):
     """
     receives a list of point clouds and visualizes them interactively
 
     :param point_clouds: list of point clouds as o3d objects
+    :param colorize: if True, point clouds will be shown in different colors (this is the default)
 
     :return: returns when the user closed the window
     """
+    if colorize:
+        colorize_point_clouds(point_clouds)
     o3d.visualization.draw(point_clouds)
 
 
-def show_np_point_clouds(point_clouds):
+def show_np_point_clouds(point_clouds, colorize=True):
     """
     receives a list of point clouds and visualizes them interactively
 
     :param point_clouds: list of point clouds as numpy arrays Nx3 (or 6?)
+    :param colorize: if True, point clouds will be shown in different colors (this is the default)
 
     :return: returns when the user closed the window
     """
 
     # first convert from numpy to o3d
     pc_objs = _numpy_pc_to_o3d(point_clouds)
+    if colorize:
+        colorize_point_clouds(pc_objs)
 
     show_o3d_point_clouds(pc_objs)
 

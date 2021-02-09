@@ -42,3 +42,16 @@ def convert_mesh_to_point_cloud(mesh_paths, with_normals=False, percentage=1.0, 
         return results[0]
     else:
         return results
+
+
+def collision(mesh, point_cloud) -> bool:
+    """
+    Checks if any points of given point_cloud are inside the mesh.
+
+    :param mesh:
+    :param point_cloud:
+
+    :return: True if there is at least one point in collision with the mesh
+    """
+    print('WARNING: collision() not implemented yet. Defaults to False.')
+    return False
