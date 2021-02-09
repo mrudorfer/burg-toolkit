@@ -4,67 +4,8 @@ import open3d as o3d
 
 from . import grasp
 from . import gripper
+from . import util
 from . import visualization
-
-
-def _rotation_to_align_vectors(vec_a, vec_b):
-    """
-    Computes the rotation matrix to re-orient vec_a to vec_b.
-    The vectors need not be unit vectors.
-
-    :param vec_a: 3d vector
-    :param vec_b: 3d vector
-
-    :return: (3, 3) rotation matrix
-    """
-    # find the vector k = (a+b) and rotate 180° around it, with formula according to
-    # https://math.stackexchange.com/a/2672702
-    k = (vec_a / np.linalg.norm(vec_a) + vec_b / np.linalg.norm(vec_b)).reshape(3, 1)
-
-    while np.linalg.norm(k) == 0:
-        # this means the two vectors are directly opposing each other, as the sum of the vectors is zero
-        # we need to find some arbitrary vector orthogonal to vec_a to rotate around it
-        u = _generate_random_unit_vector()
-        k = np.cross(vec_a, u).reshape(3, 1) * 2
-
-    kt = k.reshape(1, 3)
-    rot_mat = 2 * np.dot(k, kt) / np.dot(kt, k) - np.eye(3)
-    return rot_mat
-
-
-def _generate_random_unit_vector():
-    """
-    Generates a random unit vector.
-
-    :return: 3-elem np array with magnitude 1
-    """
-    vec = np.random.normal(size=3)
-    mag = np.linalg.norm(vec)
-    if mag <= 1e-5:
-        return _generate_random_unit_vector()
-    else:
-        return vec / mag
-
-
-def _angle(vec_a, vec_b, as_degree=True):
-    """
-    Computes the angle(s) between vec_a and vec_b.
-    We use atan(|a x b|/(a*b)) which is said to be more numerically stable for small angles (according to
-    Birdal, Ilic 2015).
-    The vectors don't need to be normalised.
-    Vectors can be broadcasted to match dimensions.
-
-    :param vec_a: (3) or (n, 3) np array
-    :param vec_b: (3) or (n, 3) np array
-    :param as_degree: boolean indicator whether to provide result as degree (else radian, default True)
-
-    :return: (1) or (n, 1) np array  with the angle between the corresponding vectors (with same indices).
-             The values will be in the range [-pi/2, pi/2] or [-90, 90].
-    """
-    angles = np.arctan(np.linalg.norm(np.cross(vec_a, vec_b), axis=-1) / np.sum(vec_a*vec_b, axis=-1))
-    if as_degree:
-        return np.rad2deg(angles)
-    return angles
 
 
 def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripper, n=10, apex_angle=30, seed=42,
@@ -103,7 +44,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
 
         # create cone, align it to point's normal, then translate to correct position
         tf_rot = np.eye(4)
-        tf_rot[0:3, 0:3] = _rotation_to_align_vectors(np.array([0, 0, -1]), -ref_point[3:6])
+        tf_rot[0:3, 0:3] = util.rotation_to_align_vectors(np.array([0, 0, -1]), -ref_point[3:6])
         tf_trans = np.eye(4)
         tf_trans[0:3, 3] = ref_point[0:3]
 
@@ -126,11 +67,11 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         sphere_vis.translate(ref_point[:3])
 
         if len(target_points) == 0:
-            pc = visualization._numpy_pc_to_o3d(point_cloud)
+            pc = util.numpy_pc_to_o3d(point_cloud)
             visualization.show_o3d_point_clouds([pc, cone_vis, sphere_vis])
             continue
         else:
-            [pc, tp] = visualization._numpy_pc_to_o3d([point_cloud, target_points])
+            [pc, tp] = util.numpy_pc_to_o3d([point_cloud, target_points])
             visualization.show_o3d_point_clouds([pc, tp, cone_vis, sphere_vis])
 
         # target_points may or may not include the reference point (behaviour undefined according to trimesh docs)
@@ -138,9 +79,9 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         d = (target_points[:, 0:3] - ref_point[0:3]).reshape(-1, 3)
         distance = np.linalg.norm(d, axis=-1)
 
-        ang_n_ref_d = _angle(ref_point[3:6], d)
-        ang_n_tar_d = _angle(target_points[:, 3:6], d)
-        ang_n_ref_n_tar = _angle(ref_point[3:6], target_points[:, 3:6])
+        ang_n_ref_d = util.angle(ref_point[3:6], d)
+        ang_n_tar_d = util.angle(target_points[:, 3:6], d)
+        ang_n_ref_n_tar = util.angle(ref_point[3:6], target_points[:, 3:6])
 
         # check shapes
         print('point_cloud', point_cloud.shape)

@@ -35,7 +35,7 @@ point_cloud = gdt.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_norm
 
 # add them to object info
 target_obj.point_cloud = point_cloud
-o3d_pc = gdt.visualization._numpy_pc_to_o3d(point_cloud)
+o3d_pc = gdt.util.numpy_pc_to_o3d(point_cloud)
 o3d_pc.translate(-target_obj.displacement)
 
 print('object displacement:', target_obj.displacement[:])

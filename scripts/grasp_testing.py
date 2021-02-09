@@ -104,14 +104,14 @@ def test_antipodal_grasp_sampling():
 def test_rotation_to_align_vectors():
     vec_a = np.array([1, 0, 0])
     vec_b = np.array([0, 1, 0])
-    r = gdt.sampling._rotation_to_align_vectors(vec_a, vec_b)
+    r = gdt.util.rotation_to_align_vectors(vec_a, vec_b)
     print('vec_a', vec_a)
     print('vec_b', vec_b)
     print('R*vec_a', np.dot(r, vec_a.reshape(3, 1)))
 
     vec_a = np.array([1, 0, 0])
     vec_b = np.array([-1, 0, 0])
-    r = gdt.sampling._rotation_to_align_vectors(vec_a, vec_b)
+    r = gdt.util.rotation_to_align_vectors(vec_a, vec_b)
     print('vec_a', vec_a)
     print('vec_b', vec_b)
     print('R*vec_a', np.dot(r, vec_a.reshape(3, 1)))

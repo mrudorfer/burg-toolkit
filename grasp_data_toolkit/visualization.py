@@ -1,46 +1,9 @@
 import open3d as o3d
 import numpy as np
-from . import scene
 from matplotlib import pyplot as plt
 
-
-def _numpy_pc_to_o3d(point_clouds):
-    """
-    converts a point cloud or list of point clouds from numpy arrays of Nx3 or Nx6 to o3d point clouds
-
-    :param point_clouds: single point cloud or list of numpy point clouds Nx3 or Nx6 (points, normals)
-
-    :return: list of o3d point clouds
-    """
-
-    single = False
-    if not type(point_clouds) is list:
-        point_clouds = [point_clouds]
-        single = True
-
-    pc_objs = []
-    for pc in point_clouds:
-        cloud = o3d.geometry.PointCloud()
-
-        # check if point cloud has normals
-        if len(pc.shape) != 2:
-            print('ERROR: input point cloud has strange number of dimensions:', pc.shape)
-            return
-
-        if pc.shape[1] == 3:
-            cloud.points = o3d.utility.Vector3dVector(pc)
-        elif pc.shape[1] == 6:
-            cloud.points = o3d.utility.Vector3dVector(pc[:, 0:3])
-            cloud.normals = o3d.utility.Vector3dVector(pc[:, 3:6])
-        else:
-            print('ERROR: input point cloud has strange shape:', pc.shape)
-            return
-        pc_objs.append(cloud)
-
-    if single:
-        return pc_objs[0]
-    else:
-        return pc_objs
+from . import scene
+from . import util
 
 
 def show_o3d_point_clouds(point_clouds, colorize=True):
@@ -68,7 +31,7 @@ def show_np_point_clouds(point_clouds, colorize=True):
     """
 
     # first convert from numpy to o3d
-    pc_objs = _numpy_pc_to_o3d(point_clouds)
+    pc_objs = util.numpy_pc_to_o3d(point_clouds)
     if colorize:
         colorize_point_clouds(pc_objs)
 
@@ -113,7 +76,7 @@ def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=Tr
     for obj in scene.objects:
         # stored indices are 1..14 instead of 0..13 because of MATLAB, so subtract one
         obj_type = object_library[obj.library_index - 1]
-        o3d_pc = _numpy_pc_to_o3d(obj_type.point_cloud)
+        o3d_pc = util.numpy_pc_to_o3d(obj_type.point_cloud)
 
         # transform point cloud to correct pose
         # apply displacement (meshes were being centered in MATLAB)
@@ -128,7 +91,7 @@ def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=Tr
     if with_bg_objs:
         for bg_obj in scene.bg_objects:
             # convert point cloud, apply tf and append
-            o3d_pc = _numpy_pc_to_o3d(bg_obj.point_cloud)
+            o3d_pc = util.numpy_pc_to_o3d(bg_obj.point_cloud)
             o3d_pc.transform(bg_obj.pose)
             o3d_pcs.append(o3d_pc)
 
