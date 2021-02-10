@@ -133,7 +133,6 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         #   - gripper x axis aligned to circle normal
         gripper_z = p_c - circle_points
         gripper_z = gripper_z / np.linalg.norm(gripper_z, axis=-1).reshape(-1, 1)
-        # todo: check if gripper_z is actually correct
 
         gripper_x = circle_normal
         gripper_y = np.cross(gripper_z, gripper_x)
@@ -149,13 +148,10 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
 
         tf_trans = np.zeros((circle_discretisation_steps, 4, 4))
         tf_trans[:] = np.eye(4)
-        tf_trans[:, 3, :3] = circle_points
+        tf_trans[:, :3, 3] = circle_points
 
         # let's see what matmul gives
         tfs = np.matmul(tf_trans, tf_rot)
-        print('tf_rot', tf_rot.shape)
-        print('tf_trans', tf_trans.shape)
-        print('tfs', tfs.shape)
 
         # the tfs are our grasp poses
         # todo; we would need to do collision checks now (i think we don't need empty-volume check, because this should
@@ -177,8 +173,13 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
             sphere_vis = o3d.geometry.TriangleMesh.create_sphere(radius=0.005)
             sphere_vis.translate(ref_point[:3])
 
-            gripper_vis = o3d.geometry.TriangleMesh(gripper_model.mesh)
-            gripper_vis.transform(tfs[0])
+            grippers = []
+            for tf in tfs:
+                gripper_vis = o3d.geometry.TriangleMesh(gripper_model.mesh)
+                gripper_vis.transform(tf)
+                grippers.append(gripper_vis)
+
+            frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
 
             pc_list = [point_cloud, cone.vertices, target_points]
             if len(candidate_points) > 0:
@@ -187,7 +188,8 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
                 pc_list.append(circle_points)
 
             o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
-            o3d_obj_list.extend([cone_vis, sphere_vis, gripper_vis])
+            o3d_obj_list.extend([cone_vis, sphere_vis, frame])
+            o3d_obj_list.extend(grippers)
             visualization.show_o3d_point_clouds(o3d_obj_list)
 
         n_sampled += 1  # todo: adjust this to real number of sampled

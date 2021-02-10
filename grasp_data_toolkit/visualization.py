@@ -53,6 +53,12 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
     color_idx = 0
 
     for o3d_pc in point_clouds:
+        if type(o3d_pc) is o3d.geometry.TriangleMesh:
+            if o3d_pc.has_vertex_colors():
+                continue
+        if type(o3d_pc) is o3d.geometry.PointCloud:
+            if o3d_pc.has_colors():
+                continue
         color = np.asarray(colormap(color_idx)[0:3])
         o3d_pc.paint_uniform_color(color)
         color_idx = (color_idx + 1) % colormap.N
