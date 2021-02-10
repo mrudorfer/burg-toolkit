@@ -172,6 +172,19 @@ class GraspSet:
 
         return cls(np_array)
 
+    @classmethod
+    def from_poses(cls, poses):
+        """creates a grasp set from given poses (n, 4, 4)
+
+        :param poses: (n, 4, 4) np array with homogenous transformation matrices
+
+        :return: grasp set with corresponding grasps, other fields are zero-initialised
+        """
+        np_array = np.zeros((poses.shape[0], Grasp.ARRAY_LEN), dtype=np.float32)
+        gs = cls(np_array)
+        gs.poses = poses
+        return gs
+
     def __len__(self):
         return self._gs_array.shape[0]
 
@@ -273,6 +286,17 @@ class GraspSet:
         assert(poses.shape == (len(self), 4, 4)), "provided poses have wrong shape"
         self._gs_array[:, 0:3] = poses[:, 0:3, 3]
         self._gs_array[:, 3:12] = poses[:, 0:3, 0:3].reshape((-1, 9))
+
+    def add(self, grasp_set):
+        """
+        Add the given grasp set to this one. Can also be a single grasp.
+
+        :param grasp_set: Grasp or grasp set.
+
+        :return: Itself.
+        """
+        self._gs_array = np.concatenate([self._gs_array, grasp_set.internal_array])
+        return self
 
 
 def pairwise_distances(graspset1, graspset2, print_timings=False):

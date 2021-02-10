@@ -1,3 +1,7 @@
+import numpy as np
+import open3d as o3d
+
+from . import util
 
 
 class ParallelJawGripper:
@@ -21,7 +25,24 @@ class ParallelJawGripper:
         self._mesh = mesh
 
     def _create_simplified_mesh(self):
-        print('WARNING: simplified mesh not implemented yet. Mesh is', self._mesh)
+        """
+        Creates a simple gripper mesh, consisting of the two fingers and a stem or bridge connecting them.
+
+        :return: Nothing, just sets the created mesh internally.
+        """
+        # boxes spawn with left, front, bottom corner at 0, 0, 0
+        finger1 = o3d.geometry.TriangleMesh.create_box(
+            self.finger_thickness, self.finger_thickness, self.finger_length)
+        finger2 = o3d.geometry.TriangleMesh(finger1)
+        finger1.translate(np.array([-self.finger_thickness - self.opening_width/2, -self.finger_thickness/2, 0]))
+        finger2.translate(np.array([self.opening_width/2, -self.finger_thickness/2, 0]))
+
+        stem = o3d.geometry.TriangleMesh.create_box(
+            self.opening_width + 2*self.finger_thickness, self.finger_thickness, self.finger_thickness)
+        stem.translate(np.array([-self.finger_thickness - self.opening_width/2, -self.finger_thickness/2,
+                                 -self.finger_thickness]))
+
+        self._mesh = util.merge_o3d_triangle_meshes([finger1, finger2, stem])
 
     @property
     def mesh(self):
@@ -35,6 +56,5 @@ class ParallelJawGripper:
 
     @mesh.setter
     def mesh(self, mesh):
-        # todo:
-        #  maybe we should make a deep copy?
+        # maybe we should make a copy?
         self._mesh = mesh

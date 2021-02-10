@@ -9,11 +9,19 @@ from . import visualization
 
 
 def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripper, n=10, apex_angle=30, seed=42,
-                            epsilon=1e-05, visualize=False):
+                            epsilon=0.002, max_sum_of_angles=15, circle_discretisation_steps=12, visualize=False):
     """
     Sampling antipodal grasps from an object point cloud. Sampler looks for points which are opposing each other,
     i.e. have opposing surface normal orientations which are aligned with the vector connecting both points.
 
+    :param circle_discretisation_steps: When a candidate point pair is found, grasps will be created on a circle
+                                        in the middle between both points, around the connecting vector as circle
+                                        centre. This parameter defines the number of grasps which will be equidistantly
+                                        distributed on the circle's circumference.
+    :param max_sum_of_angles: point pairs will be discarded whose sum of absolute PPF-angles is larger than this.
+                              this parameter effectively puts a limit to the apex_angle, we might as well merge those
+                              two to one parameter. there is only a difference when max_sum_of_angles would be larger
+                              than apex_angle, but I am not sure if this would be a reasonable setting
     :param visualize: if True, will show some pictures to visualize the process (default = False)
     :param epsilon: only grasps are considered, whose points are between (epsilon, opening_width - epsilon) apart [m].
     :param apex_angle: opening angle of the cone in degree (full angle from side to side, not just to central axis)
@@ -25,9 +33,10 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
     :return: a GraspSet
     """
     n_sampled = 0
+    gs = grasp.GraspSet()
 
     # determine the cone parameters
-    height = gripper_model.opening_width
+    height = gripper_model.opening_width - epsilon
     radius = height * np.sin(np.deg2rad(apex_angle/2.0))
 
     # randomize the points so we avoid sampling only a specific part of the object (if point cloud is sorted)
@@ -55,26 +64,8 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         # it will probably be faster to construct a kd-tree for the point cloud and get candidates first
         intersector = trimesh.ray.ray_triangle.RayMeshIntersector(cone)
         bools = intersector.contains_points(point_cloud[:, 0:3])  # returns (n,) bool
-        print('bools', bools.shape)
-        print('any true?', np.any(bools))
         target_points = point_cloud[bools]
-        print('target_points', target_points.shape)
-
-        if visualize:
-            cone_vis = o3d.geometry.TriangleMesh.create_cone(radius, height)
-            # cone_vis.translate(np.asarray([0, 0, -height]))
-            cone_vis.transform(tf)
-
-            sphere_vis = o3d.geometry.TriangleMesh.create_sphere(radius=0.005)
-            sphere_vis.translate(ref_point[:3])
-
-            pc_list = [point_cloud, cone.vertices]
-            if len(target_points) > 0:
-                pc_list.append(target_points)
-
-            o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
-            o3d_obj_list.extend([cone_vis, sphere_vis])
-            visualization.show_o3d_point_clouds(o3d_obj_list)
+        print('found target_points (in cone)', target_points.shape)
 
         if len(target_points) == 0:
             continue
@@ -86,26 +77,122 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         d = (target_points[:, 0:3] - ref_point[0:3]).reshape(-1, 3)
         ppfs[:, 0] = np.linalg.norm(d, axis=-1)
 
-        ppfs[:, 1] = util.angle(ref_point[3:6], d)
-        ppfs[:, 2] = util.angle(target_points[:, 3:6], d)
-        ppfs[:, 3] = util.angle(ref_point[3:6], target_points[:, 3:6])
+        # instead of inspecting the individual angles, we think that it is sufficient to use the sum of abs values
+        # because every individual angle is required to be close to zero anyways
+        ppfs[:, 1] = np.abs(util.angle(ref_point[3:6], d))
+        ppfs[:, 2] = np.abs(util.angle(target_points[:, 3:6], d))
+        ppfs[:, 3] = np.abs(util.angle(ref_point[3:6], target_points[:, 3:6]))
+        ppfs[:, 4] = ppfs[:, 0:3].sum(axis=-1)
 
-        # check shapes
-        print('point_cloud:', point_cloud.shape)
-        print('target_points:', target_points.shape)
-        print('ppfs:', ppfs.shape)
-
+        # in my example, there were no points too far or too close, but this may still be reasonable
         print(len(ppfs[ppfs[:, 0] >= gripper_model.opening_width - epsilon]), 'points too far away')
         print(len(ppfs[ppfs[:, 0] <= epsilon]), 'points too close')
 
-        ppfs[:, 4] = ppfs[:, 0:3].sum(axis=-1)
-
         print('min sum of angles:', np.amin(ppfs[:, 4]))
-        print('max sum of angles:', np.amax(ppfs[:, 4]))
+        print('num of points below', max_sum_of_angles, 'degree as sum of angles:',
+              len(ppfs[ppfs[:, 4] <= max_sum_of_angles]))
+
+        # let's do the actual filtering
+        # question being: do i really need a bunch of candidate points, or can i go with the best fit?
+        mask = ((ppfs[:, 4] <= max_sum_of_angles)  # surface normals and connecting vector are all aligned
+                & (ppfs[:, 0] <= gripper_model.opening_width - epsilon)  # target point not too far
+                & (ppfs[:, 0] >= epsilon))  # target point not too close
+
+        candidate_points = target_points[mask]
+        candidate_ppf = ppfs[mask]
+        candidate_d = d[mask]
+
+        print('remaining candidates:', candidate_points.shape)
+
+        best_idx = np.argmin(candidate_ppf[:, 4])
+        # for each candidate point (or only the best one?)
+        # get centre point p_c = p_r + 1/2 * d
+        p_c = ref_point[:3] + 1/2 * candidate_d[best_idx]
+
+        # create circle around p_c, with d/|d| as normal -> actually, this should be the average of the two surface
+        # normals, so we align the finger tips as best as possible with the surfaces
+        # get two vectors v_1, v_2 orthogonal to d (defining the circle plane)
+        # then circle is p_c + r*cos(t)*v_1 + r*sin(t)*v_2, with t in k steps from 0 to 2pi, r defined by finger-length
+        circle_normal = candidate_d[best_idx]  # todo: use the average of the normals instead?
+        circle_normal = circle_normal / np.linalg.norm(circle_normal)
+        v1 = np.zeros(3)
+        while np.linalg.norm(v1) == 0:
+            tmp_vec = util.generate_random_unit_vector()
+            v1 = np.cross(circle_normal, tmp_vec)
+
+        v1 = v1 / np.linalg.norm(v1)
+        v2 = np.cross(circle_normal, v1)
+        v2 = v2 / np.linalg.norm(v2)
+        t = np.arange(0, 2*np.pi, 2*np.pi / circle_discretisation_steps).reshape(-1, 1)
+        r = gripper_model.finger_length  # todo: this actually rather depends on where the gripper origin is
+        circle_points = p_c + r*np.cos(t)*v1.reshape(1, 3) + r*np.sin(t)*v2.reshape(1, 3)
+
+        print('circle_points', circle_points.shape)
+        # circle points are actually already our grasp points, but we still need the orientation:
+        #   - gripper z-axis oriented towards p_c
+        #   - gripper x axis aligned to circle normal
+        gripper_z = p_c - circle_points
+        gripper_z = gripper_z / np.linalg.norm(gripper_z, axis=-1).reshape(-1, 1)
+        # todo: check if gripper_z is actually correct
+
+        gripper_x = circle_normal
+        gripper_y = np.cross(gripper_z, gripper_x)
+        print('gripper_x', gripper_x.shape)  # (3, )
+        print('gripper_y', gripper_y.shape)  # (12, 3)
+        print('gripper_z', gripper_z.shape)  # (12, 3)
+
+        tf_rot = np.zeros((circle_discretisation_steps, 4, 4))
+        tf_rot[:, 3, 3] = 1
+        tf_rot[:, :3, 0] = gripper_x  # should broadcast
+        tf_rot[:, :3, 1] = gripper_y
+        tf_rot[:, :3, 2] = gripper_z
+
+        tf_trans = np.zeros((circle_discretisation_steps, 4, 4))
+        tf_trans[:] = np.eye(4)
+        tf_trans[:, 3, :3] = circle_points
+
+        # let's see what matmul gives
+        tfs = np.matmul(tf_trans, tf_rot)
+        print('tf_rot', tf_rot.shape)
+        print('tf_trans', tf_trans.shape)
+        print('tfs', tfs.shape)
+
+        # the tfs are our grasp poses
+        # todo; we would need to do collision checks now (i think we don't need empty-volume check, because this should
+        # always be satisfied as per definition of the grasps)
+
+        # after that, the only remaining degree of freedom is the standoff, for which there are various strategies:
+        # - we could simply try to align finger tips with the ref/target points (what do we consider as the centre of
+        #   the finger tips? it's a bit hard to say.
+        # - we could move towards the centre of the circle for as long as possible without collision
+
+        # finally, add to the result grasp set
+        # (this might be inefficient, maybe we can initialise something with the number of desired grasps
+        gs.add(grasp.GraspSet.from_poses(tfs))
+
+        if visualize:
+            cone_vis = o3d.geometry.TriangleMesh.create_cone(radius, height)
+            cone_vis.transform(tf)
+
+            sphere_vis = o3d.geometry.TriangleMesh.create_sphere(radius=0.005)
+            sphere_vis.translate(ref_point[:3])
+
+            gripper_vis = o3d.geometry.TriangleMesh(gripper_model.mesh)
+            gripper_vis.transform(tfs[0])
+
+            pc_list = [point_cloud, cone.vertices, target_points]
+            if len(candidate_points) > 0:
+                pc_list.append(candidate_points)
+            if len(circle_points) > 0:
+                pc_list.append(circle_points)
+
+            o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
+            o3d_obj_list.extend([cone_vis, sphere_vis, gripper_vis])
+            visualization.show_o3d_point_clouds(o3d_obj_list)
 
         n_sampled += 1  # todo: adjust this to real number of sampled
         if n_sampled >= n:
             break
 
-    return grasp.GraspSet()
+    return gs
 

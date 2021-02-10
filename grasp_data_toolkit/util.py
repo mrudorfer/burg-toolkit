@@ -99,3 +99,31 @@ def numpy_pc_to_o3d(point_clouds):
         return pc_objs[0]
     else:
         return pc_objs
+
+
+def merge_o3d_triangle_meshes(meshes):
+    """
+    Merges vertices and triangles from different meshes into one mesh.
+
+    :param meshes: a list of meshes (o3d.geometry.TriangleMesh)
+
+    :return: a merged o3d.geometry.TriangleMesh
+    """
+    vertices = np.empty(shape=(0, 3), dtype=np.float64)
+    triangles = np.empty(shape=(0, 3), dtype=np.int)
+    for mesh in meshes:
+        v = np.asarray(mesh.vertices)  # float list (n, 3)
+        t = np.asarray(mesh.triangles)   # int list (n, 3)
+        t += len(vertices)  # triangles reference the vertex index
+        vertices = np.concatenate([vertices, v])
+        triangles = np.concatenate([triangles, t])
+
+    # finally create the merged mesh
+    mesh = o3d.geometry.TriangleMesh(
+        o3d.utility.Vector3dVector(vertices),
+        o3d.utility.Vector3iVector(triangles))
+
+    # some refinement
+    mesh.remove_duplicated_vertices()
+    mesh.remove_duplicated_triangles()
+    return mesh
