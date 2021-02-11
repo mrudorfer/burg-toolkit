@@ -71,11 +71,25 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         # target_points may or may not include the reference point (behaviour undefined according to trimesh docs)
         # so let's make sure to exclude the target_point
         target_points = target_points[(target_points != ref_point).any(axis=1)]
-        print('found target_points (in cone)', target_points.shape)
+        print('found', len(target_points), 'in the cone')
         t2 = timer()
 
         if len(target_points) == 0:
-            print('warning: no target points found.')
+            if visualize:
+                cone_vis = o3d.geometry.TriangleMesh.create_cone(radius, height)
+                cone_vis.transform(tf)
+
+                sphere_vis = o3d.geometry.TriangleMesh.create_sphere(radius=0.005)
+                sphere_vis.translate(ref_point[:3])
+
+                frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+
+                pc_list = [point_cloud, cone.vertices]
+
+                o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
+                o3d_obj_list.extend([cone_vis, sphere_vis, frame])
+                visualization.show_o3d_point_clouds(o3d_obj_list)
+                
             continue
 
         # compute all the required features
@@ -86,20 +100,17 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
 
         # instead of inspecting the individual angles, we think that it is sufficient to use the sum of abs values
         # because every individual angle is required to be close to zero anyways
-        print('angles: ref to d')
         ppfs[:, 1] = np.abs(util.angle(ref_point[3:6], d))
-        print('angles: targets to d')
         ppfs[:, 2] = np.abs(util.angle(target_points[:, 3:6], d))
-        print('angles: ref to targets')
         ppfs[:, 3] = np.abs(util.angle(ref_point[3:6], target_points[:, 3:6]))
         ppfs[:, 4] = ppfs[:, 0:3].sum(axis=-1)
 
         # in my example, there were no points too far or too close, but this may still be reasonable
-        print(len(ppfs[ppfs[:, 0] >= gripper_model.opening_width - epsilon]), 'points too far away')
-        print(len(ppfs[ppfs[:, 0] <= epsilon]), 'points too close')
+        print('*', len(ppfs[ppfs[:, 0] >= gripper_model.opening_width - epsilon]), 'points too far away')
+        print('*', len(ppfs[ppfs[:, 0] <= epsilon]), 'points too close')
 
-        print('min sum of angles:', np.amin(ppfs[:, 4]))
-        print('num of points below', max_sum_of_angles, 'degree as sum of angles:',
+        print('*', 'min sum of angles:', np.amin(ppfs[:, 4]))
+        print('*', 'num of points below', max_sum_of_angles, 'degree as sum of angles:',
               len(ppfs[ppfs[:, 4] <= max_sum_of_angles]))
 
         # let's do the actual filtering
@@ -112,7 +123,9 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         candidate_ppf = ppfs[mask]
         candidate_d = d[mask]
 
-        print('remaining candidates:', candidate_points.shape)
+        print('*', 'remaining candidates:', len(candidate_points))
+        if len(candidate_points) == 0:
+            continue
 
         best_idx = np.argmin(candidate_ppf[:, 4])
         # for each candidate point (or only the best one?)
@@ -137,22 +150,21 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         r = gripper_model.finger_length  # todo: this actually rather depends on where the gripper origin is
         circle_points = p_c + r*np.cos(t)*v1.reshape(1, 3) + r*np.sin(t)*v2.reshape(1, 3)
 
-        print('circle_points', circle_points.shape)
+        print('**', 'circle_points', circle_points.shape)
         # circle points are actually already our grasp points, but we still need the orientation:
-        #   - gripper z-axis oriented towards p_c
-        #   - gripper x axis aligned to circle normal
+        #   - gripper z-axis oriented towards p_c from each circle point
+        #   - gripper x-axis is the circle normal
+        #   - y correspondingly, sign of direction should not matter since most grippers are symmetric
         gripper_z = p_c - circle_points
         gripper_z = gripper_z / np.linalg.norm(gripper_z, axis=-1).reshape(-1, 1)
 
         gripper_x = circle_normal
         gripper_y = np.cross(gripper_z, gripper_x)
-        print('gripper_x', gripper_x.shape)  # (3, )
-        print('gripper_y', gripper_y.shape)  # (12, 3)
-        print('gripper_z', gripper_z.shape)  # (12, 3)
 
+        # having the axes, we can build the rotation matrices, the translations and compute the final tfs
         tf_rot = np.zeros((circle_discretisation_steps, 4, 4))
         tf_rot[:, 3, 3] = 1
-        tf_rot[:, :3, 0] = gripper_x  # should broadcast
+        tf_rot[:, :3, 0] = gripper_x  # should broadcast (gripper_x is shape (3,))
         tf_rot[:, :3, 1] = gripper_y
         tf_rot[:, :3, 2] = gripper_z
 
@@ -160,7 +172,6 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         tf_trans[:] = np.eye(4)
         tf_trans[:, :3, 3] = circle_points
 
-        # let's see what matmul gives
         tfs = np.matmul(tf_trans, tf_rot)
 
         t3 = timer()

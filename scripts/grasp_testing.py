@@ -73,7 +73,7 @@ def test_antipodal_grasp_sampling():
     # find the foamBrick
     target_obj = []
     for obj in object_library:
-        if obj.name == 'foamBrick':
+        if obj.name == 'bowl':
             target_obj = obj
             print('using', target_obj.name, 'object')
             break
@@ -94,8 +94,9 @@ def test_antipodal_grasp_sampling():
     grasp_set = gdt.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
         gdt.gripper.ParallelJawGripper(),
-        n=10,
-        visualize=False
+        n=5,
+        max_sum_of_angles=50,
+        visualize=True
     )
     print('grasp_set', grasp_set.internal_array.shape)
 
