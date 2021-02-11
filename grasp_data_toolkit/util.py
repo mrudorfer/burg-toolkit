@@ -1,5 +1,6 @@
 import numpy as np
 import open3d as o3d
+import trimesh
 
 
 def rotation_to_align_vectors(vec_a, vec_b):
@@ -57,6 +58,18 @@ def angle(vec_a, vec_b, as_degree=True):
              The values will be in the range [-pi/2, pi/2] or [-90, 90].
     """
     angles = np.arctan(np.linalg.norm(np.cross(vec_a, vec_b), axis=-1) / np.sum(vec_a*vec_b, axis=-1))
+    if np.isnan(angles).any():
+        print('warning: encountered nan value, printing corresponding vectors:')
+        index = np.argwhere(np.isnan(angles))
+        if len(vec_a) == len(angles):
+            print('vec_a:', vec_a[index])
+        else:
+            print('vec_a:', vec_a)
+        if len(vec_b) == len(angles):
+            print('vec_b:', vec_b[index])
+        else:
+            print('vec_b:', vec_b)
+
     if as_degree:
         return np.rad2deg(angles)
     return angles
@@ -127,3 +140,30 @@ def merge_o3d_triangle_meshes(meshes):
     mesh.remove_duplicated_vertices()
     mesh.remove_duplicated_triangles()
     return mesh
+
+
+def mesh_contains_points(mesh, points):
+    """
+    Computes the points contained within the specified mesh using trimesh's ray/triangle methods.
+    Note that it gives undefined behaviour if a point lies on a triangle.
+
+    :param mesh: A mesh, either as open3d.geometry.TriangleMesh or trimesh.Trimesh
+    :param points: A numpy array with shape of (n, k>=3), of which first three columns are used as (x, y, z).
+
+    :return: A numpy array of contained points (m, k).
+    """
+    _mesh = []
+    if type(mesh) is o3d.geometry.TriangleMesh:
+        # convert to trimesh
+        _mesh = trimesh.Trimesh(vertices=np.asarray(mesh.vertices), faces=np.asarray(mesh.triangles))
+    elif type(mesh) is trimesh.Trimesh:
+        _mesh = mesh
+    else:
+        raise ValueError('Unexpected type of mesh.')
+
+    # this is reasonably quick, as it first checks the bounding box to narrow down the number of points
+    # however, could still take some time if done repeatedly for large meshes and point clouds
+    intersector = trimesh.ray.ray_triangle.RayMeshIntersector(_mesh)
+    bools = intersector.contains_points(points[:, 0:3])  # returns (n,) bool
+
+    return points[bools]
