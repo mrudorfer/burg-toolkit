@@ -73,10 +73,10 @@ def test_antipodal_grasp_sampling():
     # find the foamBrick
     target_obj = []
     for obj in object_library:
-        if obj.name == 'bowl':
+        print(obj.name)
+        if obj.name == 'pear':
             target_obj = obj
             print('using', target_obj.name, 'object')
-            break
 
     # read the mesh as point cloud
     print('reading mesh and converting to point cloud')
@@ -94,9 +94,9 @@ def test_antipodal_grasp_sampling():
     grasp_set = gdt.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
         gdt.gripper.ParallelJawGripper(),
-        n=5,
-        max_sum_of_angles=50,
-        visualize=True
+        n=10,
+        max_sum_of_angles=40,
+        visualize=False
     )
     print('grasp_set', grasp_set.internal_array.shape)
 

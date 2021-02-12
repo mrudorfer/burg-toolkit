@@ -49,6 +49,8 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
     t_find_grasp_poses = 0
     t_check_collisions = 0
 
+    t0 = timer()
+
     for idx in point_indices:
         ref_point = point_cloud[idx]
 
@@ -73,6 +75,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         target_points = target_points[(target_points != ref_point).any(axis=1)]
         print('found', len(target_points), 'in the cone')
         t2 = timer()
+        t_find_target_pts += t2 - t1
 
         if len(target_points) == 0:
             if visualize:
@@ -89,7 +92,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
                 o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
                 o3d_obj_list.extend([cone_vis, sphere_vis, frame])
                 visualization.show_o3d_point_clouds(o3d_obj_list)
-                
+
             continue
 
         # compute all the required features
@@ -175,20 +178,22 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         tfs = np.matmul(tf_trans, tf_rot)
 
         t3 = timer()
+        t_find_grasp_poses += t3 - t2
 
         # the tfs are our grasp poses
-        # todo; we would need to do collision checks now (i think we don't need empty-volume check, because this should
-        # always be satisfied as per definition of the grasps)
+        # we do not need empty-grasped-volume check, since this should be satisfied as per definition of the grasps
+
+        # let's now do the collision checks
+        print('**', 'checking collisions...')
         valid_grasps = np.empty(shape=(len(tfs)), dtype=np.bool)
         for i in range(len(tfs)):
             gripper_mesh = o3d.geometry.TriangleMesh(gripper_model.mesh)
             gripper_mesh.transform(tfs[i])
             valid_grasps[i] = len(util.mesh_contains_points(gripper_mesh, point_cloud)) == 0
 
+        print('**', '...done')
         t4 = timer()
-        t_find_target_pts += t2 - t1
-        t_find_grasp_poses += t3 - t2
-        t_check_collisions += t4 - t2
+        t_check_collisions += t4 - t3
 
         # after that, the only remaining degree of freedom is the standoff, for which there are various strategies:
         # - we could simply try to align finger tips with the ref/target points (what do we consider as the centre of
@@ -214,6 +219,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
                 grippers.append(gripper_vis)
 
             frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+            print('got here5')
 
             pc_list = [point_cloud, cone.vertices, target_points]
             if len(candidate_points) > 0:
@@ -221,10 +227,13 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
             if len(circle_points) > 0:
                 pc_list.append(circle_points)
 
+            print('got here')
             o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
             o3d_obj_list.extend([cone_vis, sphere_vis, frame])
             o3d_obj_list.extend(grippers)
+            print('got here2')
             visualization.show_o3d_point_clouds(o3d_obj_list)
+            print('vis')
 
         n_sampled += 1  # todo: adjust this to real number of sampled (or leave it as n ref points?)
         if n_sampled >= n:
@@ -233,6 +242,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
     print('time to find target points', t_find_target_pts)
     print('time to compute the grasp poses', t_find_grasp_poses)
     print('time to check the collisions', t_check_collisions)
+    print('total time', timer() - t0)
 
     return gs
 
