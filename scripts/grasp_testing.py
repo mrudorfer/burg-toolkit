@@ -74,7 +74,7 @@ def test_antipodal_grasp_sampling():
     target_obj = []
     for obj in object_library:
         print(obj.name)
-        if obj.name == 'mug':
+        if obj.name == 'cheezeIt':
             target_obj = obj
             print('using', target_obj.name, 'object')
 
@@ -94,7 +94,7 @@ def test_antipodal_grasp_sampling():
     grasp_set = gdt.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
         gdt.gripper.ParallelJawGripper(),
-        n=3,
+        n=5,
         max_sum_of_angles=40,
         visualize=True
     )

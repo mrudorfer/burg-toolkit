@@ -73,7 +73,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         # target_points may or may not include the reference point (behaviour undefined according to trimesh docs)
         # so let's make sure to exclude the target_point
         target_points = target_points[(target_points != ref_point).any(axis=1)]
-        print('found', len(target_points), 'in the cone')
+        print('found', len(target_points), 'target points in the cone')
         t2 = timer()
         t_find_target_pts += t2 - t1
 
@@ -133,7 +133,7 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         candidate_ppf = ppfs[mask]
         candidate_d = d[mask]
 
-        print('*', 'remaining candidates:', len(candidate_points))
+        print('*', len(candidate_points), 'candidate points remaining')
         if len(candidate_points) == 0:
             continue
 
@@ -143,10 +143,10 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         p_c = ref_point[:3] + 1/2 * candidate_d[best_idx]
 
         # create circle around p_c, with d/|d| as normal -> actually, this should be the average of the two surface
-        # normals, so we align the finger tips as best as possible with the surfaces
+        # normals, so we align the finger tips as best as possible with the surfaces (reorienting n_r in the process)
         # get two vectors v_1, v_2 orthogonal to d (defining the circle plane)
         # then circle is p_c + r*cos(t)*v_1 + r*sin(t)*v_2, with t in k steps from 0 to 2pi, r defined by finger-length
-        circle_normal = candidate_d[best_idx]  # todo: use the average of the normals instead?
+        circle_normal = (candidate_points[best_idx, 3:6] - ref_point[3:6]) / 2
         circle_normal = circle_normal / np.linalg.norm(circle_normal)
         v1 = np.zeros(3)
         while np.linalg.norm(v1) == 0:
