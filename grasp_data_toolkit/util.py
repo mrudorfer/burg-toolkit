@@ -42,14 +42,17 @@ def generate_random_unit_vector():
         return vec / mag
 
 
-def angle(vec_a, vec_b, as_degree=True):
+def angle(vec_a, vec_b, sign_array=None, as_degree=True):
     """
-    Computes the angle(s) between vec_a and vec_b.
+    Computes the angle(s) between corresponding vectors in vec_a and vec_b.
     We use atan(|a x b|/(a*b)) which is said to be more numerically stable for small angles (according to
     Birdal, Ilic 2015).
     The vectors don't need to be normalised.
-    Vectors can be broadcasted to match dimensions.
+    Vectors can be broadcasted to match dimensions (e.g. if vec_a contains one vector and vec_b contains n vectors).
+    Numpy might issue a runtime warning (division by zero), but resulting angles are ok.
 
+    :param sign_array: A numpy array of same shape as output, it will contain the sign of the dot product and hence
+                       indicate the direction of the angle. May be useful to differentiate between -0 and 0.
     :param vec_a: (3) or (n, 3) np array
     :param vec_b: (3) or (n, 3) np array
     :param as_degree: boolean indicator whether to provide result as degree (else radian, default True)
@@ -57,7 +60,10 @@ def angle(vec_a, vec_b, as_degree=True):
     :return: (1) or (n, 1) np array  with the angle between the corresponding vectors (with same indices).
              The values will be in the range [-pi/2, pi/2] or [-90, 90].
     """
-    angles = np.arctan(np.linalg.norm(np.cross(vec_a, vec_b), axis=-1) / np.sum(vec_a*vec_b, axis=-1))
+    dotp = np.sum(vec_a*vec_b, axis=-1)
+    if sign_array is not None:
+        sign_array[:] = np.sign(dotp)
+    angles = np.arctan(np.linalg.norm(np.cross(vec_a, vec_b), axis=-1) / dotp)
     if np.isnan(angles).any():
         print('warning: encountered nan value, printing corresponding vectors:')
         index = np.argwhere(np.isnan(angles))

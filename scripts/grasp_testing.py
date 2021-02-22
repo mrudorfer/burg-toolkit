@@ -74,7 +74,7 @@ def test_antipodal_grasp_sampling():
     target_obj = []
     for obj in object_library:
         print(obj.name)
-        if obj.name == 'pear':
+        if obj.name == 'mug':
             target_obj = obj
             print('using', target_obj.name, 'object')
 
@@ -94,9 +94,9 @@ def test_antipodal_grasp_sampling():
     grasp_set = gdt.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
         gdt.gripper.ParallelJawGripper(),
-        n=10,
+        n=3,
         max_sum_of_angles=40,
-        visualize=False
+        visualize=True
     )
     print('grasp_set', grasp_set.internal_array.shape)
 
@@ -119,7 +119,18 @@ def test_rotation_to_align_vectors():
     print('R*vec_a', np.dot(r, vec_a.reshape(3, 1)))
 
 
+def test_angles():
+    vec_a = np.array([1, 0, 0])
+    vec_b = np.array([-1, 0, 0])
+    mask = np.array([0])
+
+    a = gdt.util.angle(vec_a, vec_b, sign_array=mask)
+    print(a)
+    print(mask)
+
+
 if __name__ == "__main__":
     # test_distance_and_coverage()
     test_antipodal_grasp_sampling()
     # test_rotation_to_align_vectors()
+    # test_angles()

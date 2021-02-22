@@ -101,16 +101,21 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         d = (target_points[:, 0:3] - ref_point[0:3]).reshape(-1, 3)
         ppfs[:, 0] = np.linalg.norm(d, axis=-1)
 
-        # instead of inspecting the individual angles, we think that it is sufficient to use the sum of abs values
-        # because every individual angle is required to be close to zero anyways
-        ppfs[:, 1] = np.abs(util.angle(ref_point[3:6], d))
-        ppfs[:, 2] = np.abs(util.angle(target_points[:, 3:6], d))
-        ppfs[:, 3] = np.abs(util.angle(ref_point[3:6], target_points[:, 3:6]))
-        ppfs[:, 4] = ppfs[:, 0:3].sum(axis=-1)
+        # compute angles (n_r, d), (n_t, d), (n_r, n_t)
+        # also compute sum of absolute values
+        ppfs[:, 1] = util.angle(ref_point[3:6], d)
+        ppfs[:, 2] = util.angle(target_points[:, 3:6], d)
+        signs = np.zeros(len(ppfs))
+        ppfs[:, 3] = util.angle(ref_point[3:6], target_points[:, 3:6], sign_array=signs)
+        ppfs[:, 4] = np.abs(ppfs[:, 0:3]).sum(axis=-1)
+
+        # exclude target points which do not have opposing surface orientations
+        # positive sign means vectors are facing into the same direction and have to be discarded
+        print('*', len(signs[signs >= 0]), 'points are not on opposing surfaces')
 
         # in my example, there were no points too far or too close, but this may still be reasonable
-        print('*', len(ppfs[ppfs[:, 0] >= gripper_model.opening_width - epsilon]), 'points too far away')
-        print('*', len(ppfs[ppfs[:, 0] <= epsilon]), 'points too close')
+        print('*', len(ppfs[ppfs[:, 0] > gripper_model.opening_width - epsilon]), 'points too far away')
+        print('*', len(ppfs[ppfs[:, 0] < epsilon]), 'points too close')
 
         print('*', 'min sum of angles:', np.amin(ppfs[:, 4]))
         print('*', 'num of points below', max_sum_of_angles, 'degree as sum of angles:',
@@ -120,7 +125,9 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         # question being: do i really need a bunch of candidate points, or can i go with the best fit?
         mask = ((ppfs[:, 4] <= max_sum_of_angles)  # surface normals and connecting vector are all aligned
                 & (ppfs[:, 0] <= gripper_model.opening_width - epsilon)  # target point not too far
-                & (ppfs[:, 0] >= epsilon))  # target point not too close
+                & (ppfs[:, 0] >= epsilon)  # target point not too close
+                & (signs < 0)  # the surfaces have opposing normals
+                )
 
         candidate_points = target_points[mask]
         candidate_ppf = ppfs[mask]
@@ -219,7 +226,6 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
                 grippers.append(gripper_vis)
 
             frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
-            print('got here5')
 
             pc_list = [point_cloud, cone.vertices, target_points]
             if len(candidate_points) > 0:
@@ -227,13 +233,10 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
             if len(circle_points) > 0:
                 pc_list.append(circle_points)
 
-            print('got here')
             o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
             o3d_obj_list.extend([cone_vis, sphere_vis, frame])
             o3d_obj_list.extend(grippers)
-            print('got here2')
             visualization.show_o3d_point_clouds(o3d_obj_list)
-            print('vis')
 
         n_sampled += 1  # todo: adjust this to real number of sampled (or leave it as n ref points?)
         if n_sampled >= n:
