@@ -44,8 +44,7 @@ make html
 
 ## plans for the project
 ### todos
-- implement PPF grasp sampler
-- implement baseline grasp sampler
+- improve PPF grasp sampler
 - implement metrics (precision) for comparison with eppner2019
 - implement metrics (force-closure) from fang2020
 - have a script to export (segmented, partial) point clouds

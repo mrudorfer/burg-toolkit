@@ -17,5 +17,5 @@ setuptools.setup(
     author_email='m.rudorfer@bham.ac.uk',
     description='robotic grasping toolkit',
     long_description=long_description,
-    python_requires='>=3.6',
+    python_requires='>=3.6'
 )
