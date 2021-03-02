@@ -2,7 +2,10 @@ import os
 from timeit import default_timer as timer
 import numpy as np
 import configparser
+
 import grasp_data_toolkit as gdt
+
+SAVE_FILE = os.path.join('.', 'sampled_grasps.npy')
 
 
 def test_distance_and_coverage():
@@ -100,6 +103,10 @@ def test_antipodal_grasp_sampling():
     )
     print('grasp_set', grasp_set.internal_array.shape)
 
+    print('saving grasp set to', SAVE_FILE)
+    with open(SAVE_FILE, 'wb') as f:
+        f.save(grasp_set.internal_array)
+
     # gdt.visualization.show_np_point_clouds(target_obj.point_cloud)
 
 
@@ -130,7 +137,9 @@ def test_angles():
 
 
 if __name__ == "__main__":
+    print('hi')
     # test_distance_and_coverage()
     test_antipodal_grasp_sampling()
     # test_rotation_to_align_vectors()
     # test_angles()
+    print('bye')
