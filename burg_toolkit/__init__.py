@@ -1,7 +1,7 @@
 """
-grasp data toolkit
+BURG toolkit
 
-is a collection of modules for robotic grasping from point clouds
+Benchmarking and Understanding Robotic Grasping
 """
 
 from . import scene

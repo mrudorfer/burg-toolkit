@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Grasp Data Toolkit'
+project = 'BURG Toolkit'
 copyright = '2021, Martin Rudorfer'
 author = 'Martin Rudorfer'
 

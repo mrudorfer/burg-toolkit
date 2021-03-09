@@ -3,7 +3,7 @@ import os
 import numpy as np
 import open3d as o3d
 
-import grasp_data_toolkit as gdt
+import burg_toolkit as burg
 
 print('hi')
 
@@ -47,7 +47,7 @@ for key, item in tmp_objects.items():
     grasps = np.asarray(item['grasp_list'])
     grasps[:, [3, 4, 5, 6]] = grasps[:, [6, 3, 4, 5]]
 
-    gs = gdt.grasp.GraspSet.from_translations_and_quaternions(grasps[:, 0:7])
+    gs = burg.grasp.GraspSet.from_translations_and_quaternions(grasps[:, 0:7])
     gs.scores = grasps[:, 7]
 
     grasp_sets[key] = gs
@@ -55,8 +55,8 @@ for key, item in tmp_objects.items():
 # now do the visualization
 print('showing', len(grasp_sets.keys()), 'objects with grasps')
 
-gripper_model = gdt.gripper.ParallelJawGripper(ref_frame=gdt.gripper.RefFrame.TCP,
-                                               finger_length=0.02)  # probably needs some adjustments
+gripper_model = burg.gripper.ParallelJawGripper(ref_frame=burg.gripper.RefFrame.TCP,
+                                                finger_length=0.02)  # probably needs some adjustments
 
 # ground plane
 l, w, h = 0.3, 0.3, 0.001
@@ -79,8 +79,8 @@ for obj, grasp_set in grasp_sets.items():
     # prepare the visualization
     # object
     mesh_fn = os.path.join(shapes_dir, obj + '.obj')
-    point_cloud = gdt.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
-    obj_pc = gdt.util.numpy_pc_to_o3d(point_cloud)
+    point_cloud = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
+    obj_pc = burg.util.numpy_pc_to_o3d(point_cloud)
 
     # gripper poses
     grippers = []
@@ -122,6 +122,6 @@ for obj, grasp_set in grasp_sets.items():
 
     obj_list = [obj_pc, ground_plane, frame]
     obj_list.extend(grippers)
-    gdt.visualization.show_o3d_point_clouds(obj_list)
+    burg.visualization.show_o3d_point_clouds(obj_list)
 
 print('bye')

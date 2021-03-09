@@ -1,7 +1,7 @@
 import configparser
 import os
 import open3d as o3d
-import grasp_data_toolkit as gdt
+import burg_toolkit as burg
 
 print('hi, it''s me, show_grasps.py')
 
@@ -14,7 +14,7 @@ cfg.read(cfg_fn)
 
 # object lib
 print('read object library')
-object_library = gdt.io.read_object_library(cfg['General']['object_lib_fn'])
+object_library = burg.io.read_object_library(cfg['General']['object_lib_fn'])
 print('found', len(object_library), 'objects')
 
 target_obj = []
@@ -31,18 +31,18 @@ mesh_fn = os.path.join(
         target_obj.name +
         cfg['General']['mesh_fn_ext']
 )
-point_cloud = gdt.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
+point_cloud = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
 
 # add them to object info
 target_obj.point_cloud = point_cloud
-o3d_pc = gdt.util.numpy_pc_to_o3d(point_cloud)
+o3d_pc = burg.util.numpy_pc_to_o3d(point_cloud)
 o3d_pc.translate(-target_obj.displacement)
 
 print('object displacement:', target_obj.displacement[:])
 
 grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
 grasp_file = '061_foam_brick/grasps.h5'
-grasp_set, com = gdt.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
+grasp_set, com = burg.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
 
 complete_grasps = o3d.geometry.PointCloud()
 complete_grasps.points = o3d.utility.Vector3dVector(grasp_set.translations)
@@ -61,5 +61,5 @@ print('number of grasps', len(grasp_set))
 #    grasps.points = o3d.utility.Vector3dVector(grasp_data[i:min(grasp_data.shape[0], i+subset_size), 0:3])
 #    grasps_list.append(grasps)
 
-gdt.visualization.colorize_point_clouds(grasps_list)
-gdt.visualization.show_o3d_point_clouds(grasps_list)
+burg.visualization.colorize_point_clouds(grasps_list)
+burg.visualization.show_o3d_point_clouds(grasps_list)

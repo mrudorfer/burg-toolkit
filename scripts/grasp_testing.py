@@ -3,7 +3,7 @@ from timeit import default_timer as timer
 import numpy as np
 import configparser
 
-import grasp_data_toolkit as gdt
+import burg_toolkit as burg
 
 SAVE_FILE = os.path.join('..', 'sampled_grasps.npy')
 
@@ -11,7 +11,7 @@ SAVE_FILE = os.path.join('..', 'sampled_grasps.npy')
 def test_distance_and_coverage():
     # testing the distance function
     initial_translations = np.random.random((50, 3))
-    gs = gdt.grasp.GraspSet.from_translations(initial_translations)
+    gs = burg.grasp.GraspSet.from_translations(initial_translations)
 
     theta = 0 / 180 * np.pi
     rot_mat = np.asarray([[1, 0, 0],
@@ -33,22 +33,22 @@ def test_distance_and_coverage():
     grasp.rotation_matrix = rot_mat
     gs[1] = grasp
 
-    dist = gdt.grasp.pairwise_distances(gs[0], gs[1])
+    dist = burg.grasp.pairwise_distances(gs[0], gs[1])
     print('computation of pairwise_distances (15 degree and 3 mm)', dist.shape, dist)
     dist = gs[0].distance_to(gs[1])
     print('computation of distance_to (15 degree and 3 mm)', dist.shape, dist)
 
     t1 = timer()
-    print('computation of coverage 20/50:', gdt.grasp.coverage_brute_force(gs, gs[0:20]))
+    print('computation of coverage 20/50:', burg.grasp.coverage_brute_force(gs, gs[0:20]))
     print('this took:', timer() - t1, 'seconds')
 
     t1 = timer()
-    print('coverage kd-tree:', gdt.grasp.coverage(gs, gs[0:20], print_timings=True))
+    print('coverage kd-tree:', burg.grasp.coverage(gs, gs[0:20], print_timings=True))
     print('this took:', timer() - t1, 'seconds')
 
     grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
     grasp_file = '061_foam_brick/grasps.h5'
-    grasp_set, com = gdt.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
+    grasp_set, com = burg.io.read_grasp_file_eppner2019(os.path.join(grasp_folder, grasp_file))
 
     t1 = timer()
     # this is unable to allocate enough memory for len(gs)=500
@@ -56,7 +56,7 @@ def test_distance_and_coverage():
     #print('this took:', timer() - t1, 'seconds')
 
     t1 = timer()
-    print('coverage kd-tree:', gdt.grasp.coverage(grasp_set, gs, print_timings=True))
+    print('coverage kd-tree:', burg.grasp.coverage(grasp_set, gs, print_timings=True))
     print('in total, this took:', timer() - t1, 'seconds')
 
 
@@ -71,7 +71,7 @@ def test_antipodal_grasp_sampling():
 
     # object lib
     print('read object library')
-    object_library = gdt.io.read_object_library(cfg['General']['object_lib_fn'])
+    object_library = burg.io.read_object_library(cfg['General']['object_lib_fn'])
     print('found', len(object_library), 'objects')
 
     # find the foamBrick
@@ -89,15 +89,15 @@ def test_antipodal_grasp_sampling():
         target_obj.name +
         cfg['General']['mesh_fn_ext']
     )
-    point_cloud = gdt.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
+    point_cloud = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
 
     # add them to object info
     target_obj.point_cloud = point_cloud
     target_obj.point_cloud[:, 0:3] -= target_obj.displacement
 
-    grasp_set = gdt.sampling.sample_antipodal_grasps(
+    grasp_set = burg.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
-        gdt.gripper.ParallelJawGripper(),
+        burg.gripper.ParallelJawGripper(),
         n=5,
         max_sum_of_angles=30,
         visualize=False
@@ -114,14 +114,14 @@ def test_antipodal_grasp_sampling():
 def test_rotation_to_align_vectors():
     vec_a = np.array([1, 0, 0])
     vec_b = np.array([0, 1, 0])
-    r = gdt.util.rotation_to_align_vectors(vec_a, vec_b)
+    r = burg.util.rotation_to_align_vectors(vec_a, vec_b)
     print('vec_a', vec_a)
     print('vec_b', vec_b)
     print('R*vec_a', np.dot(r, vec_a.reshape(3, 1)))
 
     vec_a = np.array([1, 0, 0])
     vec_b = np.array([-1, 0, 0])
-    r = gdt.util.rotation_to_align_vectors(vec_a, vec_b)
+    r = burg.util.rotation_to_align_vectors(vec_a, vec_b)
     print('vec_a', vec_a)
     print('vec_b', vec_b)
     print('R*vec_a', np.dot(r, vec_a.reshape(3, 1)))
@@ -132,7 +132,7 @@ def test_angles():
     vec_b = np.array([-1, 0, 0])
     mask = np.array([0])
 
-    a = gdt.util.angle(vec_a, vec_b, sign_array=mask)
+    a = burg.util.angle(vec_a, vec_b, sign_array=mask)
     print(a)
     print(mask)
 
