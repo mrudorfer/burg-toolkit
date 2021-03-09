@@ -97,7 +97,7 @@ class Grasp:
         """
         :param score: a float value as the score
         """
-        self._grasp_array[13] = float(score)
+        self._grasp_array[12] = float(score)
 
     def distance_to(self, other_grasp):
         """
@@ -135,7 +135,8 @@ class GraspSet:
     @classmethod
     def from_translations_and_quaternions(cls, poses):
         """
-        creates a grasp set from poses specified with translation (3) and quaternion (4)
+        creates a grasp set from poses specified with translation (3) and quaternion (4).
+        the quaternion needs to be in (w, x, y, z) order.
 
         :param poses: (n, 7) np array with position (0:3) and quaternion (3:7)
 
@@ -286,6 +287,21 @@ class GraspSet:
         assert(poses.shape == (len(self), 4, 4)), "provided poses have wrong shape"
         self._gs_array[:, 0:3] = poses[:, 0:3, 3]
         self._gs_array[:, 3:12] = poses[:, 0:3, 0:3].reshape((-1, 9))
+
+    @property
+    def scores(self):
+        """
+        :return: (n,) np array with scores as float - as of yet there is no definition of what score means
+        """
+        return self._gs_array[:, 12]
+
+    @scores.setter
+    def scores(self, scores):
+        """
+        :param scores: (n,) np array with scores
+        """
+        assert(len(scores) == len(self)), "provided scores have wrong array length"
+        self._gs_array[:, 12] = scores[:]
 
     def add(self, grasp_set):
         """
