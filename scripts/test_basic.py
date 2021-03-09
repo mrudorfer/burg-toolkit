@@ -1,12 +1,18 @@
-import configparser
 import os
+
+import argparse
+import configparser
 import grasp_data_toolkit as gdt
+
+parser = argparse.ArgumentParser(description='test_basic of robotic grasping toolkit')
+parser.add_argument('-c', '--config_fn', default='../config/config.cfg', type=str, metavar='FILE',
+                    help='path to config file')
 
 print('hi, it''s me, test_basic.py')
 
 # read config file
-cfg_fn = '../config/config.cfg'
-print('using config file in:', cfg_fn)
+cfg_fn = parser.parse_args().config_fn
+print('using config file in:', os.path.abspath(cfg_fn))
 
 cfg = configparser.ConfigParser()
 cfg.read(cfg_fn)
