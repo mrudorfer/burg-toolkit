@@ -5,7 +5,7 @@ import configparser
 
 import grasp_data_toolkit as gdt
 
-SAVE_FILE = os.path.join('.', 'sampled_grasps.npy')
+SAVE_FILE = os.path.join('..', 'sampled_grasps.npy')
 
 
 def test_distance_and_coverage():
@@ -63,6 +63,7 @@ def test_distance_and_coverage():
 def test_antipodal_grasp_sampling():
     # read config file
     cfg_fn = '../config/config.cfg'
+    cfg_fn = os.path.abspath(cfg_fn)
     print('using config file in:', cfg_fn)
 
     cfg = configparser.ConfigParser()
@@ -98,14 +99,14 @@ def test_antipodal_grasp_sampling():
         target_obj.point_cloud,
         gdt.gripper.ParallelJawGripper(),
         n=5,
-        max_sum_of_angles=40,
-        visualize=True
+        max_sum_of_angles=30,
+        visualize=False
     )
     print('grasp_set', grasp_set.internal_array.shape)
 
     print('saving grasp set to', SAVE_FILE)
     with open(SAVE_FILE, 'wb') as f:
-        f.save(grasp_set.internal_array)
+        np.save(f, grasp_set.internal_array)
 
     # gdt.visualization.show_np_point_clouds(target_obj.point_cloud)
 
