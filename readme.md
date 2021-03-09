@@ -14,15 +14,24 @@ The project contains the following directories:
 - **scripts** - entry points, scripts for exploring the data, compiling datasets, evaluation
 - **config** - configuration files, specifying e.g. important paths, which meshes to use, scale factors, etc.
 
-## installation
+## first steps
 
-In the future we might provide a `setup.py` file. For now, install dependencies by running:
+### installation
 
-``
-pip install -r requirements.txt
-``
+Recommended way is to install in a virtual environment.
+Go inside project main directory (where the `setup.py` resides) and execute:
 
-and use the package like this:
+```
+python3 -m venv venv  # creates virtual environment in folder venv
+source venv/bin/activate  # linux
+.\env\Scripts\Activate.ps1  # windows powershell
+pip install -e .  # installs grasp_data_toolkit in editable mode
+```
+This will also install all required dependencies. Currently the dependencies are relatively messy because I used PyCharms feature to identify dependencies automatically and it lists everything, not just the "main" packages.
+
+### usage
+
+Example:
 
 ```
 import numpy as np
@@ -33,14 +42,19 @@ gs2 = gdt.grasp.GraspSet.from_translations(np.random.random(30, 3))
 print('grasp coverage is:', gdt.grasp.coverage(gs1, gs2))
 ```
 
-see the scripts for more examples on usage and the docs for more detailed specifications.
+See the scripts for more examples on usage and the docs for more detailed specifications.
 
-you should be able to build the documentation on the command line via:
+### documentation
+
+You should be able to build the documentation on the command line (with virtual environment activated) via:
 
 ```
+sphinx-apidoc -f -o docs grasp_data_toolkit
 cd docs/
 make html
 ```
+
+The docs should then be in `docs/_build/html`folder.
 
 ## plans for the project
 ### todos
@@ -50,6 +64,9 @@ make html
 - have a script to export (segmented, partial) point clouds
 
 ### longer-term todos:
+- strategy plan:
+	- how to structure the modules when some functionalities are directly related to certain datasets or pipelines?
+	- ideally, we have io for each of the datasets and can store them in some unifying format so that all processing can be done in the same way, but I assume this will be quite hard
 - move all point clouds to o3d
     - in object_library we could already keep the o3d point clouds, which should save some processing
     - we could also save the point clouds to files, which saves some waiting time during each run
@@ -63,6 +80,7 @@ make html
     - point densities are not uniform, instead it is relative to the size of the object
     - i think uniform density would be better, but we can skip some part of the table
     - o3d has a voxel-based down-sample method - maybe that could be an approach?
+    - also, the sampling is currently the only reason why we have meshlab dependency, should get rid of that.
 
 
 ## References
