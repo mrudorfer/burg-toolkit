@@ -17,7 +17,6 @@ attrs~=20.3.0
 ipython~=7.16.1
 parso~=0.8.1
 jedi~=0.18.0
-pywin32~=300
 setuptools~=28.8.0
 mpmath~=1.1.0
 sympy~=1.7.1
