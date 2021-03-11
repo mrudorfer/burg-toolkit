@@ -22,15 +22,19 @@ Recommended way is to install in a virtual environment.
 Go inside project main directory (where the `setup.py` resides) and execute:
 
 ```
-python3 -m venv venv  # creates virtual environment in folder venv
+# create virtual environment
+python3 -m venv venv
 source venv/bin/activate  # linux
-.\env\Scripts\Activate.ps1  # windows powershell
-pip install -e .  # installs burg_toolkit in editable mode
-```
-This will also install all required dependencies. 
+.\venv\Scripts\Activate.ps1  # windows powershell
 
-Note that for me a pycollada package is making trouble and an error message is printed, 
-but it gets resolved later in the process and all is fine. Open an issue if you experience any problems.
+# might want to upgrade pip and packages required for setup
+python -m pip install --upgrade pip
+pip install --upgrade setuptools wheel
+
+# install burg_toolkit in editable mode
+pip install -e .
+```
+This will also install all required dependencies. If you experience any problems, please open an issue.
 
 ### usage
 
