@@ -27,7 +27,10 @@ source venv/bin/activate  # linux
 .\env\Scripts\Activate.ps1  # windows powershell
 pip install -e .  # installs burg_toolkit in editable mode
 ```
-This will also install all required dependencies. Currently the dependencies are relatively messy because I used PyCharms feature to identify dependencies automatically and it lists everything, not just the "main" packages.
+This will also install all required dependencies. 
+
+Note that for me a pycollada package is making trouble and an error message is printed, 
+but it gets resolved later in the process and all is fine. Open an issue if you experience any problems.
 
 ### usage
 
@@ -59,28 +62,30 @@ The docs should then be in `docs/_build/html`folder.
 ## plans for the project
 ### todos
 - improve PPF grasp sampler
-- implement metrics (precision) for comparison with eppner2019
-- implement metrics (force-closure) from fang2020
-- have a script to export (segmented, partial) point clouds
+- implement precision metrics e.g. for comparison with eppner2019
+- implement analytic success metrics (force-closure) from fang2020
 
 ### longer-term todos:
 - strategy plan:
 	- how to structure the modules when some functionalities are directly related to certain datasets or pipelines?
 	- ideally, we have io for each of the datasets and can store them in some unifying format so that all processing can be done in the same way, but I assume this will be quite hard
+- integrate pybullet for simulation-based grasp assessment
+- eliminate pymeshlab dependency / poisson disk sampling:
+    - point densities are not uniform, instead it is relative to the size of the object
+    - i think uniform density would be better, but we can skip some part of the table
+    - o3d has a voxel-based down-sample method - maybe that could be an approach?
+    - also, the sampling is currently the only reason why we have meshlab dependency, should get rid of that.
+- make repo public and use ReadTheDocs (once it is a bit more useful)
 - move all point clouds to o3d
     - in object_library we could already keep the o3d point clouds, which should save some processing
     - we could also save the point clouds to files, which saves some waiting time during each run
     - however, they're more flexible as numpy array and if we need to include trimesh we would have a hazzle to
       switch from the different o3d/trimesh object instances
+- once newer version of o3d comes with collision detection, get rid of trimesh dependency
 - restructure object library
     - currently, objects have Type and Instance classes, but background obejcts are treated differently, which
       is somewhat inconvenient
     - also, object library index is based on the order of the objects in the array, which is not ideal
-- poisson disk sampling:
-    - point densities are not uniform, instead it is relative to the size of the object
-    - i think uniform density would be better, but we can skip some part of the table
-    - o3d has a voxel-based down-sample method - maybe that could be an approach?
-    - also, the sampling is currently the only reason why we have meshlab dependency, should get rid of that.
 
 
 ## References
