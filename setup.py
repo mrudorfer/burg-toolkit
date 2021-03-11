@@ -2,6 +2,8 @@ import setuptools
 
 with open("readme.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
+    
+python_versions = '>=3.6, <3.9'  # restricted by availability of open3d 0.12.0
 
 requirements_default = [
     'numpy',       # for all datastructures
@@ -28,14 +30,13 @@ reqs_all = list(set(requirements_default + requirements_docs))
 setuptools.setup(
     name='BURG-toolkit',
     version='0.1',
-    packages=setuptools.find_packages(),
-    setup_requires=['setuptools', 'wheel'],
+    python_requires=python_versions,
     install_requires=reqs_all,
+    packages=setuptools.find_packages(),
     url='',
     license='',
     author='Martin Rudorfer',
     author_email='m.rudorfer@bham.ac.uk',
     description='toolkit for benchmarking and understanding robotic grasping',
-    long_description=long_description,
-    python_requires='>=3.6'
+    long_description=long_description
 )
