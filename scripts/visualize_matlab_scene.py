@@ -4,11 +4,11 @@ import argparse
 import configparser
 import burg_toolkit as burg
 
-parser = argparse.ArgumentParser(description='test_basic of robotic grasping toolkit')
+parser = argparse.ArgumentParser(description='visualize a scene generetad with MATLAB scene generator project')
 parser.add_argument('-c', '--config_fn', default='../config/config.cfg', type=str, metavar='FILE',
                     help='path to config file')
 
-print('hi, it''s me, test_basic.py')
+print('hi, it''s me, visualize_matlab_scene.py')
 
 # read config file
 cfg_fn = parser.parse_args().config_fn
