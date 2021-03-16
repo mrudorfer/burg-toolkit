@@ -118,41 +118,6 @@ def _get_scene_geometries(scene: scene.Scene, object_library, with_bg_objs=True,
     return o3d_pcs
 
 
-def _get_partial_point_cloud_from_view(view: scene.CameraView):
-    """
-    creates a partial point cloud from the depth image and given intrinsic/extrinsic parameters
-
-    :param view: instance of core_types.CameraView
-
-    :return: an o3d point cloud
-    """
-
-    # there is some magic happening here, due to a very strange bug:
-    # open3d crashes when I create an o3d image from view.depth_image, but if I just copy its contents to a new
-    # image, it seems to work well. I have no clue what is going on here.
-    test_image = np.zeros(shape=view.depth_image.shape)
-    test_image[:] = view.depth_image[:]
-
-    # o3d can't handle the inf values, so set them to zero
-    test_image[test_image == np.inf] = 0
-
-    # create depth image
-    o3d_depth_image = o3d.geometry.Image(test_image.astype(np.float32))
-
-    # create point cloud from depth
-    pc = o3d.geometry.PointCloud.create_from_depth_image(
-        o3d_depth_image,
-        view.camera.get_o3d_intrinsics(),
-        extrinsic=view.camera.pose,
-        depth_scale=1.0,
-        depth_trunc=1.0,
-        stride=2,
-        project_valid_depth_only=True
-    )
-
-    return pc
-
-
 def show_full_scene_point_cloud(scene: scene.Scene, object_library, with_bg_objs=True):
     """
     shows the complete (ground truth) point cloud of a scene
@@ -167,19 +132,6 @@ def show_full_scene_point_cloud(scene: scene.Scene, object_library, with_bg_objs
 
     # and visualize
     show_o3d_point_clouds(o3d_pcs)
-
-
-def show_partial_point_cloud(view: scene.CameraView):
-    """
-    shows the scene point cloud generated from a depth image
-
-    :param view: the scene view that is to be shown
-
-    :return: returns when user closes the viewer
-    """
-
-    pc = _get_partial_point_cloud_from_view(view)
-    show_o3d_point_clouds(pc)
 
 
 def show_aligned_scene_point_clouds(scene: scene.Scene, views, object_library):
@@ -199,7 +151,6 @@ def show_aligned_scene_point_clouds(scene: scene.Scene, views, object_library):
         views = [views]
 
     for view in views:
-        o3d_pcs.append(_get_partial_point_cloud_from_view(view))
+        o3d_pcs.append(view.to_point_cloud())
 
     show_o3d_point_clouds(o3d_pcs)
-

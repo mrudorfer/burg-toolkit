@@ -171,6 +171,39 @@ class CameraView:
         self.class_label_image = img_data['heapClassLabelImage']
         self.instance_label_image = img_data['heapInstanceLabelImage']
 
+    def to_point_cloud(self, stride=2):
+        """
+        creates a partial point cloud from the depth image considering intrinsic/extrinsic parameters
+
+        :param stride: the stride with which pixels will be converted to points, use 1 for dense conversion (default 2)
+
+        :return: an o3d point cloud
+        """
+        # there is some magic happening here, due to a very strange bug:
+        # open3d crashes when I create an o3d image from view.depth_image, but if I just copy its contents to a new
+        # image, it seems to work well. I have no clue what is going on here.
+        test_image = np.zeros(shape=self.depth_image.shape)
+        test_image[:] = self.depth_image[:]
+
+        # o3d can't handle the inf values, so set them to zero
+        test_image[test_image == np.inf] = 0
+
+        # create depth image
+        o3d_depth_image = o3d.geometry.Image(test_image.astype(np.float32))
+
+        # create point cloud from depth
+        pc = o3d.geometry.PointCloud.create_from_depth_image(
+            o3d_depth_image,
+            self.camera.get_o3d_intrinsics(),
+            extrinsic=self.camera.pose,
+            depth_scale=1.0,
+            depth_trunc=1.0,
+            stride=stride,
+            project_valid_depth_only=True
+        )
+
+        return pc
+
 
 class Scene:
     """
