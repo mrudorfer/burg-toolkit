@@ -15,7 +15,6 @@ requirements_default = [
     'numpy-quaternion',  # numpy integration for quaternions
     'configparser',  # parsing configuration files
     'open3d>=0.12.0',      # point clouds and processing
-    'pymeshlab',     # only used for point cloud sampling currently - will be eliminated at some point
     'trimesh[easy]'  # for collision detections, which might get incorporated in newer version of open3d
 ]
 
