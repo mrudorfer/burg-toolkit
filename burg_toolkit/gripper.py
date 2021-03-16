@@ -5,6 +5,7 @@ import open3d as o3d
 
 from . import util
 
+
 class RefFrame(enum.Enum):
     """
     Provides different modes of defining the gripper reference frame.
@@ -13,6 +14,7 @@ class RefFrame(enum.Enum):
     """
     STEM = 0
     TCP = 1
+
 
 class ParallelJawGripper:
     """
@@ -70,7 +72,7 @@ class ParallelJawGripper:
                                      self.finger_length]))
 
         self._mesh = util.merge_o3d_triangle_meshes([finger1, finger2, stem])
-
+        self._mesh.compute_vertex_normals()
 
     @property
     def mesh(self):
