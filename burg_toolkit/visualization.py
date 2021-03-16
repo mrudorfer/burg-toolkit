@@ -1,9 +1,12 @@
+import copy
+
 import open3d as o3d
 import numpy as np
 from matplotlib import pyplot as plt
 
 from . import scene
 from . import util
+from . import grasp
 
 
 def show_o3d_point_clouds(point_clouds, colorize=True):
@@ -154,3 +157,35 @@ def show_aligned_scene_point_clouds(scene: scene.Scene, views, object_library):
         o3d_pcs.append(view.to_point_cloud())
 
     show_o3d_point_clouds(o3d_pcs)
+
+
+def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper_mesh=None, n=None, score_color_func=None):
+    """
+    visualizes a given grasp set with the specified gripper.
+
+    :param objects: list of objects to show in the scene, must be o3d geometries (mesh, point cloud, etc.)
+    :param gs: the grasp set to visualize
+    :param gripper_mesh: the gripper model to use, if none provided just coordinate frames will be displayed
+    :param n: int number of grasps from set to display, if None, all grasps will be shown
+    :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
+                             if None, some coloring scheme will be used irrespective of score
+    """
+
+    if gripper_mesh is None:
+        gripper_mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+
+    if n is not None:
+        indices = np.random.choice(len(gs), n, replace=False)
+        gs = gs[indices]
+
+    for g in gs:
+        gripper_vis = copy.deepcopy(gripper_mesh)
+        gripper_vis.transform(g.pose)
+
+        if score_color_func is not None:
+            gripper_vis.paint_uniform_color(score_color_func(g.score))
+
+        objects.append(gripper_vis)
+
+    colorize_point_clouds(objects)
+    o3d.visualization.draw(objects)
