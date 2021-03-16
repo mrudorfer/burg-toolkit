@@ -66,9 +66,9 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
     return point_clouds
 
 
-def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=True, colorize=True):
+def _get_scene_geometries(scene: scene.Scene, object_library, with_bg_objs=True, colorize=True):
     """
-    gathers list of o3d point clouds for the given scene
+    gathers list of o3d meshes or point clouds for the given scene
 
     :param scene: the scene
     :param object_library: list of object types
@@ -82,24 +82,35 @@ def _get_object_point_clouds(scene: scene.Scene, object_library, with_bg_objs=Tr
     for obj in scene.objects:
         # stored indices are 1..14 instead of 0..13 because of MATLAB, so subtract one
         obj_type = object_library[obj.library_index - 1]
-        o3d_pc = util.numpy_pc_to_o3d(obj_type.point_cloud)
+
+        if obj_type.mesh is not None:
+            o3d_obj = o3d.geometry.TriangleMesh(obj_type.mesh)
+        elif obj_type.point_cloud is not None:
+            o3d_obj = o3d.geometry.PointCloud(obj_type.point_cloud)
+        else:
+            raise ValueError('no mesh or point cloud available for object in object library')
 
         # transform point cloud to correct pose
         # apply displacement (meshes were being centered in MATLAB)
-        o3d_pc.translate(-obj_type.displacement)
+        o3d_obj.translate(-obj_type.displacement)
 
         # apply transformation according to scene
-        o3d_pc.transform(obj.pose)
+        o3d_obj.transform(obj.pose)
 
-        o3d_pcs.append(o3d_pc)
+        o3d_pcs.append(o3d_obj)
 
     # also add background objects
     if with_bg_objs:
         for bg_obj in scene.bg_objects:
-            # convert point cloud, apply tf and append
-            o3d_pc = util.numpy_pc_to_o3d(bg_obj.point_cloud)
-            o3d_pc.transform(bg_obj.pose)
-            o3d_pcs.append(o3d_pc)
+            if bg_obj.mesh is not None:
+                o3d_obj = o3d.geometry.TriangleMesh(bg_obj.mesh)
+            elif bg_obj.point_cloud is not None:
+                o3d_obj = o3d.geometry.PointCloud(bg_obj.point_cloud)
+            else:
+                raise ValueError('no mesh or point cloud available for bg_object in scene')
+
+            o3d_obj.transform(bg_obj.pose)
+            o3d_pcs.append(o3d_obj)
 
     if colorize:
         colorize_point_clouds(o3d_pcs)
@@ -152,7 +163,7 @@ def show_full_scene_point_cloud(scene: scene.Scene, object_library, with_bg_objs
 
     :return: returns when viewer is closed by user
     """
-    o3d_pcs = _get_object_point_clouds(scene, object_library, with_bg_objs=with_bg_objs)
+    o3d_pcs = _get_scene_geometries(scene, object_library, with_bg_objs=with_bg_objs)
 
     # and visualize
     show_o3d_point_clouds(o3d_pcs)
@@ -182,7 +193,7 @@ def show_aligned_scene_point_clouds(scene: scene.Scene, views, object_library):
     :return: returns when the user closes the viewer
     """
 
-    o3d_pcs = _get_object_point_clouds(scene, object_library, with_bg_objs=True)
+    o3d_pcs = _get_scene_geometries(scene, object_library, with_bg_objs=True)
 
     if not type(views) is list:
         views = [views]

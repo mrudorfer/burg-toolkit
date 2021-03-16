@@ -33,6 +33,8 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
 
     :return: a GraspSet
     """
+    point_cloud = util.o3d_pc_to_numpy(point_cloud)
+
     n_sampled = 0
     gs = grasp.GraspSet()
 

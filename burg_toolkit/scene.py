@@ -12,7 +12,7 @@ class ObjectType:
     :param displacement: additional info about translation displacement of object centre
     """
 
-    def __init__(self, obj_info, displacement=None, point_cloud=None):
+    def __init__(self, obj_info, displacement=None, point_cloud=None, mesh=None):
 
         self.name = obj_info['name']
         self.mass = obj_info['mass']
@@ -22,10 +22,8 @@ class ObjectType:
             displacement = [0, 0, 0]
         self.displacement = np.asarray(displacement)
 
-        if point_cloud is None:
-            self.point_cloud = []
-        else:
-            self.point_cloud = point_cloud
+        self.point_cloud = point_cloud
+        self.mesh = mesh
 
         # this data is also available in the dict, we can add it if needed
         # coefficientOfRestitution
@@ -64,7 +62,8 @@ class BackgroundObject:
     def __init__(self, name="", pose=None):
         self.name = name
         self.pose = pose if pose is not None else np.eye(4)
-        self.point_cloud = np.asarray([])
+        self.point_cloud = None
+        self.mesh = None
 
     @classmethod
     def from_translation_rotation(cls, name, translation, rotation):

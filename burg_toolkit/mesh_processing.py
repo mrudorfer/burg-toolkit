@@ -1,47 +1,62 @@
-import pymeshlab as ml
 import numpy as np
 
 
-def convert_mesh_to_point_cloud(mesh_paths, with_normals=False, percentage=1.0, scale_factor=1.0):
+def check_properties(mesh):
     """
-    for each mesh file in mesh_paths a point cloud will be sampled using poisson disk sampling
+    Utility function to check properties of a mesh. Will be printed to standard output.
 
-    :param mesh_paths: list of paths to mesh files
-    :param with_normals: if true, normals are included, i.e. returns Nx6 instead of Nx3
-    :param percentage: specifies radius for sampling (the larger the fewer points we will get), defaults to 1.0
-    :param scale_factor: each vertex is multiplied with this scale factor, defaults to 1.0
-
-    :return: list of point clouds, length is len(mesh_paths) and each PC is either Nx3 or Nx6
+    :param mesh: open3d.geometry.TriangleMesh
     """
+    has_triangle_normals = mesh.has_triangle_normals()
+    has_vertex_normals = mesh.has_vertex_normals()
+    has_texture = mesh.has_textures()
+    edge_manifold = mesh.is_edge_manifold(allow_boundary_edges=True)
+    edge_manifold_boundary = mesh.is_edge_manifold(allow_boundary_edges=False)
+    vertex_manifold = mesh.is_vertex_manifold()
+    self_intersecting = mesh.is_self_intersecting()
+    watertight = mesh.is_watertight()
+    orientable = mesh.is_orientable()
 
-    single = False
-    if not type(mesh_paths) is list:
-        mesh_paths = [mesh_paths]
-        single = True
+    print(f"  has triangle normals:   {has_triangle_normals}")
+    print(f"  has vertex normals:     {has_vertex_normals}")
+    print(f"  has textures:           {has_texture}")
+    print(f"  edge_manifold:          {edge_manifold}")
+    print(f"  edge_manifold_boundary: {edge_manifold_boundary}")
+    print(f"  vertex_manifold:        {vertex_manifold}")
+    print(f"  self_intersecting:      {self_intersecting}")
+    print(f"  watertight:             {watertight}")
+    print(f"  orientable:             {orientable}")
 
-    results = []
 
-    for mesh_path in mesh_paths:
-        ms = ml.MeshSet()
+def poisson_disk_sampling(mesh, radius=0.003, with_normals=True, init_factor=5):
+    """
+    Performs poisson disk sampling.
+    Ideally, we fit circles with a certain radius on the surface area of the mesh. The center points
+    will then form the point cloud. In practice, we just randomly sample a certain number of points (depending
+    on the surface area of the mesh, the radius and init_factor), then we eliminate points which do not fit well.
 
-        ms.load_new_mesh(mesh_path)
-        ms.apply_filter('matrix_set_from_translation_rotation_scale',
-                        scalex=scale_factor, scaley=scale_factor, scalez=scale_factor)
-        ms.apply_filter('poisson_disk_sampling', radius=ml.Percentage(percentage))
-        mesh = ms.current_mesh()
-        points = mesh.vertex_matrix()
+    :param mesh: open3d.geometry.TriangleMesh
+    :param radius: the smaller the radius, the higher the point density will be
+    :param init_factor: we will initially sample `init_factor` times more points than will be needed, if better
+                        accuracy is desired this can be increased, if performance is important this should be decreased
+    :param with_normals: whether or not the points shall have normals (default is True)
 
-        if with_normals:
-            normals = mesh.vertex_normal_matrix()
-            points_and_normals = np.concatenate((points, normals), axis=1)
-            results.append(points_and_normals)
-        else:
-            results.append(points)
+    :return: open3d.geometry.PointCloud object
+    """
+    # we assume the surface area to be square and use a square packing of circles
+    # the number n_s of circles along the side-length s can then be estimated with
+    s = np.sqrt(mesh.get_surface_area())
+    n_s = (s + 2*radius) / (2*radius)
+    n_points = int(n_s**2)
+    print(f'going for {n_points} points')
 
-    if single:
-        return results[0]
-    else:
-        return results
+    pc = mesh.sample_points_poisson_disk(
+        number_of_points=n_points,
+        init_factor=init_factor,
+        use_triangle_normal=with_normals
+    )
+
+    return pc
 
 
 def collision(mesh, point_cloud) -> bool:

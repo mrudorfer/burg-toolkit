@@ -120,6 +120,38 @@ def numpy_pc_to_o3d(point_clouds):
         return pc_objs
 
 
+def o3d_pc_to_numpy(point_clouds):
+    """
+    converts a point cloud or list of point clouds from o3d point clouds to numpy arrays of Nx3 or Nx6
+
+    :param point_clouds: single point cloud or list of o3d point clouds which may or may not have normals
+
+    :return: list of numpy point clouds with either Nx3 or Nx6 (depends on whether original pc had normals)
+    """
+
+    single = False
+    if not type(point_clouds) is list:
+        point_clouds = [point_clouds]
+        single = True
+
+    pc_objs = []
+    for pc in point_clouds:
+        n = len(pc.points)
+        m = 3 + pc.has_normals()*3
+        np_pc = np.empty((n, m))
+
+        np_pc[:, 0:3] = np.asarray(pc.points)
+        if pc.has_normals():
+            np_pc[:, 3:6] = np.asarray(pc.normals)
+
+        pc_objs.append(np_pc)
+
+    if single:
+        return pc_objs[0]
+    else:
+        return pc_objs
+
+
 def merge_o3d_triangle_meshes(meshes):
     """
     Merges vertices and triangles from different meshes into one mesh.

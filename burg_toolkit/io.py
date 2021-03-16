@@ -3,9 +3,20 @@ import glob
 import mat73
 import scipy.io as spio
 import h5py
+import open3d as o3d
 
 from . import scene
 from . import grasp
+
+
+def load_mesh(mesh_fn, texture_fn=None):
+    mesh = o3d.io.read_triangle_mesh(mesh_fn)
+    if texture_fn is not None:
+        mesh.textures = [o3d.io.read_image(texture_fn)]
+
+    mesh.compute_vertex_normals()
+    mesh.compute_triangle_normals()
+    return mesh
 
 
 # get scene file names

@@ -89,18 +89,16 @@ def test_antipodal_grasp_sampling():
         target_obj.name +
         cfg['General']['mesh_fn_ext']
     )
-    point_cloud = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
-
-    # add them to object info
-    target_obj.point_cloud = point_cloud
-    target_obj.point_cloud[:, 0:3] -= target_obj.displacement
+    mesh = burg.io.load_mesh(mesh_fn)
+    target_obj.point_cloud = burg.mesh_processing.poisson_disk_sampling(mesh)
+    target_obj.point_cloud.translate(-target_obj.displacement)
 
     grasp_set = burg.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
         burg.gripper.ParallelJawGripper(),
         n=5,
         max_sum_of_angles=30,
-        visualize=False
+        visualize=True
     )
     print('grasp_set', grasp_set.internal_array.shape)
 

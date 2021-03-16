@@ -79,8 +79,7 @@ for obj, grasp_set in grasp_sets.items():
     # prepare the visualization
     # object
     mesh_fn = os.path.join(shapes_dir, obj + '.obj')
-    point_cloud = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
-    obj_pc = burg.util.numpy_pc_to_o3d(point_cloud)
+    obj_mesh = burg.io.load_mesh(mesh_fn)
 
     # gripper poses
     grippers = []
@@ -120,7 +119,7 @@ for obj, grasp_set in grasp_sets.items():
 
     frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
 
-    obj_list = [obj_pc, ground_plane, frame]
+    obj_list = [obj_mesh, ground_plane, frame]
     obj_list.extend(grippers)
     burg.visualization.show_o3d_point_clouds(obj_list)
 

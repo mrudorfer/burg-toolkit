@@ -2,6 +2,7 @@ import os
 
 import argparse
 import configparser
+import numpy as np
 import burg_toolkit as burg
 
 parser = argparse.ArgumentParser(description='visualize a scene generetad with MATLAB scene generator project')
@@ -22,7 +23,7 @@ print('read object library')
 object_library = burg.io.read_object_library(cfg['General']['object_lib_fn'])
 print('found', len(object_library), 'objects')
 
-# read the meshes as point clouds
+# read the meshes as point clouds and add them to object info
 print('reading object meshes and converting to point cloud')
 mesh_fns = [
     os.path.join(
@@ -31,11 +32,9 @@ mesh_fns = [
         cfg['General']['mesh_fn_ext']
     ) for obj in object_library
 ]
-point_clouds = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fns, with_normals=True)
 
-# add them to object info
-for obj, pc in zip(object_library, point_clouds):
-    obj.point_cloud = pc
+for obj, mesh_fn in zip(object_library, mesh_fns):
+    obj.mesh = burg.io.load_mesh(mesh_fn)
 
 # read bg_obj point cloud
 print('reading table mesh and converting to point cloud')
@@ -44,7 +43,8 @@ table_path = os.path.join(
     cfg['General']['table_fn']
 )
 table_scale_factor = float(cfg['General']['table_scale_factor'])
-table_pc = burg.mesh_processing.convert_mesh_to_point_cloud(table_path, with_normals=True, scale_factor=table_scale_factor)
+table = burg.io.load_mesh(table_path)
+table.scale(table_scale_factor, np.array([0, 0, 0]))
 
 # get file names of scene data
 file_names = burg.io.get_scene_filenames(cfg['General']['scenes_dir'])
@@ -57,7 +57,7 @@ print('\timages:', os.path.abspath(files['image_data_fn']))
 scene = burg.io.read_scene_files(files)
 print('scene has', len(scene.objects), 'objects and', len(scene.views), 'views')
 
-scene.bg_objects[0].point_cloud = table_pc
+scene.bg_objects[0].mesh = table
 
 # visualize point cloud
 print('visualizing scene point cloud')

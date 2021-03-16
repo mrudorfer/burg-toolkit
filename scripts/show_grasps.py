@@ -31,12 +31,10 @@ mesh_fn = os.path.join(
         target_obj.name +
         cfg['General']['mesh_fn_ext']
 )
-point_cloud = burg.mesh_processing.convert_mesh_to_point_cloud(mesh_fn, with_normals=True)
 
-# add them to object info
-target_obj.point_cloud = point_cloud
-o3d_pc = burg.util.numpy_pc_to_o3d(point_cloud)
-o3d_pc.translate(-target_obj.displacement)
+target_obj.mesh = burg.io.load_mesh(mesh_fn)
+target_obj.mesh.translate(-target_obj.displacement)
+
 
 print('object displacement:', target_obj.displacement[:])
 
@@ -52,7 +50,7 @@ print('com', complete_grasps.get_center())
 
 # divide the complete set of grasps into subsets for better visualization
 # we also already put the object point cloud into the list, so it will be object 0 in visualization
-grasps_list = [o3d_pc, complete_grasps]
+grasps_list = [target_obj.mesh, complete_grasps]
 subset_size = 500000
 print('number of grasps', len(grasp_set))
 #for i in range(0, grasp_data.shape[0], subset_size):
