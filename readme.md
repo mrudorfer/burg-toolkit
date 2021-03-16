@@ -13,6 +13,7 @@ The project contains the following directories:
 - **burg_toolkit** - the core Python library, used for io, mesh and point cloud processing, data visualization, etc.
 - **scripts** - entry points, scripts for exploring the data, compiling datasets, evaluation
 - **config** - configuration files, specifying e.g. important paths, which meshes to use, scale factors, etc.
+- **data** - simple data samples which allow to use the scripts
 
 ## first steps
 
@@ -74,26 +75,17 @@ The docs should then be in `docs/_build/html`folder.
 	- how to structure the modules when some functionalities are directly related to certain datasets or pipelines?
 	- ideally, we have io for each of the datasets and can store them in some unifying format so that all processing can be done in the same way, but I assume this will be quite hard
 - integrate pybullet for simulation-based grasp assessment
-- eliminate pymeshlab dependency / poisson disk sampling:
-    - point densities are not uniform, instead it is relative to the size of the object
-    - i think uniform density would be better, but we can skip some part of the table
-    - o3d has a voxel-based down-sample method - maybe that could be an approach?
-    - also, the sampling is currently the only reason why we have meshlab dependency, should get rid of that.
 - make repo public and use ReadTheDocs (once it is a bit more useful)
-- move all point clouds to o3d
-    - in object_library we could already keep the o3d point clouds, which should save some processing
-    - we could also save the point clouds to files, which saves some waiting time during each run
-    - however, they're more flexible as numpy array and if we need to include trimesh we would have a hazzle to
-      switch from the different o3d/trimesh object instances
 - once newer version of o3d comes with collision detection, get rid of trimesh dependency
 - restructure object library
     - currently, objects have Type and Instance classes, but background obejcts are treated differently, which
       is somewhat inconvenient
     - also, object library index is based on the order of the objects in the array, which is not ideal
+    - object displacement should be added when loading objects
+    - module structure is not ideal (all is in scene.py, bg object has different class structure than object, ...)
 
 
 ## References
 
 - Clemens Eppner, Arsalan Mousavian and Dieter Fox: "A Billion Ways to Grasps - An Evaluation of Grasp Sampling Schemes on a Dense, Physics-based Grasp Data Set", ISRR 2019 - https://sites.google.com/view/abillionwaystograsp
 - Qian-Yi Zhou, Jaesik Park, and Vladlen Koltun: "Open3D: A modern library for 3D data processing", 2018 - http://www.open3d.org/
-- Alessandro Muntoni and Paolo Cignoni: "PyMeshLab", 2021 - https://doi.org/10.5281/zenodo.4438750
