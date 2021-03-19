@@ -109,6 +109,20 @@ def test_antipodal_grasp_sampling():
     # gdt.visualization.show_np_point_clouds(target_obj.point_cloud)
 
 
+def test_new_antipodal_grasp_sampling():
+    gripper_model = burg.gripper.ParallelJawGripper(ref_frame=burg.gripper.RefFrame.TCP,
+                                                    finger_length=0.03,
+                                                    finger_thickness=0.003)
+    mesh_fn = '../data/samples/flathead-screwdriver/flatheadScrewdriverMediumResolution.ply'
+
+    ags = burg.sampling.AntipodalGraspSampler()
+    ags.mesh = burg.io.load_mesh(mesh_fn)
+    ags.gripper = gripper_model
+    ags.verbose = True
+    gs = ags.sample(500)
+    burg.visualization.show_grasp_set([ags.mesh], gs, gripper_mesh=gripper_model.mesh)
+
+
 def test_rotation_to_align_vectors():
     vec_a = np.array([1, 0, 0])
     vec_b = np.array([0, 1, 0])
@@ -135,10 +149,20 @@ def test_angles():
     print(mask)
 
 
+def test_cone_sampling():
+    axis = [0, 1, 0]
+    angle = np.pi/4
+    rays = burg.sampling.rays_within_cone(axis, angle, n=100)
+
+    print(rays.shape)
+
+
 if __name__ == "__main__":
     print('hi')
     # test_distance_and_coverage()
-    test_antipodal_grasp_sampling()
+    # test_antipodal_grasp_sampling()
     # test_rotation_to_align_vectors()
     # test_angles()
+    # test_cone_sampling()
+    test_new_antipodal_grasp_sampling()
     print('bye')
