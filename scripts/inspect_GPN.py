@@ -10,6 +10,7 @@ log_fn_basel = '/home/rudorfem/dev/exp_grasping/exp_GPNet/basel_tanh_grid/gridle
 log_fn_deco15k = '/home/rudorfem/dev/exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max15k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
 log_fn_deco20k = '/home/rudorfem/dev/exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
 
+log_fn_basel_win = 'E:/data/UoB/research/BURG/ShapeGrasp/exp_grasping_v2/exp_GPNet_orig/exp_GPNet_basel_wGrid_tanh/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
 log_fn_deco20k_win = "E:/data/UoB/research/BURG/ShapeGrasp/exp_grasping_v2/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv"
 
 # note that simulator uses urdf folder instead of these processed obj files
@@ -113,6 +114,7 @@ def inspect_grasps(grasp_sets, shape_dir):
 
 if __name__ == "__main__":
     print('hi')
-    gs_dict = read_log_file(log_fn_deco20k_win)
+    # gs_dict = read_log_file(log_fn_deco20k_win)
+    gs_dict = read_log_file(log_fn_basel_win)
     inspect_grasps(gs_dict, shapes_dir_win)
     print('bye')
