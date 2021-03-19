@@ -205,3 +205,43 @@ def mesh_contains_points(mesh, points):
     bools = intersector.contains_points(points[:, 0:3])  # returns (n,) bool
 
     return points[bools]
+
+
+def tf_from_xyz_pos(x_axis, y_axis, z_axis, position=None):
+    """
+    Constructs a 4x4 transformation matrix for the given inputs.
+    Can get arrays of axes, broadcasting possible.
+
+    :param x_axis: (3,) or (n, 3) array with x axes
+    :param y_axis: (3,) or (n, 3) array with y axes
+    :param z_axis: (3,) or (n, 3) array with z axes
+    :param position: (3,) or (n, 3) array with translations (will be zero if None given, which is default)
+
+    :return: (n, 4, 4) homogenous transformation matrices, or (4, 4) if n==1
+    """
+    x_axis = x_axis.reshape(-1, 3)
+    y_axis = y_axis.reshape(-1, 3)
+    z_axis = z_axis.reshape(-1, 3)
+    if position is None:
+        position = np.zeros(3)
+    position = position.reshape(-1, 3)
+
+    n = np.max([x_axis.shape[0], y_axis.shape[0], z_axis.shape[0], position.shape[0]])
+    if not (x_axis.shape[0] == 1 or x_axis.shape[0] == n) \
+            or not (y_axis.shape[0] == 1 or y_axis.shape[0] == n) \
+            or not (z_axis.shape[0] == 1 or z_axis.shape[0] == n) \
+            or not (position.shape[0] == 1 or position.shape[0] == n):
+        raise ValueError('util.tf_from_xyz_pos got unexpected shapes and is unable to broadcast')
+
+    tf = np.zeros((n, 4, 4))
+    tf[:, 3, 3] = 1
+    tf[:, :3, 0] = x_axis
+    tf[:, :3, 1] = y_axis
+    tf[:, :3, 2] = z_axis
+    tf[:, :3, 3] = position
+
+    if n == 1:
+        return np.reshape(tf, (4, 4))
+    return tf
+
+
