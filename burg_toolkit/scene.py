@@ -4,82 +4,34 @@ import open3d as o3d
 
 class ObjectType:
     """
-    Describes an Object Type (i.e. the model).
+    Describes an Object Type.
 
-    Initialises the object type from a objectInformation dict parsed from a .mat file
-
-    :param obj_info: one entry of the dict parsed from the render_data.mat file
-    :param displacement: additional info about translation displacement of object centre
+    :param identifier: object identifier as string
+    :param mesh: open3d.geometry.TriangleMesh associated with the object
+    :param mass: mass of object in kg (defaults to 0, which means immovable, used for background objects)
+    :param friction_coeff: friction coefficient, defaults to 0.24
     """
-
-    def __init__(self, obj_info, displacement=None, point_cloud=None, mesh=None):
-
-        self.name = obj_info['name']
-        self.mass = obj_info['mass']
-        self.friction_coeff = obj_info['coefficientOfFriction']
-
-        if displacement is None:
-            displacement = [0, 0, 0]
-        self.displacement = np.asarray(displacement)
-
-        self.point_cloud = point_cloud
+    def __init__(self, identifier=None, mesh=None, mass=None, friction_coeff=None):
+        self.identifier = identifier or ''
         self.mesh = mesh
-
-        # this data is also available in the dict, we can add it if needed
-        # coefficientOfRestitution
-        # shadingType
-        # diffuseReflectionConstant
-        # specularReflectionConstant
-        # shininessConstant
-        # ambientReflectionConstant
+        self.mass = mass or 0
+        self.friction_coeff = friction_coeff or 0.24
 
 
 class ObjectInstance:
     """
-    Describes an instance of an object (in a scene).
+    Describes an instance of an object type in the object library and a pose.
 
-    Initialises an object instance in the scene, has library index and a pose.
-
-    :param obj_instance: dict from heap, describing one object instance
+    :param object_type: an ObjectType referring to the type of this object instance
+    :param pose: (4, 4) np array - homogenous transformation matrix
     """
 
-    def __init__(self, obj_instance):
-        self.library_index = obj_instance['objectLibraryIndex']
-        translation = obj_instance['translationVector']
-        rotation = obj_instance['rotationMatrix']
-        tf = np.eye(4)
-        tf[0:3, 0:3] = rotation
-        tf[0:3, 3] = translation
-        self.pose = tf
-
-
-class BackgroundObject:
-    """
-    Describes the table, or other possible background objects (is both instance and type, so may want to change that
-    in the future).
-    """
-
-    def __init__(self, name="", pose=None):
-        self.name = name
-        self.pose = pose if pose is not None else np.eye(4)
-        self.point_cloud = None
-        self.mesh = None
-
-    @classmethod
-    def from_translation_rotation(cls, name, translation, rotation):
-        """
-        create instance of BackgroundObject from translation and rotation
-
-        :param name: string with object name
-        :param translation: [x, y, z]
-        :param rotation: 3x3 rotation matrix
-
-        :return: instance of BackgroundObject with name and corresponding pose
-        """
-        pose = np.eye(4)
-        pose[0:3, 0:3] = rotation
-        pose[0:3, 3] = translation
-        return cls(name, pose)
+    def __init__(self, object_type, pose=None):
+        self.object_type = object_type
+        if pose is None:
+            self.pose = np.eye(4)
+        else:
+            self.pose = pose
 
 
 class Camera:
@@ -150,26 +102,14 @@ class CameraView:
     :param img_data: one instance of imageData from the .mat file
     """
 
-    def __init__(self, img_data):
-        self.camera = Camera()
-        self.camera.set_resolution(img_data['cameraResolution'][0], img_data['cameraResolution'][1])
-        self.camera.set_intrinsic_parameters(
-            fx=float(img_data['cameraIntrinsicParameters']['focalLengthValue'][0]),
-            fy=float(img_data['cameraIntrinsicParameters']['focalLengthValue'][1]),
-            cx=float(img_data['cameraIntrinsicParameters']['principalPointValue'][0]),
-            cy=float(img_data['cameraIntrinsicParameters']['principalPointValue'][1])
-        )
-
-        translation = img_data['cameraExtrinsicParameters']['translationVectorValue']
-        rotation = img_data['cameraExtrinsicParameters']['rotationMatrix']
-        tf = np.eye(4)
-        tf[0:3, 0:3] = rotation
-        tf[0:3, 3] = translation
-        self.camera.set_extrinsic_parameters(tf)
-        self.rgb_image = img_data['heapRGBImage']
-        self.depth_image = img_data['heapDepthImage']
-        self.class_label_image = img_data['heapClassLabelImage']
-        self.instance_label_image = img_data['heapInstanceLabelImage']
+    def __init__(self, camera_intrinsics=None, camera_pose=None, depth_image=None, rgb_image=None,
+                 class_label_image=None, instance_label_image=None):
+        self.camera_intrinsics = camera_intrinsics
+        self.camera_pose = camera_pose
+        self.depth_image = depth_image
+        self.rgb_image = rgb_image
+        self.class_label_image = class_label_image
+        self.instance_label_image = instance_label_image
 
     def to_point_cloud(self, stride=2):
         """
@@ -179,23 +119,12 @@ class CameraView:
 
         :return: an o3d point cloud
         """
-        # there is some magic happening here, due to a very strange bug:
-        # open3d crashes when I create an o3d image from view.depth_image, but if I just copy its contents to a new
-        # image, it seems to work well. I have no clue what is going on here.
-        test_image = np.zeros(shape=self.depth_image.shape)
-        test_image[:] = self.depth_image[:]
-
-        # o3d can't handle the inf values, so set them to zero
-        test_image[test_image == np.inf] = 0
-
-        # create depth image
-        o3d_depth_image = o3d.geometry.Image(test_image.astype(np.float32))
 
         # create point cloud from depth
         pc = o3d.geometry.PointCloud.create_from_depth_image(
-            o3d_depth_image,
-            self.camera.get_o3d_intrinsics(),
-            extrinsic=self.camera.pose,
+            depth=self.depth_image,
+            intrinsic=self.camera_intrinsics,
+            extrinsic=self.camera_pose,
             depth_scale=1.0,
             depth_trunc=1.0,
             stride=stride,
@@ -212,5 +141,5 @@ class Scene:
 
     def __init__(self, objects=None, bg_objects=None, views=None):
         self.objects = objects or []
-        self.views = views or []
         self.bg_objects = bg_objects or []
+        self.views = views or []
