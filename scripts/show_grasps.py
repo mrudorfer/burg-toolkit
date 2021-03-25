@@ -1,5 +1,6 @@
-import configparser
 import os
+
+import configparser
 import open3d as o3d
 import burg_toolkit as burg
 
@@ -11,32 +12,16 @@ print('using config file in:', cfg_fn)
 
 cfg = configparser.ConfigParser()
 cfg.read(cfg_fn)
+reader = burg.io.BaseviMatlabScenesReader(cfg['General'])
 
-# object lib
+# load object library
 print('read object library')
-object_library = burg.io.read_object_library(cfg['General']['object_lib_fn'])
-print('found', len(object_library), 'objects')
+object_library, index2name = reader.read_object_library()
+[print(f'\t{idx}: {name}') for idx, name in index2name.items()]
 
-target_obj = []
-for obj in object_library:
-    if obj.name == 'foamBrick':
-        target_obj = obj
-        print('using', target_obj.name, 'object')
-        break
-
-# read the meshes as point clouds
-print('reading mesh and converting to point cloud')
-mesh_fn = os.path.join(
-        cfg['General']['models_dir'],
-        target_obj.name +
-        cfg['General']['mesh_fn_ext']
-)
-
-target_obj.mesh = burg.io.load_mesh(mesh_fn)
-target_obj.mesh.translate(-target_obj.displacement)
-
-
-print('object displacement:', target_obj.displacement[:])
+target_obj_name = 'foamBrick'
+target_obj = object_library[target_obj_name]
+print(f'using {target_obj_name} object')
 
 grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
 grasp_file = '061_foam_brick/grasps.h5'
@@ -48,16 +33,5 @@ print('com', complete_grasps.get_center())
 complete_grasps.translate(-com)
 print('com', complete_grasps.get_center())
 
-# divide the complete set of grasps into subsets for better visualization
-# we also already put the object point cloud into the list, so it will be object 0 in visualization
-grasps_list = [target_obj.mesh, complete_grasps]
-subset_size = 500000
-print('number of grasps', len(grasp_set))
-#for i in range(0, grasp_data.shape[0], subset_size):
-#    grasps = o3d.geometry.PointCloud()
-#    print(i)
-#    grasps.points = o3d.utility.Vector3dVector(grasp_data[i:min(grasp_data.shape[0], i+subset_size), 0:3])
-#    grasps_list.append(grasps)
-
-burg.visualization.colorize_point_clouds(grasps_list)
-burg.visualization.show_o3d_point_clouds(grasps_list)
+visualization_objects = [target_obj.mesh, complete_grasps]
+burg.visualization.show_o3d_point_clouds(visualization_objects)
