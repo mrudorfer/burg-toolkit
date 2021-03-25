@@ -1,5 +1,10 @@
+import os
+from collections import UserDict
+
 import numpy as np
 import open3d as o3d
+
+from . import mesh_processing
 
 
 class ObjectType:
@@ -16,6 +21,70 @@ class ObjectType:
         self.mesh = mesh
         self.mass = mass or 0
         self.friction_coeff = friction_coeff or 0.24
+        self.urdf_fn = None
+
+    def make_urdf_file(self, directory, overwrite_existing=False):
+        """
+        This method will produce a temporary .obj file which stores the current status of the mesh, so we don't have
+        to bother about scaling or displacement applied during loading the mesh.
+        Based on that, we will create a urdf file in the given directory.
+        The directory will then contain an `object_name.obj` and an `object_name.urdf` file.
+
+        :param directory: string with directory in which the files shall be stored.
+        :param overwrite_existing: bool that indicates whether to overwrite existing files or not.
+        """
+        mesh_fn = self.identifier + '.obj'
+        mesh_path = os.path.join(directory, mesh_fn)
+        self.urdf_fn = os.path.join(directory, self.identifier + '.urdf')
+
+        # handle existing files
+        if (os.path.exists(mesh_path) or os.path.exists(self.urdf_fn)) and not overwrite_existing:
+            print('Note: ObjectType.make_urdf_file() did not create any files, '
+                  + 'as mesh and/or urdf path already exist and overwrite_existing is False')
+            return
+
+        # make sure directory exists
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        o3d.io.write_triangle_mesh(mesh_path, self.mesh)
+
+        inertia = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
+        origin = self.mesh.get_center()
+        print(f'origin, might decide whether we want it or not. i dont think we want it. {origin}')
+        with open(self.urdf_fn, 'w') as urdf:
+            urdf.write(f'<?xml version="1.0" encoding="UTF-8"?>\n')
+            urdf.write(f'<robot name="{self.identifier}">\n')
+            urdf.write(f'\t<link name="base">\n')
+
+            # collision
+            urdf.write(f'\t\t<collision>\n')
+            urdf.write(f'\t\t\t<geometry>\n')
+            urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}"/>\n')
+            urdf.write(f'\t\t\t</geometry>\n')
+            urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
+            urdf.write(f'\t\t</collision>\n')
+
+            # visual
+            urdf.write(f'\t\t<visual>\n')
+            urdf.write(f'\t\t\t<geometry>\n')
+            urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}"/>\n')
+            urdf.write(f'\t\t\t</geometry>\n')
+            urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
+            urdf.write(f'\t\t</visual>\n')
+
+            # physics
+            urdf.write(f'\t\t<inertial>\n')
+            urdf.write(f'\t\t\t<mass value="{self.mass}"/>\n')
+            urdf.write(f'\t\t\t<inertia ixx="{inertia[0, 0]}" ixy="{inertia[0, 1]}" ixz="{inertia[0, 2]}"' +
+                       f' iyy="{inertia[1, 1]}" iyz="{inertia[1, 2]}" izz="{inertia[2, 2]}" />\n')
+            urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
+            urdf.write(f'\t\t</inertial>\n')
+
+            urdf.write(f'\t</link>\n')
+            urdf.write(f'</robot>')
+
+        print('done writing')
 
 
 class ObjectInstance:
@@ -32,6 +101,17 @@ class ObjectInstance:
             self.pose = np.eye(4)
         else:
             self.pose = pose
+
+
+class ObjectLibrary(UserDict):
+    """
+    Contains a library of ObjectType objects and adds some convenience methods to it.
+    Acts like a regular python dict.
+    """
+
+    def yell(self):
+        print('OH MY GOSH I AM AN OBJECT LIBRARY!!!! Look at all my objects:')
+        print([key for key in self.data.keys()])
 
 
 class Camera:

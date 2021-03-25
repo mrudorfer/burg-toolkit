@@ -22,7 +22,7 @@ reader = burg.io.BaseviMatlabScenesReader(cfg['General'])
 
 print('read object library')
 object_library, index2name = reader.read_object_library()
-[print(f'\t{idx}: {name}') for idx, name in index2name.items()]
+object_library.yell()
 
 # get file names of scene data, pick one and read that stuff
 file_names = reader.get_scene_filenames()

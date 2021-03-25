@@ -38,7 +38,7 @@ class BaseviMatlabScenesReader:
         self.table_id = 'table'
         self.table_scale_factor = float(path_config['table_scale_factor'])
         self.library_index_to_name = {}
-        self.object_library = {}
+        self.object_library = scene.ObjectLibrary()
 
     def get_scene_filenames(self, directory=None):
         """finds heap and image data files in the given directory
@@ -149,7 +149,7 @@ class BaseviMatlabScenesReader:
         """
 
         input_dict = spio.loadmat(self.object_library_fn, simplify_cells=True)
-        self.object_library = {}
+        self.object_library = scene.ObjectLibrary()
         self.library_index_to_name = {}
 
         for i, (displacement, obj_dict) in enumerate(zip(input_dict['objectCentres'], input_dict['objectInformation'])):
