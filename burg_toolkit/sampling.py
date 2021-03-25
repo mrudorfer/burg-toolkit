@@ -142,12 +142,7 @@ class AntipodalGraspSampler:
 
         # we need collision operations which are not available in o3d yet
         # hence convert the mesh to trimesh
-        self._trimesh = trimesh.Trimesh(
-            np.asarray(self.mesh.vertices),
-            np.asarray(self.mesh.triangles),
-            vertex_normals=np.asarray(self.mesh.vertex_normals),
-            triangle_normals=np.asarray(self.mesh.triangle_normals)
-        )
+        self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
         intersector = trimesh.ray.ray_triangle.RayMeshIntersector(self._trimesh)
 
         # we need to sample reference points from the mesh

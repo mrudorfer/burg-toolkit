@@ -60,7 +60,7 @@ def angle(vec_a, vec_b, sign_array=None, as_degree=True):
     :return: (1) or (n, 1) np array  with the angle between the corresponding vectors (with same indices).
              The values will be in the range [-pi/2, pi/2] or [-90, 90].
     """
-    dotp = np.sum(vec_a*vec_b, axis=-1)
+    dotp = np.sum(vec_a * vec_b, axis=-1)
     if sign_array is not None:
         sign_array[:] = np.sign(dotp)
     angles = np.arctan(np.linalg.norm(np.cross(vec_a, vec_b), axis=-1) / dotp)
@@ -137,7 +137,7 @@ def o3d_pc_to_numpy(point_clouds):
     pc_objs = []
     for pc in point_clouds:
         n = len(pc.points)
-        m = 3 + pc.has_normals()*3
+        m = 3 + pc.has_normals() * 3
         np_pc = np.empty((n, m))
 
         np_pc[:, 0:3] = np.asarray(pc.points)
@@ -199,7 +199,7 @@ def merge_o3d_triangle_meshes(meshes):
     triangles = np.empty(shape=(0, 3), dtype=np.int)
     for mesh in meshes:
         v = np.asarray(mesh.vertices)  # float list (n, 3)
-        t = np.asarray(mesh.triangles)   # int list (n, 3)
+        t = np.asarray(mesh.triangles)  # int list (n, 3)
         t += len(vertices)  # triangles reference the vertex index
         vertices = np.concatenate([vertices, v])
         triangles = np.concatenate([triangles, t])
@@ -280,3 +280,16 @@ def tf_from_xyz_pos(x_axis, y_axis, z_axis, position=None):
     return tf
 
 
+def o3d_mesh_to_trimesh(o3d_mesh):
+    """
+    Create a trimesh object from open3d.geometry.TriangleMesh.
+
+    :param o3d_mesh: open3d.geometry.TriangleMesh
+
+    :return: trimesh object
+    """
+    # todo: what happens if mesh does not have normals?
+    t_mesh = trimesh.Trimesh(np.asarray(o3d_mesh.vertices), np.asarray(o3d_mesh.triangles),
+                             vertex_normals=np.asarray(o3d_mesh.vertex_normals),
+                             triangle_normals=np.asarray(o3d_mesh.triangle_normals))
+    return t_mesh
