@@ -184,7 +184,7 @@ def read_grasp_file_eppner2019(grasp_fn):
 
     :return: a core_types.GraspSet, and center of mass (as np array with length 3)
     """
-
+    print('read_grasp_file_eppner2019')
     hf = h5py.File(grasp_fn, 'r')
     print('just keys:', list(hf.keys()))
 
