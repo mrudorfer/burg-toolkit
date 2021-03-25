@@ -68,45 +68,35 @@ def test_antipodal_grasp_sampling():
 
     cfg = configparser.ConfigParser()
     cfg.read(cfg_fn)
+    reader = burg.io.BaseviMatlabScenesReader(cfg['General'])
 
     # object lib
     print('read object library')
-    object_library = burg.io.read_object_library(cfg['General']['object_lib_fn'])
-    print('found', len(object_library), 'objects')
+    object_library, index2name = reader.read_object_library()
+    [print(f'\t{idx}: {name}') for idx, name in index2name.items()]
 
-    # find the foamBrick
-    target_obj = []
-    for obj in object_library:
-        print(obj.name)
-        if obj.name == 'cheezeIt':
-            target_obj = obj
-            print('using', target_obj.name, 'object')
+    # determine target object
+    target_obj_name = 'cheezeIt'
+    target_obj = object_library[target_obj_name]
+    print('using', target_obj_name, 'object')
 
-    # read the mesh as point cloud
-    print('reading mesh and converting to point cloud')
-    mesh_fn = os.path.join(
-        cfg['General']['models_dir'],
-        target_obj.name +
-        cfg['General']['mesh_fn_ext']
-    )
-    mesh = burg.io.load_mesh(mesh_fn)
-    target_obj.point_cloud = burg.mesh_processing.poisson_disk_sampling(mesh)
-    target_obj.point_cloud.translate(-target_obj.displacement)
-
+    # convert mesh to point cloud
+    target_obj.point_cloud = burg.mesh_processing.poisson_disk_sampling(target_obj.mesh)
+    gripper = burg.gripper.ParallelJawGripper()
     grasp_set = burg.sampling.sample_antipodal_grasps(
         target_obj.point_cloud,
-        burg.gripper.ParallelJawGripper(),
+        gripper,
         n=5,
         max_sum_of_angles=30,
         visualize=True
     )
     print('grasp_set', grasp_set.internal_array.shape)
 
-    print('saving grasp set to', SAVE_FILE)
-    with open(SAVE_FILE, 'wb') as f:
-        np.save(f, grasp_set.internal_array)
+    # print('saving grasp set to', SAVE_FILE)
+    # with open(SAVE_FILE, 'wb') as f:
+    #    np.save(f, grasp_set.internal_array)
 
-    # gdt.visualization.show_np_point_clouds(target_obj.point_cloud)
+    burg.visualization.show_grasp_set([target_obj.mesh], grasp_set, gripper_mesh=gripper.mesh)
 
 
 def test_new_antipodal_grasp_sampling():
