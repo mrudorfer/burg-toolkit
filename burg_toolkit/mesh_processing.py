@@ -1,4 +1,8 @@
 import numpy as np
+import trimesh
+import open3d as o3d
+
+from . import util
 
 
 def check_properties(mesh):
@@ -62,14 +66,16 @@ def poisson_disk_sampling(mesh, radius=0.003, n_points=None, with_normals=True, 
     return pc
 
 
-def collision(mesh, point_cloud) -> bool:
+def compute_mesh_inertia(o3d_mesh):
     """
-    Checks if any points of given point_cloud are inside the mesh.
+    Tries to compute the inertia of the given mesh. Will only work if mesh is watertight.
 
-    :param mesh:
-    :param point_cloud:
+    :param o3d_mesh: open3d.geometry.TriangleMesh
 
-    :return: True if there is at least one point in collision with the mesh
+    :return: moment of inertia matrix, (3, 3) float ndarray
     """
-    print('WARNING: collision() not implemented yet. Defaults to False.')
-    return False
+    mesh = util.o3d_mesh_to_trimesh(o3d_mesh)
+    if not mesh.is_watertight:
+        raise ValueError('cannot compute inertia, mesh is not watertight.')
+
+    return mesh.moment_inertia
