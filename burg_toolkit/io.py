@@ -7,6 +7,7 @@ import scipy.io as spio
 import h5py
 import open3d as o3d
 
+from . import util
 from . import scene
 from . import grasp
 
@@ -87,22 +88,17 @@ class BaseviMatlabScenesReader:
         tf[0:3, 0:3] = view_dict['cameraExtrinsicParameters']['rotationMatrix']
         tf[0:3, 3] = view_dict['cameraExtrinsicParameters']['translationVectorValue']
 
-        # apparently, the numpy images from the dict do not have c-style storage
-        # hence we need to convert them in this very ugly way, i hope one day i will find a better solution
-        tmp_img = np.zeros(shape=view_dict['heapRGBImage'].shape)
-        tmp_img[:] = view_dict['heapRGBImage'][:]
-        rgb_image = o3d.geometry.Image(tmp_img.astype(np.float32))
+        rgb_image = util.o3d_image_from_numpy(view_dict['heapRGBImage'])
 
-        tmp_img2 = np.zeros(shape=view_dict['heapDepthImage'].shape)
-        tmp_img2[:] = view_dict['heapDepthImage'][:]
         # o3d can't handle the inf values, so set them to zero
-        tmp_img2[tmp_img2 == np.inf] = 0
-        depth_image = o3d.geometry.Image(tmp_img2.astype(np.float32))
+        depth_image = util.o3d_image_from_numpy(view_dict['heapDepthImage'], replace_inf_by=0)
 
-        # class_label_image = view_dict['heapClassLabelImage']
-        # instance_label_image = view_dict['heapInstanceLabelImage']
+        class_label_image = util.o3d_image_from_numpy(view_dict['heapClassLabelImage'])
+        instance_label_image = util.o3d_image_from_numpy(view_dict['heapInstanceLabelImage'])
+
         view = scene.CameraView(camera_intrinsics=o3d_intrinsics, camera_pose=tf, depth_image=depth_image,
-                                rgb_image=rgb_image)
+                                rgb_image=rgb_image, class_label_image=class_label_image,
+                                instance_label_image=instance_label_image)
         return view
 
     def read_scene_files(self, filenames):

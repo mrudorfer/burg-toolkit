@@ -152,6 +152,41 @@ def o3d_pc_to_numpy(point_clouds):
         return pc_objs
 
 
+def inspect_ndarray(name, my_array):
+    """
+    Function used for debugging.
+    """
+    print(f'array {name}:')
+    print(f'* type? {type(my_array)}')
+    print(f'* internal type: {my_array.dtype}')
+    print(f'* c_contiguous? {my_array.flags["C_CONTIGUOUS"]}')
+    print(f'* f_contiguous? {my_array.flags["F_CONTIGUOUS"]}')
+    print(f'* behaved? {my_array.flags["BEHAVED"]}')
+    print(f'* owns data? {my_array.flags["OWNDATA"]}')
+    print(f'* shape: {my_array.shape}')
+    print(f'* min: {np.min(my_array)}, max: {np.max(my_array)}, avg: {np.mean(my_array)}')
+
+
+def o3d_image_from_numpy(np_array, dtype=np.float32, replace_inf_by=None):
+    """
+    Converts a given numpy array into an open 3d image.
+    Is mainly used to ensure a c-contiguous array and correct dtype.
+    Should be the case with default ndarrays, but e.g. mat73 package gives fortran-style arrays which need to be
+    converted.
+
+    :param np_array: (h, w) or (h, w, c) ndarray
+    :param dtype: desired type, defaults to np.float32, can also be uint8 or uint16
+    :param replace_inf_by: value that will replace np.inf values in the numpy image. Defaults to None, in which case no
+                           replacement will be done.
+
+    :return: open3d.geometry.Image
+    """
+    c_type_array = np.ascontiguousarray(np_array).astype(dtype)
+    if replace_inf_by is not None:
+        c_type_array[c_type_array == np.inf] = replace_inf_by
+    return o3d.geometry.Image(c_type_array)
+
+
 def merge_o3d_triangle_meshes(meshes):
     """
     Merges vertices and triangles from different meshes into one mesh.
