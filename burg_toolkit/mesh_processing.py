@@ -66,11 +66,12 @@ def poisson_disk_sampling(mesh, radius=0.003, n_points=None, with_normals=True, 
     return pc
 
 
-def compute_mesh_inertia(o3d_mesh):
+def compute_mesh_inertia(o3d_mesh, mass):
     """
     Tries to compute the inertia of the given mesh. Will only work if mesh is watertight.
 
     :param o3d_mesh: open3d.geometry.TriangleMesh
+    :param mass: mass of object in kg
 
     :return: moment of inertia matrix, (3, 3) float ndarray
     """
@@ -78,4 +79,6 @@ def compute_mesh_inertia(o3d_mesh):
     if not mesh.is_watertight:
         raise ValueError('cannot compute inertia, mesh is not watertight.')
 
+    # trimesh meshes are density-based, so let's set density based on given mass and mesh volume
+    mesh.density = mass / mesh.volume
     return mesh.moment_inertia
