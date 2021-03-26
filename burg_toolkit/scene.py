@@ -47,11 +47,12 @@ class ObjectType:
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        o3d.io.write_triangle_mesh(mesh_path, self.mesh)
+        # cannot write vertex normals in obj file, but we don't really need them in urdf
+        # this does produce warnings that it can't write triangle normals to obj file. don't know how to suppress.
+        o3d.io.write_triangle_mesh(mesh_path, self.mesh, write_vertex_normals=False)
 
         inertia = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
-        origin = self.mesh.get_center()
-        print(f'origin, might decide whether we want it or not. i dont think we want it. {origin}')
+        origin = [0, 0, 0]  # meshes are already saved as is, so we have no displacement
         with open(self.urdf_fn, 'w') as urdf:
             urdf.write(f'<?xml version="1.0" encoding="UTF-8"?>\n')
             urdf.write(f'<robot name="{self.identifier}">\n')
@@ -83,8 +84,6 @@ class ObjectType:
 
             urdf.write(f'\t</link>\n')
             urdf.write(f'</robot>')
-
-        print('done writing')
 
 
 class ObjectInstance:

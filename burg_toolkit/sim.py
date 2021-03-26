@@ -29,6 +29,7 @@ class GraspSimulator:
         self._bg_objects_ids = []
         self._objects_ids = []
         self.setup_scene(scene)
+        input()
 
         # maybe do this in some other function
         pass
@@ -45,6 +46,10 @@ class GraspSimulator:
         if scene is None:
             return
 
+        for obj in [*scene.bg_objects, *scene.objects]:
+            if obj.object_type.urdf_fn is None:
+                raise ValueError(f'provided objects do not have associated urdf files.')
+
         for bg_obj in scene.bg_objects:
             pos, quat = util.position_and_quaternion_from_tf(bg_obj.pose, convention='pybullet')
             id = self._p.loadURDF(bg_obj.object_type.urdf_fn, basePosition=pos, baseOrientation=quat, useFixedBase=1)
@@ -52,7 +57,8 @@ class GraspSimulator:
 
         for obj in scene.objects:
             pos, quat = util.position_and_quaternion_from_tf(obj.pose, convention='pybullet')
-            id = self._p.loadURDF(bg_obj.object_type.urdf_fn, basePosition=pos, baseOrientation=quat)
+            id = self._p.loadURDF(obj.object_type.urdf_fn, basePosition=pos, baseOrientation=quat)
+            # todo: we may want to set friction coefficient here! (currently it's not included in urdf)
             self._objects_ids.append(id)
 
     def simulate_grasp(self, grasp):

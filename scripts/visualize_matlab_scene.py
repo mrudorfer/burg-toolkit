@@ -32,15 +32,16 @@ print('\theap:', os.path.abspath(files['heap_fn']))
 print('\timages:', os.path.abspath(files['image_data_fn']))
 scene = reader.read_scene_files(files)
 print('scene has', len(scene.objects), 'objects and', len(scene.views), 'views')
-[print(f'\t{obj_instance.object_type.identifier}') for obj_instance in [*scene.bg_objects, *scene.objects]]
+[print(instance) for instance in [*scene.bg_objects, *scene.objects]]
 
 # visualize point cloud
 print('visualizing scene point cloud')
 burg.visualization.show_aligned_scene_point_clouds(scene, scene.views)
 
+object_library.generate_urdf_files('../data/tmp', overwrite_existing=True)
 print('computing position and rotation from quaternion:')
 sample_instance = scene.objects[0]
 print(sample_instance)
 print(burg.util.position_and_quaternion_from_tf(sample_instance.pose))
 
-burg.sim.GraspSimulator(scene)
+burg.sim.GraspSimulator(None, None, scene)
