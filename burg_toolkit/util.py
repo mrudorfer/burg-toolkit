@@ -1,6 +1,7 @@
 import numpy as np
 import open3d as o3d
 import trimesh
+import quaternion
 
 
 def rotation_to_align_vectors(vec_a, vec_b):
@@ -278,6 +279,28 @@ def tf_from_xyz_pos(x_axis, y_axis, z_axis, position=None):
     if n == 1:
         return np.reshape(tf, (4, 4))
     return tf
+
+
+def position_and_quaternion_from_tf(tf, convention='wxyz'):
+    """
+    Function to compute position and rotation from a 4x4 transformation matrix.
+
+    :param tf: (4, 4) homogenous transformation matrix
+    :param convention: can be 'wxyz' or 'xyzw' and describes the convention for returned quaternion.
+                       E.g. numpy-quaternion package uses 'wxyz' and py_bullet uses 'xyzw'. Defaults to 'wxyz'.
+                       For convenience, we can also use 'pybullet' or 'numpy-quaternion' as strings.
+
+    :return: (position(3), quaternion(4))
+    """
+    # for now we only need it for one transform, but i guess at some point we have to extend it to array of tfs as well
+    position = tf[0:3, 3]
+    q = quaternion.from_rotation_matrix(tf[0:3, 0:3])
+    print(q)
+    if convention in ('xyzw', 'pybullet'):
+        return position, [q.x, q.y, q.z, q.w]
+    if convention in ('wxyz', 'numpy-quaternion'):
+        return position, [q.w, q.x, q.y, q.z]
+    raise ValueError(f'unknown convention {convention}, needs to be one of xyzw / pybullet / wxyz / numpy-quaternion.')
 
 
 def o3d_mesh_to_trimesh(o3d_mesh):
