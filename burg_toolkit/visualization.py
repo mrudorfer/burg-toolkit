@@ -69,13 +69,12 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
     return point_clouds
 
 
-def _get_scene_geometries(scene: scene.Scene, with_bg_objs=True, colorize=True):
+def _get_scene_geometries(scene: scene.Scene, with_bg_objs=True):
     """
     gathers list of o3d meshes or point clouds for the given scene
 
     :param scene: the scene
     :param with_bg_objs: if True, list includes point clouds of background objects as well
-    :param colorize: if True, each object gets a unique color
 
     :return: list of o3d point clouds
     """
@@ -98,9 +97,6 @@ def _get_scene_geometries(scene: scene.Scene, with_bg_objs=True, colorize=True):
         # apply transformation according to scene and append to list
         o3d_obj.transform(obj.pose)
         o3d_pcs.append(o3d_obj)
-
-    if colorize:
-        colorize_point_clouds(o3d_pcs)
 
     return o3d_pcs
 
