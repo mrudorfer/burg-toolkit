@@ -15,7 +15,8 @@ requirements_default = [
     'numpy-quaternion',  # numpy integration for quaternions
     'configparser',  # parsing configuration files
     'open3d>=0.12.0',      # point clouds and processing
-    'trimesh[easy]'  # for collision detections, which might get incorporated in newer version of open3d
+    'trimesh[easy]',  # for collision detections, which might get incorporated in newer version of open3d
+    'pybullet'        # for the simulation module
 ]
 
 requirements_docs = [

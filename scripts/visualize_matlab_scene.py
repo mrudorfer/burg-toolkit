@@ -38,3 +38,9 @@ print('scene has', len(scene.objects), 'objects and', len(scene.views), 'views')
 print('visualizing scene point cloud')
 burg.visualization.show_aligned_scene_point_clouds(scene, scene.views)
 
+print('computing position and rotation from quaternion:')
+sample_instance = scene.objects[0]
+print(sample_instance)
+print(burg.util.position_and_quaternion_from_tf(sample_instance.pose))
+
+burg.sim.GraspSimulator(scene)

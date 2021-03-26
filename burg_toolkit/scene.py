@@ -39,8 +39,8 @@ class ObjectType:
 
         # handle existing files
         if (os.path.exists(mesh_path) or os.path.exists(self.urdf_fn)) and not overwrite_existing:
-            print('Note: ObjectType.make_urdf_file() did not create any files, '
-                  + 'as mesh and/or urdf path already exist and overwrite_existing is False')
+            print('ObjectType.make_urdf_file(): not overwriting any existing files. Check overwriting_existing is True'
+                  + f' if you want me to. (object: {self.identifier}')
             return
 
         # make sure directory exists
@@ -102,6 +102,9 @@ class ObjectInstance:
         else:
             self.pose = pose
 
+    def __str__(self):
+        return f'instance of {self.object_type.identifier} object type. pose:\n{self.pose}'
+
 
 class ObjectLibrary(UserDict):
     """
@@ -112,6 +115,10 @@ class ObjectLibrary(UserDict):
     def yell(self):
         print('OH MY GOSH I AM AN OBJECT LIBRARY!!!! Look at all my objects:')
         print([key for key in self.data.keys()])
+
+    def generate_urdf_files(self, directory, overwrite_existing=False):
+        for name, obj in self.data.items():
+            obj.make_urdf_file(directory, overwrite_existing=overwrite_existing)
 
 
 class Camera:

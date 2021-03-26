@@ -22,4 +22,4 @@ burg.mesh_processing.check_properties(mesh)
 inertia = burg.mesh_processing.compute_mesh_inertia(mesh, target_object.mass)
 print('inertia:\n', inertia)
 
-target_object.make_urdf_file('../data/tmp', overwrite_existing=True)
+object_library.generate_urdf_files('../data/tmp', overwrite_existing=True)
