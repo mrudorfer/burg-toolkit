@@ -295,7 +295,6 @@ def position_and_quaternion_from_tf(tf, convention='wxyz'):
     # for now we only need it for one transform, but i guess at some point we have to extend it to array of tfs as well
     position = tf[0:3, 3]
     q = quaternion.from_rotation_matrix(tf[0:3, 0:3])
-    print(q)
     if convention in ('xyzw', 'pybullet'):
         return position, [q.x, q.y, q.z, q.w]
     if convention in ('wxyz', 'numpy-quaternion'):
