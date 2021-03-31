@@ -38,10 +38,21 @@ print('scene has', len(scene.objects), 'objects and', len(scene.views), 'views')
 print('visualizing scene point cloud')
 burg.visualization.show_aligned_scene_point_clouds(scene, scene.views)
 
-object_library.generate_urdf_files('../data/tmp', overwrite_existing=True)
-print('computing position and rotation from quaternion:')
-sample_instance = scene.objects[0]
-print(sample_instance)
-print(burg.util.position_and_quaternion_from_tf(sample_instance.pose))
+print('generating urdf files for object library')
+object_library.generate_urdf_files('../data/tmp')
 
-burg.sim.GraspSimulator(None, None, scene, verbose=True)
+target_object_instance = scene.objects[2]
+print(f'sampling and visualizing grasps for {target_object_instance.object_type.identifier}')
+
+gripper_model = burg.gripper.ParallelJawGripper(ref_frame=burg.gripper.RefFrame.TCP,
+                                                finger_length=0.03,
+                                                finger_thickness=0.003)
+ags = burg.sampling.AntipodalGraspSampler()
+ags.mesh = target_object_instance.object_type.mesh
+ags.gripper = gripper_model
+ags.verbose = False
+gs = ags.sample(1)
+burg.visualization.show_grasp_set([ags.mesh], gs[0], gripper_mesh=gripper_model.mesh, n=1)
+
+sim = burg.sim.SceneGraspSimulator(None, None, scene, verbose=True)
+sim.simulate_grasp_set(gs[0])

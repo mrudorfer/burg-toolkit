@@ -1,42 +1,86 @@
+from abc import ABC, abstractmethod
+
+import numpy as np
 import pybullet as p
 import pybullet_data
 from pybullet_utils import bullet_client
+from matplotlib import pyplot as plt
 
 from . import util
+from . import grasp
 
 
-# gets a scene with some objects
-# gets the target object
-# gets a grasp (set)
-# gets a gripper
-
-# provides some score for the grasp
-
-class GraspSimulator:
+class GraspSimulatorBase(ABC):
     """
-    GraspSimulator: Provides capabilities to simulate grasps for a particular gripper and determine scores.
+    Base class for all grasp simulators, offers some common methods for convenience.
+
+    :param target_object: the object instance that shall be grasped
+    :param gripper: the gripper object which will be used
+    :param verbose: optional, indicates whether to show GUI and output debug info, defaults to False
     """
-    def __init__(self, object_instance, gripper, scene=None, verbose=False):
+    def __init__(self, target_object, gripper, verbose=False):
+        self.target_object = target_object
+        self.gripper = gripper
         self.verbose = verbose
+        self._color_idx = 0
+        self.color_map = plt.get_cmap('tab20')
+        self.dt = 1./240.
 
-        # using bullet client makes sure we can connect to multiple servers in parallel
-        self._p = bullet_client.BulletClient(connection_mode=p.GUI)
+        self._target_object_id = None
+        self._gripper_id = None
+
+        # connect using bullet client makes sure we can connect to multiple servers in parallel
         # options="--mp4=moviename.mp4" (records movie, requires ffmpeg)
-        # p.connect(p.DIRECT)
-        self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        self._p = bullet_client.BulletClient(connection_mode=p.GUI if verbose else p.DIRECT)
+
+    def _reset(self):
+        """
+        This method resets the simulation to the starting point. Shall be used to clean up after a simulation run.
+        """
         self._p.resetSimulation()
-        self._p.setGravity(0, 0, -9.81)
+        self._color_idx = 0
 
-        # setup the scene
-        self._bg_objects_ids = []
-        self._objects_ids = []
-        self.setup_scene(scene)
-        input()
-
-        # maybe do this in some other function
+    @abstractmethod
+    def _prepare(self):
+        """
+        This method prepares everything for the simulation (except the particular grasp which is to be executed).
+        """
         pass
 
-    def add_object(self, object_instance, fixed_base=False):
+    @abstractmethod
+    def _simulate_grasp(self, g):
+        """
+        This method will simulate the given grasp and return a corresponding score.
+
+        :param g: grasp.Grasp
+
+        :return: score (int)
+        """
+        pass
+
+    def simulate_grasp_set(self, grasp_set):
+        """
+        This method runs the simulation for all grasps given in the grasp set and determines a score.
+
+        :param grasp_set: grasp.GraspSet, can also be a single grasp.Grasp
+
+        :return: (n,) scores as int
+        """
+        if type(grasp_set) is grasp.Grasp:
+            grasp_set = grasp_set.as_grasp_set()
+
+        scores = np.zeros(len(grasp_set))
+
+        for i, g in enumerate(grasp_set):
+            self._prepare()
+            scores[i] = self._simulate_grasp(g)
+            if self.verbose:
+                print(f'this grasp got score {scores[i]}. press enter to proceed with next grasp.')
+                input()
+            self._reset()
+        return scores
+
+    def _add_object(self, object_instance, fixed_base=False):
         """
         Adds an object to the simulator.
 
@@ -56,6 +100,9 @@ class GraspSimulator:
         self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff)
         # todo: add coefficient of restitution, potentially check other dynamics params as well
 
+        self._p.changeVisualShape(object_id, -1, rgbaColor=self.color_map(self._color_idx))
+        self._color_idx = (self._color_idx + 1) % self.color_map.N
+
         if self.verbose:
             print(f'added object {object_instance.object_type.identifier}')
 
@@ -70,24 +117,33 @@ class GraspSimulator:
 
         return object_id
 
-    def setup_scene(self, scene):
-        """
-        Loads all bg_objects and objects into the scene.
-        Note that bg_objects will be immovable (with a fixed base).
 
-        :param scene: .scene.Scene object
-        """
+class SceneGraspSimulator(GraspSimulatorBase):
+    """
+    SceneGraspSimulator: Simulates grasps in a particular scene.
+    """
+    def __init__(self, target_object, gripper, scene=None, verbose=False):
+        super().__init__(target_object, gripper, verbose)
+
+        self.scene = scene
         self._bg_objects_ids = []
         self._objects_ids = []
 
-        for bg_obj in scene.bg_objects:
-            self._bg_objects_ids.append(self.add_object(bg_obj, fixed_base=True))
+    def _prepare(self):
+        # self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        self._p.setGravity(0, 0, -9.81)
+        self._bg_objects_ids = []
+        self._objects_ids = []
 
-        for obj in scene.objects:
-            o_id = self.add_object(obj, fixed_base=False)
-            self._objects_ids.append(o_id)
+        # load background objects with fixed base
+        for bg_obj in self.scene.bg_objects:
+            self._bg_objects_ids.append(self._add_object(bg_obj, fixed_base=True))
 
-    def simulate_grasp(self, grasp):
+        # foreground objects will be movable
+        for obj in self.scene.objects:
+            self._objects_ids.append(self._add_object(obj, fixed_base=False))
+
+    def _simulate_grasp(self, g):
         # performs a simulation and determines a score
         score = 0
         return score
