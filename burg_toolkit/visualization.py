@@ -142,7 +142,7 @@ def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper_mesh=None, n=None,
     visualizes a given grasp set with the specified gripper.
 
     :param objects: list of objects to show in the scene, must be o3d geometries (mesh, point cloud, etc.)
-    :param gs: the grasp set to visualize
+    :param gs: the GraspSet to visualize (can also be a single Grasp)
     :param gripper_mesh: the gripper model to use, if none provided just coordinate frames will be displayed
     :param n: int number of grasps from set to display, if None, all grasps will be shown
     :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
@@ -151,6 +151,9 @@ def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper_mesh=None, n=None,
 
     if gripper_mesh is None:
         gripper_mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+
+    if type(gs) is grasp.Grasp:
+        gs = gs.as_grasp_set()
 
     if n is not None:
         indices = np.random.choice(len(gs), n, replace=False)

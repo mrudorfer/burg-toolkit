@@ -116,6 +116,14 @@ class Grasp:
 
         return pairwise_distances(self, other_grasp)[0, 0]
 
+    def as_grasp_set(self):
+        """
+        Returns the grasp as a 1-element grasp set.
+
+        :return: grasp.GraspSet object containing only this grasp.
+        """
+        return GraspSet(self._grasp_array.reshape(1, self.ARRAY_LEN))
+
 
 class GraspSet:
     """
