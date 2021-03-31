@@ -156,6 +156,7 @@ class BaseviMatlabScenesReader:
             name = obj_dict['name']
             mass = obj_dict['mass']
             friction_coeff = obj_dict['coefficientOfFriction']
+            print(obj_dict)
 
             mesh_fn = os.path.join(self.obj_models_dir, name + self.mesh_fn_ext)
             mesh = load_mesh(mesh_fn)  # todo: could also load textures here
