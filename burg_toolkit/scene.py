@@ -39,8 +39,7 @@ class ObjectType:
 
         # handle existing files
         if (os.path.exists(mesh_path) or os.path.exists(self.urdf_fn)) and not overwrite_existing:
-            print('ObjectType.make_urdf_file(): not overwriting any existing files. Check overwriting_existing is True'
-                  + f' if you want me to. (object: {self.identifier}')
+            print(f'make_urdf_file(): file already exists and will not be re-created for object: {self.identifier}')
             return
 
         # make sure directory exists
