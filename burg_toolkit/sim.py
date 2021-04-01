@@ -10,6 +10,43 @@ from . import util
 from . import grasp
 
 
+class GraspScores:
+    COLLISION_WITH_GROUND = 0
+    COLLISION_WITH_TARGET = 1
+    COLLISION_WITH_CLUTTER = 2
+    NO_CONTACT_ESTABLISHED = 3
+    SLIPPED_DURING_LIFTING = 4
+    SUCCESS = 5
+
+    _s2c_dict = {
+        SUCCESS: ([0.1, 0.8, 0.1], 'successfully lifted', 'green'),
+        COLLISION_WITH_GROUND: ([0.8, 0.1, 0.1], 'collision with ground', 'red'),
+        COLLISION_WITH_TARGET: ([0.4, 0.1, 0.1], 'collision with target object', 'dark red'),
+        COLLISION_WITH_CLUTTER: ([0.1, 0.1, 0.8], 'collision with clutter', 'blue'),
+        NO_CONTACT_ESTABLISHED: ([0.1, 0.1, 0.4], 'no contact established', 'dark blue'),
+        SLIPPED_DURING_LIFTING: ([0.1, 0.4, 0.1], 'object slipped', 'dark green'),
+    }
+
+    @classmethod
+    def _retrieve(cls, score, item):
+        if score in cls._s2c_dict.keys():
+            return cls._s2c_dict[score][item]
+        else:
+            raise ValueError(f'score value {score} is unknown. only have {cls._s2c_dict.keys()}')
+
+    @classmethod
+    def score2color(cls, score):
+        return cls._retrieve(score, 0)
+
+    @classmethod
+    def score2description(cls, score):
+        return cls._retrieve(score, 1)
+
+    @classmethod
+    def score2color_name(cls, score):
+        return cls._retrieve(score, 2)
+
+
 class GraspSimulatorBase(ABC):
     """
     Base class for all grasp simulators, offers some common methods for convenience.
@@ -80,6 +117,12 @@ class GraspSimulatorBase(ABC):
             self._reset()
         return scores
 
+    def dismiss(self):
+        """
+        This method shall be called when the simulation is not needed anymore as it cleans up the object.
+        """
+        self._p.disconnect()
+
     def _add_object(self, object_instance, fixed_base=False):
         """
         Adds an object to the simulator.
@@ -97,6 +140,9 @@ class GraspSimulatorBase(ABC):
                                      basePosition=pos, baseOrientation=quat,
                                      useFixedBase=int(fixed_base))
 
+        if object_id < 0:
+            raise ValueError(f'could not add object {object_instance.object_type.identifier}. returned id is negative.')
+
         self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff)
         # todo: add coefficient of restitution, potentially check other dynamics params as well
 
@@ -112,10 +158,119 @@ class GraspSimulatorBase(ABC):
                   f'contact stiffness, body type (1 rigid, 2 multi-body, 3 soft), collision margin\n'
                   f'{self._p.getDynamicsInfo(object_id, -1)}')
 
-        if object_id < 0:
-            raise ValueError(f'could not add object {object_instance.object_type.identifier}. returned id is negative.')
-
         return object_id
+
+    def _inspect_body(self, body_id):
+        """
+        prints out some debug info for the given object
+        """
+        joint_types = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
+        print('****')
+        print(f'inspecting body id {body_id}')
+        print(f'body info: {self._p.getBodyInfo(body_id)}')
+        num_joints = self._p.getNumJoints(body_id)
+        print(f'num joints: {num_joints}')
+        if num_joints > 0:
+            for i in range(num_joints):
+                info = self._p.getJointInfo(body_id, i)
+                print(f'joint {i}:')
+                print(f'- joint id {info[0]}, name {info[1].decode("utf-8")}')
+                print(f'- joint type {joint_types[info[2]]}')
+                print(f'- link aabb {self._p.getAABB(body_id, i)}')
+                print(f'- joint damping {info[6]} and friction {info[7]}')
+                print(f'- lower limit {info[8]}, upper limit {info[9]}')
+                print(f'- max force {info[10]}, max velocity {info[11]}')
+                print(f'- link name {info[12]}, parent link index {info[16]}')
+
+    def _are_in_collision(self, body_id_1, body_id_2):
+        """
+        checks if two bodies are in collision with each other.
+
+        :return: bool, True if the two bodies are in collision
+        """
+        max_distance = 0.01  # 1cm for now, might want to choose a more reasonable value
+        points = self._p.getClosestPoints(body_id_1, body_id_2, max_distance)
+
+        if self.verbose:
+            print(f'checking collision between {self._p.getBodyInfo(body_id_1)} and {self._p.getBodyInfo(body_id_2)}')
+            print(f'found {len(points)} points')
+
+        n_colliding_points = 0
+        distances = []
+        for point in points:
+            distance = point[8]
+            distances.append(distance)
+            if distance < 0:
+                n_colliding_points += 1
+
+        if self.verbose:
+            print(f'of which {n_colliding_points} have a negative distance (i.e. are in collision)')
+            print(f'distances are: {distances}')
+
+        return n_colliding_points > 0
+
+
+class SingleObjectGraspSimulator(GraspSimulatorBase):
+    """
+    Simulates a grasp of a single object instance.
+
+    :param target_object: scene.ObjectInstance object
+    :param gripper: gripper object that shall execute the grasp
+    :param verbose: show GUI and debug output if True
+    :param with_ground_plane_and_gravity: if True, xy-plane will be created and gravity will be taken into account.
+    """
+    def __init__(self, target_object, gripper, verbose=False, with_ground_plane_and_gravity=True):
+        super().__init__(target_object=target_object, gripper=gripper, verbose=verbose)
+
+        self._with_plane_and_gravity = with_ground_plane_and_gravity
+        self._plane_id = None
+
+    def _prepare(self):
+        if self._with_plane_and_gravity:
+            self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
+            self._plane_id = self._p.loadURDF("plane.urdf")
+            self._p.setGravity(0, 0, -9.81)
+
+        self._target_object_id = self._add_object(self.target_object)
+
+        if self._with_plane_and_gravity:
+            if self._are_in_collision(self._target_object_id, self._plane_id):
+                print('WARNING: target object and plane are in collision. this should not be the case.')
+
+    def _simulate_grasp(self, g):
+        # load the gripper at the correct pose
+        # gripper is loaded at base, but we have TCP grasp representation
+        # need TCP to base transform:
+        # rotate 90° around z-axis
+        # then rotate 180° around y-axis
+        # adjust for height is: 0.1494186408081055
+        pos, quat = util.position_and_quaternion_from_tf(g.pose, convention='pybullet')
+
+        self._gripper_id = self._p.loadURDF('../data/gripper/robotiq-2f-85/robotiq_2f_85.urdf')
+        # basePosition=pos, baseOrientation=quat)
+
+        self._inspect_body(self._target_object_id)
+        self._inspect_body(self._gripper_id)
+        print(f'aabb: {self._p.getAABB(self._gripper_id)}')
+
+        # let's check if objects are in collision already from the start
+        if self._with_plane_and_gravity:
+            if self._are_in_collision(self._gripper_id, self._plane_id):
+                if self.verbose:
+                    print('gripper and plane are in collision')
+                return GraspScores.COLLISION_WITH_GROUND
+        if self._are_in_collision(self._gripper_id, self._target_object_id):
+            if self.verbose:
+                print('gripper and target object are in collision')
+            return GraspScores.COLLISION_WITH_TARGET
+
+        # now we need to link the finger tips together, so they mimic their movement
+
+        # also set friction coefficients for gripper fingers
+        for i in range(p.getNumJoints(self._gripper_id)):
+            p.changeDynamics(self._gripper_id, i, lateralFriction=1.0, spinningFriction=1.0,
+                             rollingFriction=0.0001, frictionAnchor=True)
+        self._p.stepSimulation()
 
 
 class SceneGraspSimulator(GraspSimulatorBase):
@@ -123,7 +278,7 @@ class SceneGraspSimulator(GraspSimulatorBase):
     SceneGraspSimulator: Simulates grasps in a particular scene.
     """
     def __init__(self, target_object, gripper, scene=None, verbose=False):
-        super().__init__(target_object, gripper, verbose)
+        super().__init__(target_object=target_object, gripper=gripper, verbose=verbose)
 
         self.scene = scene
         self._bg_objects_ids = []

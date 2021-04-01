@@ -36,7 +36,7 @@ print('scene has', len(scene.objects), 'objects and', len(scene.views), 'views')
 
 # visualize point cloud
 print('visualizing scene point cloud')
-burg.visualization.show_aligned_scene_point_clouds(scene, scene.views)
+# burg.visualization.show_aligned_scene_point_clouds(scene, scene.views)
 
 print('generating urdf files for object library')
 object_library.generate_urdf_files('../data/tmp')
@@ -52,7 +52,11 @@ ags.mesh = target_object_instance.object_type.mesh
 ags.gripper = gripper_model
 ags.verbose = False
 gs = ags.sample(1)
-burg.visualization.show_grasp_set([ags.mesh], gs[0], gripper_mesh=gripper_model.mesh, n=1)
+burg.visualization.show_grasp_set([ags.mesh], gs[0], gripper_mesh=gripper_model.mesh)
 
-sim = burg.sim.SceneGraspSimulator(None, None, scene, verbose=True)
+gs.transform(target_object_instance.pose)
+burg.visualization.show_grasp_set_in_scene(scene, gs[0], gripper_mesh=gripper_model.mesh)
+
+sim = burg.sim.SingleObjectGraspSimulator(target_object=target_object_instance, gripper=gripper_model, verbose=True)
 sim.simulate_grasp_set(gs[0])
+sim.dismiss()
