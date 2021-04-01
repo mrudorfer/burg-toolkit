@@ -124,6 +124,15 @@ class Grasp:
         """
         return GraspSet(self._grasp_array.reshape(1, self.ARRAY_LEN))
 
+    def transform(self, tf):
+        """
+        Applies the given transform to the grasp (in-place).
+
+        :param tf: (4, 4) homogenous transformation matrix
+        """
+        p = self.pose
+        self.pose = np.matmul(tf, p)
+
 
 class GraspSet:
     """
@@ -321,6 +330,15 @@ class GraspSet:
         """
         self._gs_array = np.concatenate([self._gs_array, grasp_set.internal_array])
         return self
+
+    def transform(self, tf):
+        """
+        Applies the given transform to the grasp (in-place).
+
+        :param tf: (4, 4) homogenous transformation matrix
+        """
+        p = self.poses
+        self.poses = np.matmul(tf, p)
 
 
 def pairwise_distances(graspset1, graspset2, print_timings=False):
