@@ -91,7 +91,8 @@ class AntipodalGraspSampler:
 
         return normals
 
-    def _construct_grasp_set(self, reference_point, target_points):
+    @staticmethod
+    def construct_grasp_set(reference_point, target_points, n_orientations):
         """
         For all pairs of reference point and target point grasps will be constructed at the center point.
         A grasps can be seen as a frame, the x-axis will point towards the target point and the z-axis will point
@@ -99,6 +100,7 @@ class AntipodalGraspSampler:
 
         :param reference_point: (3,) np array
         :param target_points: (n, 3) np array
+        :param n_orientations: int, number of different orientations to use
 
         :return: grasp.GraspSet
         """
@@ -125,8 +127,8 @@ class AntipodalGraspSampler:
         tf_basis = util.tf_from_xyz_pos(x_axis, y_axis, z_axis, center_points).reshape(-1, 4, 4)
 
         # generate transforms for the n_orientations (rotation around x axis)
-        theta = np.arange(0, 2*np.pi, 2*np.pi / self.n_orientations)
-        tf_rot = np.tile(np.eye(4), (self.n_orientations, 1, 1))
+        theta = np.arange(0, 2*np.pi, 2*np.pi / n_orientations)
+        tf_rot = np.tile(np.eye(4), (n_orientations, 1, 1))
         tf_rot[:, 1, 1] = np.cos(theta)
         tf_rot[:, 1, 2] = -np.sin(theta)
         tf_rot[:, 2, 1] = np.sin(theta)
@@ -263,7 +265,7 @@ class AntipodalGraspSampler:
             if self.verbose:
                 print(f'* ... of which we randomly choose {len(locations)} to construct grasps')
 
-            grasps = self._construct_grasp_set(p_r, locations)
+            grasps = self.construct_grasp_set(p_r, locations, self.n_orientations)
             gs.add(grasps)
             if self.verbose:
                 print(f'* added {len(grasps)} grasps (with {self.n_orientations} orientations for each point pair)')
@@ -395,58 +397,15 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
 
         candidate_points = target_points[mask]
         candidate_ppf = ppfs[mask]
-        candidate_d = d[mask]
 
         print('*', len(candidate_points), 'candidate points remaining')
         if len(candidate_points) == 0:
             continue
 
         best_idx = np.argmin(candidate_ppf[:, 4])
-        # for each candidate point (or only the best one?)
-        # get centre point p_c = p_r + 1/2 * d
-        p_c = ref_point[:3] + 1/2 * candidate_d[best_idx]
 
-        # create circle around p_c, with d/|d| as normal -> actually, this should be the average of the two surface
-        # normals, so we align the finger tips as best as possible with the surfaces (reorienting n_r in the process)
-        # get two vectors v_1, v_2 orthogonal to d (defining the circle plane)
-        # then circle is p_c + r*cos(t)*v_1 + r*sin(t)*v_2, with t in k steps from 0 to 2pi, r defined by finger-length
-        circle_normal = (candidate_points[best_idx, 3:6] - ref_point[3:6]) / 2
-        circle_normal = circle_normal / np.linalg.norm(circle_normal)
-        v1 = np.zeros(3)
-        while np.linalg.norm(v1) == 0:
-            tmp_vec = util.generate_random_unit_vector()
-            v1 = np.cross(circle_normal, tmp_vec)
-
-        v1 = v1 / np.linalg.norm(v1)
-        v2 = np.cross(circle_normal, v1)
-        v2 = v2 / np.linalg.norm(v2)
-        t = np.arange(0, 2*np.pi, 2*np.pi / circle_discretisation_steps).reshape(-1, 1)
-        r = gripper_model.finger_length  # todo: this actually rather depends on where the gripper origin is
-        circle_points = p_c + r*np.cos(t)*v1.reshape(1, 3) + r*np.sin(t)*v2.reshape(1, 3)
-
-        print('**', 'circle_points', circle_points.shape)
-        # circle points are actually already our grasp points, but we still need the orientation:
-        #   - gripper z-axis oriented towards p_c from each circle point
-        #   - gripper x-axis is the circle normal
-        #   - y correspondingly, sign of direction should not matter since most grippers are symmetric
-        gripper_z = p_c - circle_points
-        gripper_z = gripper_z / np.linalg.norm(gripper_z, axis=-1).reshape(-1, 1)
-
-        gripper_x = circle_normal
-        gripper_y = np.cross(gripper_z, gripper_x)
-
-        # having the axes, we can build the rotation matrices, the translations and compute the final tfs
-        tf_rot = np.zeros((circle_discretisation_steps, 4, 4))
-        tf_rot[:, 3, 3] = 1
-        tf_rot[:, :3, 0] = gripper_x  # should broadcast (gripper_x is shape (3,))
-        tf_rot[:, :3, 1] = gripper_y
-        tf_rot[:, :3, 2] = gripper_z
-
-        tf_trans = np.zeros((circle_discretisation_steps, 4, 4))
-        tf_trans[:] = np.eye(4)
-        tf_trans[:, :3, 3] = circle_points
-
-        tfs = np.matmul(tf_trans, tf_rot)
+        tfs = AntipodalGraspSampler.construct_grasp_set(
+            ref_point[:3], candidate_points[best_idx][:3], circle_discretisation_steps).poses
 
         t3 = timer()
         t_find_grasp_poses += t3 - t2
@@ -466,13 +425,6 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
         t4 = timer()
         t_check_collisions += t4 - t3
 
-        # after that, the only remaining degree of freedom is the standoff, for which there are various strategies:
-        # - we could simply try to align finger tips with the ref/target points (what do we consider as the centre of
-        #   the finger tips? it's a bit hard to say.
-        # - we could move towards the centre of the circle for as long as possible without collision
-
-        # finally, add to the result grasp set
-        # (this might be inefficient, maybe we can initialise something with the number of desired grasps
         tfs = tfs[valid_grasps]
         gs.add(grasp.GraspSet.from_poses(tfs))
 
@@ -494,8 +446,6 @@ def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripp
             pc_list = [point_cloud, cone.vertices, target_points]
             if len(candidate_points) > 0:
                 pc_list.append(candidate_points)
-            if len(circle_points) > 0:
-                pc_list.append(circle_points)
 
             o3d_obj_list = util.numpy_pc_to_o3d(pc_list)
             o3d_obj_list.extend([cone_vis, sphere_vis, frame])
