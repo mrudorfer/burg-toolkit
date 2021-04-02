@@ -44,18 +44,16 @@ object_library.generate_urdf_files('../data/tmp')
 target_object_instance = scene.objects[2]
 print(f'sampling and visualizing grasps for {target_object_instance.object_type.identifier}')
 
-gripper_model = burg.gripper.ParallelJawGripper(ref_frame=burg.gripper.RefFrame.TCP,
-                                                finger_length=0.03,
-                                                finger_thickness=0.003)
+gripper_model = burg.gripper.Robotiq2F85()
 ags = burg.sampling.AntipodalGraspSampler()
 ags.mesh = target_object_instance.object_type.mesh
 ags.gripper = gripper_model
 ags.verbose = False
 gs = ags.sample(1)
-burg.visualization.show_grasp_set([ags.mesh], gs[0], gripper_mesh=gripper_model.mesh)
+burg.visualization.show_grasp_set([ags.mesh], gs[0], gripper=gripper_model)
 
 gs.transform(target_object_instance.pose)
-burg.visualization.show_grasp_set_in_scene(scene, gs[0], gripper_mesh=gripper_model.mesh)
+burg.visualization.show_grasp_set_in_scene(scene, gs[0], gripper=gripper_model)
 
 sim = burg.sim.SingleObjectGraspSimulator(target_object=target_object_instance, gripper=gripper_model, verbose=True)
 sim.simulate_grasp_set(gs[0])

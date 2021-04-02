@@ -244,10 +244,9 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         # rotate 90° around z-axis
         # then rotate 180° around y-axis
         # adjust for height is: 0.1494186408081055
-        pos, quat = util.position_and_quaternion_from_tf(g.pose, convention='pybullet')
-
-        self._gripper_id = self._p.loadURDF('../data/gripper/robotiq-2f-85/robotiq_2f_85.urdf')
-        # basePosition=pos, baseOrientation=quat)
+        tf = np.matmul(g.pose, self.gripper.tf_base_to_TCP)
+        pos, quat = util.position_and_quaternion_from_tf(tf, convention='pybullet')
+        self._gripper_id = self._p.loadURDF(self.gripper.path_to_urdf, basePosition=pos, baseOrientation=quat)
 
         self._inspect_body(self._target_object_id)
         self._inspect_body(self._gripper_id)

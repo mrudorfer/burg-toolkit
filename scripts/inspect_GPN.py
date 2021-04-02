@@ -10,8 +10,8 @@ log_fn_basel = '/home/rudorfem/dev/exp_grasping/exp_GPNet/basel_tanh_grid/gridle
 log_fn_deco15k = '/home/rudorfem/dev/exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max15k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
 log_fn_deco20k = '/home/rudorfem/dev/exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
 
-log_fn_basel_win = 'E:/data/UoB/research/BURG/ShapeGrasp/exp_grasping_v2/exp_GPNet_orig/exp_GPNet_basel_wGrid_tanh/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
-log_fn_deco20k_win = "E:/data/UoB/research/BURG/ShapeGrasp/exp_grasping_v2/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv"
+log_fn_basel_win = 'E:/data/UoB/research/BURG/ShapeGrasp/[BEFORE_FIX_LR]exp_grasping/exp_GPNet_orig/exp_GPNet_basel_wGrid_tanh/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
+log_fn_deco20k_win = "E:/data/UoB/research/BURG/ShapeGrasp/[BEFORE_FIX_LR]exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv"
 
 # note that simulator uses urdf folder instead of these processed obj files
 shapes_dir_linux = '/home/rudorfem/dev/3d_Grasping/GPNet/simulator/gpnet_data/processed/'
@@ -84,8 +84,7 @@ def inspect_grasps(grasp_sets, shape_dir):
     # now do the visualization
     print('showing', len(grasp_sets.keys()), 'objects with grasps')
 
-    gripper_model = burg.gripper.ParallelJawGripper(ref_frame=burg.gripper.RefFrame.TCP,
-                                                    finger_length=0.02,
+    gripper_model = burg.gripper.ParallelJawGripper(finger_length=0.02,
                                                     finger_thickness=0.003)  # probably needs some adjustments
 
     # ground plane
@@ -108,7 +107,7 @@ def inspect_grasps(grasp_sets, shape_dir):
             [obj_mesh, ground_plane],
             grasp_set,
             score_color_func=score_to_color,
-            gripper_mesh=gripper_model.mesh
+            gripper=gripper_model
         )
 
 

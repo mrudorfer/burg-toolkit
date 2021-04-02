@@ -137,21 +137,17 @@ def show_aligned_scene_point_clouds(scene: scene.Scene, views):
     show_o3d_point_clouds(o3d_pcs)
 
 
-def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper_mesh=None, n=None, score_color_func=None):
+def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
     """
     visualizes a given grasp set with the specified gripper.
 
     :param objects: list of objects to show in the scene, must be o3d geometries (mesh, point cloud, etc.)
     :param gs: the GraspSet to visualize (can also be a single Grasp)
-    :param gripper_mesh: the gripper model to use, if none provided just coordinate frames will be displayed
+    :param gripper: the gripper to use, if none provided just coordinate frames will be displayed
     :param n: int number of grasps from set to display, if None, all grasps will be shown
     :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
                              if None, some coloring scheme will be used irrespective of score
     """
-
-    if gripper_mesh is None:
-        gripper_mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
-
     if type(gs) is grasp.Grasp:
         gs = gs.as_grasp_set()
 
@@ -160,8 +156,13 @@ def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper_mesh=None, n=None,
         gs = gs[indices]
 
     for g in gs:
-        gripper_vis = copy.deepcopy(gripper_mesh)
-        gripper_vis.transform(g.pose)
+        if gripper is None:
+            gripper_vis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+            tf = np.eye(4)
+        else:
+            gripper_vis = copy.deepcopy(gripper.mesh)
+            tf = gripper.tf_base_to_TCP
+        gripper_vis.transform(np.matmul(g.pose, tf))
 
         if score_color_func is not None:
             gripper_vis.paint_uniform_color(score_color_func(g.score))
@@ -172,16 +173,16 @@ def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper_mesh=None, n=None,
     o3d.visualization.draw(objects)
 
 
-def show_grasp_set_in_scene(scene: scene.Scene, gs: grasp.GraspSet, gripper_mesh=None, n=None, score_color_func=None):
+def show_grasp_set_in_scene(scene: scene.Scene, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
     """
     visualizes a given grasp set with the specified gripper within a scene environment.
 
     :param scene: a scene containing object instances
     :param gs: the GraspSet to visualize (can also be a single Grasp)
-    :param gripper_mesh: the gripper model to use, if none provided just coordinate frames will be displayed
+    :param gripper: the gripper to use, if none provided just coordinate frames will be displayed
     :param n: int number of grasps from set to display, if None, all grasps will be shown
     :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
                              if None, some coloring scheme will be used irrespective of score
     """
     scene_objects = _get_scene_geometries(scene, with_bg_objs=True)
-    show_grasp_set(scene_objects, gs=gs, gripper_mesh=gripper_mesh, n=n, score_color_func=score_color_func)
+    show_grasp_set(scene_objects, gs=gs, gripper=gripper, n=n, score_color_func=score_color_func)

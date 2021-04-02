@@ -96,12 +96,11 @@ def test_antipodal_grasp_sampling():
     # with open(SAVE_FILE, 'wb') as f:
     #    np.save(f, grasp_set.internal_array)
 
-    burg.visualization.show_grasp_set([target_obj.mesh], grasp_set, gripper_mesh=gripper.mesh)
+    burg.visualization.show_grasp_set([target_obj.mesh], grasp_set, gripper=gripper)
 
 
 def test_new_antipodal_grasp_sampling():
-    gripper_model = burg.gripper.ParallelJawGripper(ref_frame=burg.gripper.RefFrame.TCP,
-                                                    finger_length=0.03,
+    gripper_model = burg.gripper.ParallelJawGripper(finger_length=0.03,
                                                     finger_thickness=0.003)
     mesh_fn = '../data/samples/flathead-screwdriver/flatheadScrewdriverMediumResolution.ply'
 
@@ -110,7 +109,7 @@ def test_new_antipodal_grasp_sampling():
     ags.gripper = gripper_model
     ags.verbose = True
     gs = ags.sample(500)
-    burg.visualization.show_grasp_set([ags.mesh], gs, gripper_mesh=gripper_model.mesh)
+    burg.visualization.show_grasp_set([ags.mesh], gs, gripper=gripper_model)
 
 
 def test_rotation_to_align_vectors():
