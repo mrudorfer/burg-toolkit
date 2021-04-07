@@ -45,16 +45,26 @@ target_object_instance = scene.objects[2]
 print(f'sampling and visualizing grasps for {target_object_instance.object_type.identifier}')
 
 gripper_model = burg.gripper.Robotiq2F85()
-ags = burg.sampling.AntipodalGraspSampler()
-ags.mesh = target_object_instance.object_type.mesh
-ags.gripper = gripper_model
-ags.verbose = False
-gs = ags.sample(1)
-burg.visualization.show_grasp_set([ags.mesh], gs[0], gripper=gripper_model)
+# ags = burg.sampling.AntipodalGraspSampler()
+# ags.mesh = target_object_instance.object_type.mesh
+# ags.gripper = gripper_model
+# ags.verbose = False
+# gs = ags.sample(1)
+grasp_pose = np.array([
+    [1, 0, 0, 0],
+    [0, 0, -1, -0.01],
+    [0, 1, 0, 0],
+    [0, 0, 0, 1]
+])
+g = burg.grasp.Grasp()
+g.pose = grasp_pose
 
-gs.transform(target_object_instance.pose)
-burg.visualization.show_grasp_set_in_scene(scene, gs[0], gripper=gripper_model)
+print(f'mesh center: {target_object_instance.object_type.mesh.get_center()}')
+burg.visualization.show_grasp_set([target_object_instance.object_type.mesh], g, gripper=gripper_model)
+
+g.transform(target_object_instance.pose)
+burg.visualization.show_grasp_set_in_scene(scene, g, gripper=gripper_model)
 
 sim = burg.sim.SingleObjectGraspSimulator(target_object=target_object_instance, gripper=gripper_model, verbose=True)
-sim.simulate_grasp_set(gs[0])
+sim.simulate_grasp_set(g)
 sim.dismiss()

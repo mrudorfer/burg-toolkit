@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import time
 
 import numpy as np
 import pybullet as p
@@ -55,6 +56,11 @@ class GraspSimulatorBase(ABC):
     :param gripper: the gripper object which will be used
     :param verbose: optional, indicates whether to show GUI and output debug info, defaults to False
     """
+
+    JOINT_TYPES = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
+    SPINNING_FRICTION = 0.1
+    ROLLING_FRICTION = 0.0001
+
     def __init__(self, target_object, gripper, verbose=False):
         self.target_object = target_object
         self.gripper = gripper
@@ -110,6 +116,9 @@ class GraspSimulatorBase(ABC):
 
         for i, g in enumerate(grasp_set):
             self._prepare()
+            if self.verbose:
+                print('press enter to start simulation')
+                input()
             scores[i] = self._simulate_grasp(g)
             if self.verbose:
                 print(f'this grasp got score {scores[i]}. press enter to proceed with next grasp.')
@@ -143,7 +152,9 @@ class GraspSimulatorBase(ABC):
         if object_id < 0:
             raise ValueError(f'could not add object {object_instance.object_type.identifier}. returned id is negative.')
 
-        self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff)
+        self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff,
+                               spinningFriction=self.SPINNING_FRICTION, rollingFriction=self.ROLLING_FRICTION,
+                               restitution=object_instance.object_type.restitution_coeff)
         # todo: add coefficient of restitution, potentially check other dynamics params as well
 
         self._p.changeVisualShape(object_id, -1, rgbaColor=self.color_map(self._color_idx))
@@ -164,7 +175,6 @@ class GraspSimulatorBase(ABC):
         """
         prints out some debug info for the given object
         """
-        joint_types = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
         print('****')
         print(f'inspecting body id {body_id}')
         print(f'body info: {self._p.getBodyInfo(body_id)}')
@@ -175,7 +185,7 @@ class GraspSimulatorBase(ABC):
                 info = self._p.getJointInfo(body_id, i)
                 print(f'joint {i}:')
                 print(f'- joint id {info[0]}, name {info[1].decode("utf-8")}')
-                print(f'- joint type {joint_types[info[2]]}')
+                print(f'- joint type {self.JOINT_TYPES[info[2]]}')
                 print(f'- link aabb {self._p.getAABB(body_id, i)}')
                 print(f'- joint damping {info[6]} and friction {info[7]}')
                 print(f'- lower limit {info[8]}, upper limit {info[9]}')
@@ -226,6 +236,8 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         self._plane_id = None
 
     def _prepare(self):
+        # todo: maybe it is better to not reload all objects but instead to just move them to the correct pose
+        #       i think there are even some snapshot functions we could try to use
         if self._with_plane_and_gravity:
             self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
             self._plane_id = self._p.loadURDF("plane.urdf")
@@ -238,21 +250,24 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
                 print('WARNING: target object and plane are in collision. this should not be the case.')
 
     def _simulate_grasp(self, g):
-        # load the gripper at the correct pose
-        # gripper is loaded at base, but we have TCP grasp representation
-        # need TCP to base transform:
-        # rotate 90° around z-axis
-        # then rotate 180° around y-axis
-        # adjust for height is: 0.1494186408081055
+        print('************** physics engine parameters **************')
+        print(self._p.getPhysicsEngineParameters())
+        print('*******************************************************')
+
+        # PHASE 0: PLACING GRIPPER IN GRASP POSE
+        # we have TCP grasp representation, hence need to transform gripper to TCP-oriented pose as well
         tf = np.matmul(g.pose, self.gripper.tf_base_to_TCP)
         pos, quat = util.position_and_quaternion_from_tf(tf, convention='pybullet')
         self._gripper_id = self._p.loadURDF(self.gripper.path_to_urdf, basePosition=pos, baseOrientation=quat)
+        self._p.changeDynamics(self._gripper_id, -1, mass=0)  # make this object static
 
-        self._inspect_body(self._target_object_id)
-        self._inspect_body(self._gripper_id)
-        print(f'aabb: {self._p.getAABB(self._gripper_id)}')
+        if self.verbose:
+            self._inspect_body(self._target_object_id)
+            self._inspect_body(self._gripper_id)
+            print(f'aabb: {self._p.getAABB(self._gripper_id)}')
 
-        # let's check if objects are in collision already from the start
+        # PHASE 1: CHECK GRIPPER COLLISIONS
+        # checking collisions against ground plane and target object
         if self._with_plane_and_gravity:
             if self._are_in_collision(self._gripper_id, self._plane_id):
                 if self.verbose:
@@ -263,12 +278,35 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
                 print('gripper and target object are in collision')
             return GraspScores.COLLISION_WITH_TARGET
 
-        # now we need to link the finger tips together, so they mimic their movement
+        if self.verbose:
+            print('COLLISION CHECKS PASSED... press enter to continue')
+            input()
 
-        # also set friction coefficients for gripper fingers
+        # PHASE 2: CLOSING FINGER TIPS
+        # first set friction coefficients
         for i in range(p.getNumJoints(self._gripper_id)):
-            p.changeDynamics(self._gripper_id, i, lateralFriction=1.0, spinningFriction=1.0,
-                             rollingFriction=0.0001, frictionAnchor=True)
+            p.changeDynamics(self._gripper_id, i, lateralFriction=1.0, spinningFriction=self.SPINNING_FRICTION,
+                             rollingFriction=self.ROLLING_FRICTION, frictionAnchor=True)
+        # now we need to link the finger tips together, so they mimic their movement
+        # this variant is by https://github.com/lzylucy/graspGripper
+        # using link 1 as master with velocity control, and all other links use position control to follow 1
+        self._p.setJointMotorControl2(self._gripper_id, 1, p.VELOCITY_CONTROL, targetVelocity=1, force=50)
+        for i in range(int(4e2)):
+            self._p.stepSimulation()
+            gripper_joint_positions = np.array([p.getJointState(self._gripper_id, i)[
+                                                    0] for i in range(p.getNumJoints(self._gripper_id))])
+            p.setJointMotorControlArray(
+                self._gripper_id, [6, 3, 8, 5, 10], p.POSITION_CONTROL,
+                [
+                    gripper_joint_positions[1], -gripper_joint_positions[1],
+                    -gripper_joint_positions[1], gripper_joint_positions[1],
+                    gripper_joint_positions[1]
+                ],
+                positionGains=np.ones(5)
+            )
+            time.sleep(0.01)
+
+
         self._p.stepSimulation()
 
 
