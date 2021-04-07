@@ -156,13 +156,14 @@ class BaseviMatlabScenesReader:
             name = obj_dict['name']
             mass = obj_dict['mass']
             friction_coeff = obj_dict['coefficientOfFriction']
-            # todo: also read coefficientOfRestitution
+            resitution_coeff = obj_dict['coefficientOfRestitution']
 
             mesh_fn = os.path.join(self.obj_models_dir, name + self.mesh_fn_ext)
             mesh = load_mesh(mesh_fn)  # todo: could also load textures here
             mesh.translate(-np.asarray(displacement))
 
-            obj = scene.ObjectType(identifier=name, mesh=mesh, mass=mass, friction_coeff=friction_coeff)
+            obj = scene.ObjectType(identifier=name, mesh=mesh, mass=mass, friction_coeff=friction_coeff,
+                                   restitution_coeff=resitution_coeff)
             self.object_library[name] = obj
 
             self.library_index_to_name[i+1] = name

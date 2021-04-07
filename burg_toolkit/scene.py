@@ -16,11 +16,12 @@ class ObjectType:
     :param mass: mass of object in kg (defaults to 0, which means immovable, used for background objects)
     :param friction_coeff: friction coefficient, defaults to 0.24
     """
-    def __init__(self, identifier=None, mesh=None, mass=None, friction_coeff=None):
+    def __init__(self, identifier=None, mesh=None, mass=None, friction_coeff=None, restitution_coeff=None):
         self.identifier = identifier or ''
         self.mesh = mesh
         self.mass = mass or 0
         self.friction_coeff = friction_coeff or 0.24
+        self.restitution_coeff = restitution_coeff or 0.1
         self.urdf_fn = None
 
     def make_urdf_file(self, directory, overwrite_existing=False):
