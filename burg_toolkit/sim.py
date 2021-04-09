@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import time
+import os
 
 import numpy as np
 import pybullet as p
@@ -56,31 +57,42 @@ class GraspSimulatorBase(ABC):
     :param gripper: the gripper object which will be used
     :param verbose: optional, indicates whether to show GUI and output debug info, defaults to False
     """
-
-    JOINT_TYPES = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
-    SPINNING_FRICTION = 0.1
-    ROLLING_FRICTION = 0.0001
-
     def __init__(self, target_object, gripper, verbose=False):
         self.target_object = target_object
         self.gripper = gripper
         self.verbose = verbose
+        self.dt = 1./240.  # this is the default and should not be changed light-heartedly
+        self.SOLVER_STEPS = 100  # a bit more than default helps in contact-rich tasks
+        self.TIME_SLEEP = self.dt * 3  # for visualization
+        self.SPINNING_FRICTION = 0.1
+        self.ROLLING_FRICTION = 0.0001
+        self.MIN_OBJ_MASS = 0.05  # small masses will be replaced by this (could tune a bit more, in combo with solver)
+        self.JOINT_TYPES = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
+
+        self.DUMMY_ROBOT_URDF = os.path.join(os.path.dirname(__file__), '../data/gripper/dummy_robot.urdf')
+
         self._color_idx = 0
         self.color_map = plt.get_cmap('tab20')
-        self.dt = 1./240.
-
         self._target_object_id = None
         self._gripper_id = None
+        self._robot_id = None
 
         # connect using bullet client makes sure we can connect to multiple servers in parallel
         # options="--mp4=moviename.mp4" (records movie, requires ffmpeg)
         self._p = bullet_client.BulletClient(connection_mode=p.GUI if verbose else p.DIRECT)
+        self._p.setPhysicsEngineParameter(fixedTimeStep=self.dt, numSolverIterations=self.SOLVER_STEPS)
+        if self.verbose:
+            self._p.resetDebugVisualizerCamera(cameraDistance=0.4, cameraYaw=0, cameraPitch=-30,
+                                               cameraTargetPosition=[0, 0, 0])
 
     def _reset(self):
         """
         This method resets the simulation to the starting point. Shall be used to clean up after a simulation run.
         """
         self._p.resetSimulation()
+        self._target_object_id = None
+        self._gripper_id = None
+        self._robot_id = None
         self._color_idx = 0
 
     @abstractmethod
@@ -152,10 +164,11 @@ class GraspSimulatorBase(ABC):
         if object_id < 0:
             raise ValueError(f'could not add object {object_instance.object_type.identifier}. returned id is negative.')
 
+        # dynamics don't work for very small masses, so let's increase mass if necessary
+        mass = np.max([self.target_object.object_type.mass, self.MIN_OBJ_MASS])
         self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff,
                                spinningFriction=self.SPINNING_FRICTION, rollingFriction=self.ROLLING_FRICTION,
-                               restitution=object_instance.object_type.restitution_coeff)
-        # todo: add coefficient of restitution, potentially check other dynamics params as well
+                               restitution=object_instance.object_type.restitution_coeff, mass=mass)
 
         self._p.changeVisualShape(object_id, -1, rgbaColor=self.color_map(self._color_idx))
         self._color_idx = (self._color_idx + 1) % self.color_map.N
@@ -171,6 +184,58 @@ class GraspSimulatorBase(ABC):
 
         return object_id
 
+    def _load_robot(self, urdf_file, position=None, orientation=None, fixed_base=False, friction=None):
+        """
+        Loads a robot and creates a data structure to access all of the robots info as well.
+
+        :param urdf_file: string containing the path to the urdf file.
+        :param position: (3,) base position; optional, defaults to [0, 0, 0]
+        :param orientation: (x, y, z, w) base orientation; optional, defaults to [0, 0, 0, 1]
+        :param fixed_base: whether or not to use fixed base; optional, defaults to False
+        :param friction: lateral friction to be set for each joint (will also set default spinning and rolling friction
+                         as well as friction anchor); optional, no settings will be made if not provided
+        """
+        if position is None:
+            position = [0, 0, 0]
+        if orientation is None:
+            orientation = [0, 0, 0, 1]
+
+        body_id = self._p.loadURDF(urdf_file, basePosition=position, baseOrientation=orientation,
+                                   useFixedBase=int(fixed_base))
+
+        num_joints = self._p.getNumJoints(body_id)
+        joint_infos = {}
+        for joint_idx in range(num_joints):
+            if friction is not None:
+                self._p.changeDynamics(
+                    body_id,
+                    joint_idx,
+                    lateralFriction=friction,
+                    spinningFriction=self.SPINNING_FRICTION,
+                    rollingFriction=self.ROLLING_FRICTION,
+                    frictionAnchor=True  # todo: not sure whether we really want the friction anchor
+                )
+            joint_info = self._get_joint_info(body_id, joint_idx)
+            joint_infos[joint_info['link_name']] = joint_info
+
+        return body_id, joint_infos
+
+    def _get_joint_info(self, body_id, joint_id):
+        """returns a dict with some joint info"""
+        info = self._p.getJointInfo(body_id, joint_id)
+        joint_info = {
+            'id': info[0],
+            'link_name': info[12].decode("utf-8"),
+            'joint_name': info[1].decode("utf-8"),
+            'type': self.JOINT_TYPES[info[2]],
+            'friction': info[7],
+            'lower_limit': info[8],
+            'upper limit': info[9],
+            'max_force': info[10],
+            'max_velocity': info[11]
+        }
+        return joint_info
+
     def _inspect_body(self, body_id):
         """
         prints out some debug info for the given object
@@ -180,17 +245,9 @@ class GraspSimulatorBase(ABC):
         print(f'body info: {self._p.getBodyInfo(body_id)}')
         num_joints = self._p.getNumJoints(body_id)
         print(f'num joints: {num_joints}')
-        if num_joints > 0:
-            for i in range(num_joints):
-                info = self._p.getJointInfo(body_id, i)
-                print(f'joint {i}:')
-                print(f'- joint id {info[0]}, name {info[1].decode("utf-8")}')
-                print(f'- joint type {self.JOINT_TYPES[info[2]]}')
-                print(f'- link aabb {self._p.getAABB(body_id, i)}')
-                print(f'- joint damping {info[6]} and friction {info[7]}')
-                print(f'- lower limit {info[8]}, upper limit {info[9]}')
-                print(f'- max force {info[10]}, max velocity {info[11]}')
-                print(f'- link name {info[12]}, parent link index {info[16]}')
+        for i in range(num_joints):
+            print(f'joint {i}:')
+            [print(f'\t{key}: {val}') for key, val in self._get_joint_info(body_id, i).items()]
 
     def _are_in_collision(self, body_id_1, body_id_2):
         """
@@ -234,6 +291,7 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
 
         self._with_plane_and_gravity = with_ground_plane_and_gravity
         self._plane_id = None
+        self.LIFTING_HEIGHT = 0.3  # 30 cm
 
     def _prepare(self):
         # todo: maybe it is better to not reload all objects but instead to just move them to the correct pose
@@ -249,6 +307,15 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             if self._are_in_collision(self._target_object_id, self._plane_id):
                 print('WARNING: target object and plane are in collision. this should not be the case.')
 
+    def _control_follower_joints(self):
+        master_id = 1
+        master_joint_state = self._p.getJointState(self._gripper_id, master_id)[0]
+        self._p.setJointMotorControlArray(
+            self._gripper_id, [6, 3, 8, 5, 10], p.POSITION_CONTROL,
+            [master_joint_state, -master_joint_state, -master_joint_state, master_joint_state, master_joint_state],
+            positionGains=np.ones(5)
+        )
+
     def _simulate_grasp(self, g):
         print('************** physics engine parameters **************')
         print(self._p.getPhysicsEngineParameters())
@@ -258,8 +325,11 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         # we have TCP grasp representation, hence need to transform gripper to TCP-oriented pose as well
         tf = np.matmul(g.pose, self.gripper.tf_base_to_TCP)
         pos, quat = util.position_and_quaternion_from_tf(tf, convention='pybullet')
-        self._gripper_id = self._p.loadURDF(self.gripper.path_to_urdf, basePosition=pos, baseOrientation=quat)
-        self._p.changeDynamics(self._gripper_id, -1, mass=0)  # make this object static
+        self._gripper_id, self._gripper_joints = self._load_robot(self.gripper.path_to_urdf, position=pos,
+                                                                  orientation=quat, fixed_base=True,
+                                                                  friction=1.0)
+        # self._gripper_id = self._p.loadURDF(self.gripper.path_to_urdf, basePosition=pos, baseOrientation=quat)
+        # self._p.changeDynamics(self._gripper_id, -1, mass=0)  # make this object static
 
         if self.verbose:
             self._inspect_body(self._target_object_id)
@@ -283,31 +353,25 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             input()
 
         # PHASE 2: CLOSING FINGER TIPS
-        # first set friction coefficients
-        for i in range(p.getNumJoints(self._gripper_id)):
-            p.changeDynamics(self._gripper_id, i, lateralFriction=1.0, spinningFriction=self.SPINNING_FRICTION,
-                             rollingFriction=self.ROLLING_FRICTION, frictionAnchor=True)
         # now we need to link the finger tips together, so they mimic their movement
         # this variant is by https://github.com/lzylucy/graspGripper
         # using link 1 as master with velocity control, and all other links use position control to follow 1
         self._p.setJointMotorControl2(self._gripper_id, 1, p.VELOCITY_CONTROL, targetVelocity=1, force=50)
-        for i in range(int(4e2)):
+        for i in range(int(2/self.dt)):  # equals 2 seconds
+            self._control_follower_joints()
+            if self.verbose:
+                time.sleep(self.TIME_SLEEP)
             self._p.stepSimulation()
-            gripper_joint_positions = np.array([p.getJointState(self._gripper_id, i)[
-                                                    0] for i in range(p.getNumJoints(self._gripper_id))])
-            p.setJointMotorControlArray(
-                self._gripper_id, [6, 3, 8, 5, 10], p.POSITION_CONTROL,
-                [
-                    gripper_joint_positions[1], -gripper_joint_positions[1],
-                    -gripper_joint_positions[1], gripper_joint_positions[1],
-                    gripper_joint_positions[1]
-                ],
-                positionGains=np.ones(5)
-            )
-            time.sleep(0.01)
 
+        # todo: check if contact with object has been established
 
-        self._p.stepSimulation()
+        # PHASE 3: LIFTING OBJECT
+        if self.verbose:
+            print('OBJECT GRASPED... press enter to lift it')
+        # trying to position control the base
+        pos, quat = self._p.getBasePositionAndOrientation(self._gripper_id)
+        target_pos = pos
+        target_pos[2] = pos[2] + self.LIFTING_HEIGHT
 
 
 class SceneGraspSimulator(GraspSimulatorBase):
