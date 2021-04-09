@@ -66,24 +66,21 @@ The docs should then be in `docs/_build/html`folder.
 
 ## plans for the project
 ### todos
-- improve PPF grasp sampler
-- implement precision metrics e.g. for comparison with eppner2019
-- implement analytic success metrics (force-closure) from fang2020
+- grasp sampler
+    - implement option to use random rotation offset for creating grasp orientations
+    - universal grasp representation: add required opening width and required grasping depth and filter grasps accordingly
+- simulation-based grasp assessment using pybullet
+    - determine simulation-based grasp success rate for grasp sets
 
 ### longer-term todos:
-- strategy plan:
-	- how to structure the modules when some functionalities are directly related to certain datasets or pipelines?
-	- ideally, we have io for each of the datasets and can store them in some unifying format so that all processing can be done in the same way, but I assume this will be quite hard
-- integrate pybullet for simulation-based grasp assessment
+- task-oriented grasp sampling based on source/target scene
+- io: move functionality related to a certain paper or approach to particular reader-class
+- create new scenes with pybullet
+- render new depth images for existing scenes
+- once newer version of o3d comes with collision detection, try to get rid of trimesh dependency
+- implement rule-based evaluation, e.g. for precision metrics from eppner2019
+- implement analytic success metrics (force-closure) from fang2020, or ferrari-canny
 - make repo public and use ReadTheDocs (once it is a bit more useful)
-- once newer version of o3d comes with collision detection, get rid of trimesh dependency
-- restructure object library
-    - currently, objects have Type and Instance classes, but background obejcts are treated differently, which
-      is somewhat inconvenient
-    - also, object library index is based on the order of the objects in the array, which is not ideal
-    - object displacement should be added when loading objects
-    - module structure is not ideal (all is in scene.py, bg object has different class structure than object, ...)
-
 
 ## References
 
