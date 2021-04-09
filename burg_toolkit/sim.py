@@ -73,9 +73,7 @@ class GraspSimulatorBase(ABC):
 
         self._color_idx = 0
         self.color_map = plt.get_cmap('tab20')
-        self._target_object_id = None
-        self._gripper_id = None
-        self._robot_id = None
+        self._body_ids = {}  # use dictionary for body id's.. will be cleaned automatically after reset
 
         # connect using bullet client makes sure we can connect to multiple servers in parallel
         # options="--mp4=moviename.mp4" (records movie, requires ffmpeg)
@@ -90,9 +88,7 @@ class GraspSimulatorBase(ABC):
         This method resets the simulation to the starting point. Shall be used to clean up after a simulation run.
         """
         self._p.resetSimulation()
-        self._target_object_id = None
-        self._gripper_id = None
-        self._robot_id = None
+        self._body_ids = {}
         self._color_idx = 0
 
     @abstractmethod
@@ -232,7 +228,10 @@ class GraspSimulatorBase(ABC):
             'lower_limit': info[8],
             'upper limit': info[9],
             'max_force': info[10],
-            'max_velocity': info[11]
+            'max_velocity': info[11],
+            'joint_axis': info[13],
+            'parent_pos': info[14],
+            'parent_orn': info[15]
         }
         return joint_info
 
@@ -290,7 +289,6 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         super().__init__(target_object=target_object, gripper=gripper, verbose=verbose)
 
         self._with_plane_and_gravity = with_ground_plane_and_gravity
-        self._plane_id = None
         self.LIFTING_HEIGHT = 0.3  # 30 cm
 
     def _prepare(self):
@@ -298,20 +296,21 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         #       i think there are even some snapshot functions we could try to use
         if self._with_plane_and_gravity:
             self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
-            self._plane_id = self._p.loadURDF("plane.urdf")
+            self._body_ids['plane'] = self._p.loadURDF("plane.urdf")
             self._p.setGravity(0, 0, -9.81)
 
-        self._target_object_id = self._add_object(self.target_object)
+        self._body_ids['target_object'] = self._add_object(self.target_object)
 
         if self._with_plane_and_gravity:
-            if self._are_in_collision(self._target_object_id, self._plane_id):
+            if self._are_in_collision(self._body_ids['target_object'], self._body_ids['plane']):
                 print('WARNING: target object and plane are in collision. this should not be the case.')
 
     def _control_follower_joints(self):
         master_id = 1
-        master_joint_state = self._p.getJointState(self._gripper_id, master_id)[0]
+        # todo: control followers depending on gripper object
+        master_joint_state = self._p.getJointState(self._body_ids['gripper'], master_id)[0]
         self._p.setJointMotorControlArray(
-            self._gripper_id, [6, 3, 8, 5, 10], p.POSITION_CONTROL,
+            self._body_ids['gripper'], [6, 3, 8, 5, 10], p.POSITION_CONTROL,
             [master_joint_state, -master_joint_state, -master_joint_state, master_joint_state, master_joint_state],
             positionGains=np.ones(5)
         )
@@ -325,25 +324,33 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         # we have TCP grasp representation, hence need to transform gripper to TCP-oriented pose as well
         tf = np.matmul(g.pose, self.gripper.tf_base_to_TCP)
         pos, quat = util.position_and_quaternion_from_tf(tf, convention='pybullet')
-        self._gripper_id, self._gripper_joints = self._load_robot(self.gripper.path_to_urdf, position=pos,
-                                                                  orientation=quat, fixed_base=True,
-                                                                  friction=1.0)
-        # self._gripper_id = self._p.loadURDF(self.gripper.path_to_urdf, basePosition=pos, baseOrientation=quat)
-        # self._p.changeDynamics(self._gripper_id, -1, mass=0)  # make this object static
+        # load a dummy robot which we can move everywhere and connect the gripper to it
+        self._body_ids['robot'], robot_joints = self._load_robot(
+            self.DUMMY_ROBOT_URDF, position=pos, orientation=quat, fixed_base=True
+        )
+        self._body_ids['gripper'], gripper_joints = self._load_robot(
+            self.gripper.path_to_urdf, position=pos, orientation=quat, fixed_base=False, friction=1.0
+        )
+        self._p.createConstraint(
+            self._body_ids['robot'], robot_joints['end_effector_link']['id'],
+            self._body_ids['gripper'], -1,
+            jointType=p.JOINT_FIXED, jointAxis=[0, 0, 0],
+            parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0]
+        )
 
         if self.verbose:
-            self._inspect_body(self._target_object_id)
-            self._inspect_body(self._gripper_id)
-            print(f'aabb: {self._p.getAABB(self._gripper_id)}')
+            self._inspect_body(self._body_ids['target_object'])
+            self._inspect_body(self._body_ids['robot'])
+            self._inspect_body(self._body_ids['gripper'])
 
         # PHASE 1: CHECK GRIPPER COLLISIONS
         # checking collisions against ground plane and target object
         if self._with_plane_and_gravity:
-            if self._are_in_collision(self._gripper_id, self._plane_id):
+            if self._are_in_collision(self._body_ids['gripper'], self._body_ids['plane']):
                 if self.verbose:
                     print('gripper and plane are in collision')
                 return GraspScores.COLLISION_WITH_GROUND
-        if self._are_in_collision(self._gripper_id, self._target_object_id):
+        if self._are_in_collision(self._body_ids['gripper'], self._body_ids['target_object']):
             if self.verbose:
                 print('gripper and target object are in collision')
             return GraspScores.COLLISION_WITH_TARGET
@@ -356,7 +363,7 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         # now we need to link the finger tips together, so they mimic their movement
         # this variant is by https://github.com/lzylucy/graspGripper
         # using link 1 as master with velocity control, and all other links use position control to follow 1
-        self._p.setJointMotorControl2(self._gripper_id, 1, p.VELOCITY_CONTROL, targetVelocity=1, force=50)
+        self._p.setJointMotorControl2(self._body_ids['gripper'], 1, p.VELOCITY_CONTROL, targetVelocity=1, force=50)
         for i in range(int(2/self.dt)):  # equals 2 seconds
             self._control_follower_joints()
             if self.verbose:
@@ -368,10 +375,52 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         # PHASE 3: LIFTING OBJECT
         if self.verbose:
             print('OBJECT GRASPED... press enter to lift it')
-        # trying to position control the base
-        pos, quat = self._p.getBasePositionAndOrientation(self._gripper_id)
-        target_pos = pos
+            input()
+
+        # position control the base
+        pos, quat, *_ = self._p.getLinkState(
+            self._body_ids['robot'],
+            robot_joints['end_effector_link']['id']
+        )
+        target_pos = list(pos)
         target_pos[2] = pos[2] + self.LIFTING_HEIGHT
+
+        joint_poses = self._p.calculateInverseKinematics(
+            self._body_ids['robot'],
+            robot_joints['end_effector_link']['id'],
+            targetPosition=target_pos,
+            targetOrientation=quat
+        )
+        self._p.setJointMotorControlArray(
+            self._body_ids['robot'],
+            jointIndices=range(len(joint_poses)),
+            controlMode=p.POSITION_CONTROL,
+            targetPositions=joint_poses,
+            targetVelocities=len(joint_poses)*[0.1],
+            forces=len(joint_poses)*[100]
+        )
+
+        while np.abs(target_pos[2] - pos[2]) > 1e-4:
+            self._control_follower_joints()
+            self._p.stepSimulation()
+            pos, quat, *_ = self._p.getLinkState(
+                self._body_ids['robot'],
+                robot_joints['end_effector_link']['id']
+            )
+            if self.verbose:
+                time.sleep(self.TIME_SLEEP)
+                print(f'abs difference: {np.abs(target_pos[2] - pos[2])}; ')
+                print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
+                print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
+                print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
+                # todo: thoughts on this
+                # end-effector pose and gripper pose are exactly the same
+                # this means the constraint works, as they are connected together
+                # however, i don't get why robot and end-effector pose are different, as they should be identical
+                # we should check the end-effector pose vs robot pose before any movement happens
+                # i expect that there should not be any offset, so maybe the offset is introduced by the robot joints
+                # but then again, this really should not happen... i have no clue
+                # monday-me will have to figure this out
 
 
 class SceneGraspSimulator(GraspSimulatorBase):

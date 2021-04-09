@@ -1,0 +1,112 @@
+<?xml version="1.0" ?>
+<robot name="dummy_robot">
+    <!-- 
+        this is a dummy robot that is fixed in space (mass=0) but can be moved to arbitrary positions and orientations,
+        attach a gripper to the end_effector_link to control the gripper's position and orientation
+     -->
+    <link name="base_link">
+        <inertial>
+            <mass value="0" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+    <joint name="center_x" type="prismatic">
+        <parent link="base_link"/>
+        <child link="y_control"/>
+        <axis xyz="1 0 0"/>
+        <limit effort="1000.0" lower="-0.5" upper="0.5" velocity="0.2"/>
+    </joint>
+
+    <link name="y_control">
+        <inertial>
+            <mass value="0.1" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+    <joint name="center_y" type="prismatic">
+        <parent link="y_control"/>
+        <child link="z_control"/>
+        <axis xyz="0 1 0"/>
+        <limit effort="1000.0" lower="-0.5" upper="0.5" velocity="0.2"/>
+    </joint>
+
+    <link name="z_control">
+        <inertial>
+            <mass value="0.1" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+    <joint name="center_z" type="prismatic">
+        <parent link="z_control"/>
+        <child link="yaw_control"/>
+        <axis xyz="0 0 1"/>
+        <limit effort="1000.0" lower="-0.25" upper="1" velocity="0.2"/>
+    </joint>
+
+    <link name="yaw_control">
+        <inertial>
+            <mass value="0.1" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+    <joint name="gripper_yaw" type="revolute">
+        <parent link="yaw_control"/>
+        <child link="pitch_control"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-31.4" upper="31.4" velocity="3.14" effort="10000"/>
+    </joint>
+
+    <link name="pitch_control">thetaList
+        <inertial>
+            <mass value="0.1" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+    <joint name="gripper_pitch" type="revolute">
+        <parent link="pitch_control"/>
+        <child link="roll_control"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-31.4" upper="31.4" velocity="3.14" effort="10000"/>
+    </joint>
+
+    <link name="roll_control">
+        <inertial>
+            <mass value="0.1" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+    <joint name="gripper_roll" type="revolute">
+        <parent link="roll_control"/>
+        <child link="end_effector_link"/>
+        <axis xyz="1 0 0"/>
+        <limit lower="-31.4" upper="31.4" velocity="3.14" effort="100000"/>
+    </joint>
+
+    <link name="end_effector_link">
+        <inertial>
+            <mass value="0.1" />
+            <inertia ixx = "0" ixy = "0" ixz = "0"
+                    iyx = "0" iyy = "0" iyz = "0"
+                    izx = "0" izy = "0" izz = "0" />
+        </inertial>
+    </link>
+
+</robot>
