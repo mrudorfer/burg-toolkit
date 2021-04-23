@@ -5,17 +5,33 @@ import open3d as o3d
 
 import burg_toolkit as burg
 
-# here's a collection of paths... choose correct ones in main (end of file)
-log_fn_basel = '/home/rudorfem/dev/exp_grasping/exp_GPNet/basel_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
-log_fn_deco15k = '/home/rudorfem/dev/exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max15k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
-log_fn_deco20k = '/home/rudorfem/dev/exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
+# here's a collection of paths... choose correct combination in options
+# base directories
+exp_dir_linux = '/home/rudorfem/dev/exp_grasping/exp_GPNet_Deco/'
+exp_dir_win = 'E:/data/UoB/research/BURG/ShapeGrasp/exp_GPNet_Deco/'
 
-log_fn_basel_win = 'E:/data/UoB/research/BURG/ShapeGrasp/[BEFORE_FIX_LR]exp_grasping/exp_GPNet_orig/exp_GPNet_basel_wGrid_tanh/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv'
-log_fn_deco20k_win = "E:/data/UoB/research/BURG/ShapeGrasp/[BEFORE_FIX_LR]exp_grasping/exp_GPNet/deco_wPretrain_bnldrop_max20k_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/test/epoch500/nms_poses_view0_log.csv"
-
-# note that simulator uses urdf folder instead of these processed obj files
 shapes_dir_linux = '/home/rudorfem/dev/3d_Grasping/GPNet/simulator/gpnet_data/processed/'
 shapes_dir_win = 'E:/Projekte/3d_Grasping/GPNet/simulator/gpnet_data/processed'
+
+# experiments directories
+basel_noLRsched = 'GPNet_basel_27march_tanh_grid_noLrSched/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/'
+basel_wLRsched = 'GPNet_basel_27march_tanh_grid_withLrSched/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/'
+deco_noLRsched = 'deco_fixLR_noSched_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/'
+deco_wLRsched = 'deco_fixLR_lrSched_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_lr0.001_lamb0.01_ratio1.0_posi0.3_sgd/'
+
+#######################
+# options
+SHOW_GRASPS_BEFORE_NMS = True
+EPOCH = 500
+SHAPES_DIR = shapes_dir_win
+BASE_EXP_DIR = exp_dir_win
+EXP_DIR = basel_noLRsched
+#######################
+
+# files
+sim_log_fn = f'test/epoch{EPOCH}/nms_poses_view0_log.csv'
+all_grasps_dir = f'test/epoch{EPOCH}/view0/'
+
 
 # dict for mapping the score from simulation to color
 s2c = {
@@ -36,7 +52,7 @@ def score_to_color(s):
         return [0, 0, 0]
 
 
-def read_log_file(log_fn):
+def read_simulation_log_file(log_fn):
     """
     :param log_fn: the path to the log file (output from GPNet)
 
@@ -72,7 +88,8 @@ def read_log_file(log_fn):
         grasps = np.asarray(item['grasp_list'])
         grasps[:, [3, 4, 5, 6]] = grasps[:, [6, 3, 4, 5]]
 
-        gs = burg.grasp.GraspSet.from_translations_and_quaternions(grasps[:, 0:7])
+        gs = burg.grasp.GraspSet.from_translations_and_quaternions(translations=grasps[:, 0:3],
+                                                                   quaternions=grasps[:, 3:7])
         gs.scores = grasps[:, 7]
 
         grasp_sets[key] = gs
@@ -80,7 +97,7 @@ def read_log_file(log_fn):
     return grasp_sets
 
 
-def inspect_grasps(grasp_sets, shape_dir):
+def inspect_grasps(grasp_sets, shape_dir, npz_files_dir=None):
     # now do the visualization
     print('showing', len(grasp_sets.keys()), 'objects with grasps')
 
@@ -110,10 +127,26 @@ def inspect_grasps(grasp_sets, shape_dir):
             gripper=gripper_model
         )
 
+        if npz_files_dir is not None:
+            file_path = os.path.join(npz_files_dir, obj + '.npz')
+            if not os.path.isfile(file_path):
+                print(f'{file_path} is not a file, skipping this one')
+                continue
+            with np.load(file_path) as data:
+                positions = data['centers']
+                orientations = data['quaternions']  # w, x, y, z presumably
+                gs = burg.grasp.GraspSet.from_translations_and_quaternions(translations=positions,
+                                                                           quaternions=orientations)
+                gs.scores = data['scores']
+                n_show = 800
+                print(f'showing {n_show} of {len(gs)} grasps')
+                burg.visualization.show_grasp_set([obj_mesh, ground_plane], gs, n=n_show,
+                                                  score_color_func=lambda s: [0, 2*(s-0.5), 0],
+                                                  gripper=gripper_model)
+
 
 if __name__ == "__main__":
     print('hi')
-    # gs_dict = read_log_file(log_fn_deco20k_win)
-    gs_dict = read_log_file(log_fn_basel_win)
-    inspect_grasps(gs_dict, shapes_dir_win)
+    gs_dict = read_simulation_log_file(os.path.join(BASE_EXP_DIR, EXP_DIR, sim_log_fn))
+    inspect_grasps(gs_dict, shapes_dir_win, os.path.join(BASE_EXP_DIR, EXP_DIR, all_grasps_dir))
     print('bye')

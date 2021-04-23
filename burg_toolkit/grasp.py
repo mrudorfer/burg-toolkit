@@ -150,22 +150,26 @@ class GraspSet:
         self._gs_array = np_array.astype(np.float32)
 
     @classmethod
-    def from_translations_and_quaternions(cls, poses):
+    def from_translations_and_quaternions(cls, translations, quaternions):
         """
         creates a grasp set from poses specified with translation (3) and quaternion (4).
         the quaternion needs to be in (w, x, y, z) order.
 
-        :param poses: (n, 7) np array with position (0:3) and quaternion (3:7)
+        :param translations: (n, 3) np array with position
+        :param quaternions: (n, 4) np array with quaternion (w, x, y, z)
 
         :return: grasp set with corresponding poses, all other fields are zero-initialised
         """
-        gs = cls(np.zeros((poses.shape[0], Grasp.ARRAY_LEN), dtype=np.float32))
+        if len(translations) != len(quaternions):
+            raise ValueError('provided translations and quaternions arrays must be of same length.')
+
+        gs = cls(np.zeros((translations.shape[0], Grasp.ARRAY_LEN), dtype=np.float32))
         # get translations
-        gs.translations = poses[:, 0:3]
+        gs.translations = translations
 
         # get rotation matrices (using the numpy-quaternion package, which offers vectorized implementations)
-        quaternions = quaternion.as_quat_array(poses[:, 3:7])
-        rotation_matrices = quaternion.as_rotation_matrix(quaternions)
+        quats = quaternion.as_quat_array(quaternions)
+        rotation_matrices = quaternion.as_rotation_matrix(quats)
         gs.rotation_matrices = rotation_matrices
 
         return gs

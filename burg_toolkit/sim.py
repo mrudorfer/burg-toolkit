@@ -218,6 +218,7 @@ class GraspSimulatorBase(ABC):
 
     def _get_joint_info(self, body_id, joint_id):
         """returns a dict with some joint info"""
+        # todo: make joint_info a class so we don't have to memorise the keys
         info = self._p.getJointInfo(body_id, joint_id)
         joint_info = {
             'id': info[0],
@@ -320,6 +321,7 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         print(self._p.getPhysicsEngineParameters())
         print('*******************************************************')
 
+        ########################################
         # PHASE 0: PLACING GRIPPER IN GRASP POSE
         # we have TCP grasp representation, hence need to transform gripper to TCP-oriented pose as well
         tf = np.matmul(g.pose, self.gripper.tf_base_to_TCP)
@@ -331,18 +333,31 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         self._body_ids['gripper'], gripper_joints = self._load_robot(
             self.gripper.path_to_urdf, position=pos, orientation=quat, fixed_base=False, friction=1.0
         )
+        print('\tloaded.')
+        print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
+        print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
+        print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
+
         self._p.createConstraint(
             self._body_ids['robot'], robot_joints['end_effector_link']['id'],
             self._body_ids['gripper'], -1,
             jointType=p.JOINT_FIXED, jointAxis=[0, 0, 0],
-            parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0]
+            parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
+            parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
+
+        print('\tconstrained.')
+        print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
+        print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
+        print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
+
 
         if self.verbose:
             self._inspect_body(self._body_ids['target_object'])
             self._inspect_body(self._body_ids['robot'])
             self._inspect_body(self._body_ids['gripper'])
 
+        ###################################
         # PHASE 1: CHECK GRIPPER COLLISIONS
         # checking collisions against ground plane and target object
         if self._with_plane_and_gravity:
@@ -359,6 +374,7 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             print('COLLISION CHECKS PASSED... press enter to continue')
             input()
 
+        ##############################
         # PHASE 2: CLOSING FINGER TIPS
         # now we need to link the finger tips together, so they mimic their movement
         # this variant is by https://github.com/lzylucy/graspGripper
@@ -369,9 +385,15 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             if self.verbose:
                 time.sleep(self.TIME_SLEEP)
             self._p.stepSimulation()
+        # todo: check if contact with object has been established (or finger tips not moving anymore)
 
-        # todo: check if contact with object has been established
+        print('\tafter grasping (first step-simulation-thingy.')
+        print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
+        print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
+        print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
 
+
+        #########################
         # PHASE 3: LIFTING OBJECT
         if self.verbose:
             print('OBJECT GRASPED... press enter to lift it')
@@ -383,7 +405,8 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             robot_joints['end_effector_link']['id']
         )
         target_pos = list(pos)
-        target_pos[2] = pos[2] + self.LIFTING_HEIGHT
+        # target_pos[2] = pos[2] + self.LIFTING_HEIGHT
+        target_pos[2] = pos[2] + 0.1
 
         joint_poses = self._p.calculateInverseKinematics(
             self._body_ids['robot'],
@@ -396,9 +419,11 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             jointIndices=range(len(joint_poses)),
             controlMode=p.POSITION_CONTROL,
             targetPositions=joint_poses,
-            targetVelocities=len(joint_poses)*[0.1],
-            forces=len(joint_poses)*[100]
+            targetVelocities=[item['max_velocity'] for key, item in robot_joints.items()],
+            forces=[item['max_force'] for key, item in robot_joints.items()]
         )
+
+        print([item['id'] for _, item in robot_joints.items()])
 
         while np.abs(target_pos[2] - pos[2]) > 1e-4:
             self._control_follower_joints()
@@ -410,9 +435,8 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             if self.verbose:
                 time.sleep(self.TIME_SLEEP)
                 print(f'abs difference: {np.abs(target_pos[2] - pos[2])}; ')
-                print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
-                print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
-                print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
+                print(f'joint poses: {[joint_list[0] for joint_list in self._p.getJointStates(self._body_ids["robot"], range(len(robot_joints)))]}')
+                print(f'joint targs: {joint_poses}')
                 # todo: thoughts on this
                 # end-effector pose and gripper pose are exactly the same
                 # this means the constraint works, as they are connected together

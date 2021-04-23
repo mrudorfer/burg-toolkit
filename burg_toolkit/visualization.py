@@ -137,7 +137,7 @@ def show_aligned_scene_point_clouds(scene: scene.Scene, views):
     show_o3d_point_clouds(o3d_pcs)
 
 
-def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
+def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=None):
     """
     visualizes a given grasp set with the specified gripper.
 
@@ -170,7 +170,11 @@ def show_grasp_set(objects: list, gs: grasp.GraspSet, gripper=None, n=None, scor
         objects.append(gripper_vis)
 
     colorize_point_clouds(objects)
-    o3d.visualization.draw(objects)
+    lookat = np.asarray([0.0, 0.0, 0.0])
+    up = np.asarray([0.0, 0.0, 1.0])
+    front = np.asarray([0.0, 1.0, 0.0])
+    zoom = 0.9
+    o3d.visualization.draw(objects)  #, lookat=lookat, up=up, front=front, zoom=zoom)
 
 
 def show_grasp_set_in_scene(scene: scene.Scene, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
