@@ -161,7 +161,8 @@ class GraspSet:
         :return: grasp set with corresponding poses, all other fields are zero-initialised
         """
         if len(translations) != len(quaternions):
-            raise ValueError('provided translations and quaternions arrays must be of same length.')
+            raise ValueError(f'provided translations ({len(translations)}) and quaternions ({len(quaternions)})' +
+                             f' arrays must be of same length.')
 
         gs = cls(np.zeros((translations.shape[0], Grasp.ARRAY_LEN), dtype=np.float32))
         # get translations

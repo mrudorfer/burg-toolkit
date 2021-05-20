@@ -199,8 +199,8 @@ def read_grasp_file_eppner2019(grasp_fn):
     print('com', hf['object_com'][:])
 
     print('creating grasp set...')
-    gs = grasp.GraspSet.from_translations_and_quaternions(translations=hf['poses'][0:3],
-                                                          quaternions=hf['poses'][3:7])
+    gs = grasp.GraspSet.from_translations_and_quaternions(translations=hf['poses'][:, 0:3],
+                                                          quaternions=hf['poses'][:, 3:7])
     print('done')
 
     return gs, hf['object_com'][:]
