@@ -137,7 +137,7 @@ def show_aligned_scene_point_clouds(scene: scene.Scene, views):
     show_o3d_point_clouds(o3d_pcs)
 
 
-def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=None):
+def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=None, with_plane=False):
     """
     visualizes a given grasp set with the specified gripper.
 
@@ -147,6 +147,7 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
     :param n: int number of grasps from set to display, if None, all grasps will be shown
     :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
                              if None, some coloring scheme will be used irrespective of score
+    :param with_plane: if True, a plane at z=0 will be displayed
     """
     if type(gs) is grasp.Grasp:
         gs = gs.as_grasp_set()
@@ -154,6 +155,13 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
     if n is not None:
         indices = np.random.choice(len(gs), n, replace=False)
         gs = gs[indices]
+
+    if with_plane:
+        l, w, h = 0.3, 0.3, 0.001
+        ground_plane = o3d.geometry.TriangleMesh.create_box(l, w, h)
+        ground_plane.compute_triangle_normals()
+        ground_plane.translate(np.array([-l / 2, -w / 2, -h]))
+        objects.append(ground_plane)
 
     for g in gs:
         if gripper is None:
