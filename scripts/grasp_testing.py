@@ -33,17 +33,15 @@ def test_distance_and_coverage():
     grasp.rotation_matrix = rot_mat
     gs[1] = grasp
 
-    dist = burg.grasp.pairwise_distances(gs[0], gs[1])
+    dist = burg.metrics.pairwise_combined_distances(gs[0], gs[1])
     print('computation of pairwise_distances (15 degree and 3 mm)', dist.shape, dist)
-    dist = gs[0].distance_to(gs[1])
-    print('computation of distance_to (15 degree and 3 mm)', dist.shape, dist)
 
     t1 = timer()
-    print('computation of coverage 20/50:', burg.grasp.coverage_brute_force(gs, gs[0:20]))
+    print('computation of coverage 20/50:', burg.metrics.coverage_brute_force(gs, gs[0:20]))
     print('this took:', timer() - t1, 'seconds')
 
     t1 = timer()
-    print('coverage kd-tree:', burg.grasp.coverage(gs, gs[0:20], print_timings=True))
+    print('coverage kd-tree:', burg.metrics.coverage(gs, gs[0:20], print_timings=True))
     print('this took:', timer() - t1, 'seconds')
 
     grasp_folder = 'e:/datasets/21_ycb_object_grasps/'
@@ -56,7 +54,7 @@ def test_distance_and_coverage():
     #print('this took:', timer() - t1, 'seconds')
 
     t1 = timer()
-    print('coverage kd-tree:', burg.grasp.coverage(grasp_set, gs, print_timings=True))
+    print('coverage kd-tree:', burg.metrics.coverage(grasp_set, gs, print_timings=True))
     print('in total, this took:', timer() - t1, 'seconds')
 
 
@@ -148,10 +146,10 @@ def test_cone_sampling():
 
 if __name__ == "__main__":
     print('hi')
-    # test_distance_and_coverage()
+    test_distance_and_coverage()
     # test_antipodal_grasp_sampling()
     # test_rotation_to_align_vectors()
     # test_angles()
     # test_cone_sampling()
-    test_new_antipodal_grasp_sampling()
+    # test_new_antipodal_grasp_sampling()
     print('bye')
