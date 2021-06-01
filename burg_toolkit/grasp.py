@@ -23,6 +23,10 @@ class Grasp:
 
         self._grasp_array = np_array.astype(np.float32)
 
+    def __str__(self):
+        s = f"Grasp with score {self.score} at pose:\n{self.pose}."
+        return s
+
     @property
     def internal_array(self):
         """
@@ -98,23 +102,6 @@ class Grasp:
         """
         self._grasp_array[12] = float(score)
 
-    def distance_to(self, other_grasp):
-        """
-        Computes the distance of this grasp to the other_grasp according to Eppner et al., 2019.
-
-        Translation and rotation terms are weighted so that a distance of 1 equals to either 1 mm translational or
-        1 degree rotational distance.
-
-        :param other_grasp: the other grasp of type Grasp
-
-        :return: the distance between this grasp and the other grasp as float value
-        """
-        # compute using module function
-        # could also use quaternion computation:
-        # rotation_dist = 2*np.arccos(np.abs(np.dot(q1, q2)))/np.pi*180
-
-        return pairwise_distances(self, other_grasp)[0, 0]
-
     def as_grasp_set(self):
         """
         Returns the grasp as a 1-element grasp set.
@@ -147,6 +134,9 @@ class GraspSet:
         assert(np_array.shape[1] == Grasp.ARRAY_LEN), 'provided np_array has wrong shape.'
 
         self._gs_array = np_array.astype(np.float32)
+
+    def __str__(self):
+        return f"GraspSet with {len(self)} grasps."
 
     @classmethod
     def from_translations_and_quaternions(cls, translations, quaternions):
