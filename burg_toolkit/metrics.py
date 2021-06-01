@@ -1,10 +1,12 @@
 import numpy as np
 from scipy import spatial
+import open3d as o3d
 
 from . import grasp
+from . import util
 
 
-def pairwise_euclidean_distances(graspset1, graspset2):
+def euclidean_distances(graspset1, graspset2):
     """
     Computes the pairwise euclidean distances of the positions of the provided grasps from set1 and set2.
     This is a vectorized implementation, but should be used in chunks if both sets are extremely large.
@@ -25,7 +27,7 @@ def pairwise_euclidean_distances(graspset1, graspset2):
     return distances
 
 
-def pairwise_angular_distances(graspset1, graspset2):
+def angular_distances(graspset1, graspset2):
     """
     Computes the pairwise angular distances in rad of the orientations of the provided grasps from set1 and set2.
     This is a vectorized implementation, but should be used in chunks if both sets are extremely large.
@@ -43,21 +45,24 @@ def pairwise_angular_distances(graspset1, graspset2):
     # see http://boris-belousov.net/2016/12/01/quat-dist/ for explanation of basic formula
     # basic formula: arccos((tr(R1*R2.T)-1)/2)
     # we just have to vectorize it to compute pairwise distances
-    distances = np.arccos(
-            (np.trace(
+    # rounding the argument to arccos to 4 decimals, to avoid nans for arccos(1.00001)
+    distances = np.arccos(np.around((
+            np.trace(
                         np.matmul(
                             # extend the dimensions to (N, 1, 3, 3) and (1, M, 3, 3) for the pairwise computations
                             graspset1.rotation_matrices[:, np.newaxis, ...],
-                            np.transpose(graspset2.rotation_matrices, axes=(0, 2, 1))[np.newaxis, ...]
-                        ),
+                            np.transpose(graspset2.rotation_matrices, axes=(0, 2, 1))[np.newaxis, ...]),
                         axis1=-2, axis2=-1  # compute trace over last two dims
-                    ) - 1.0) / 2.0)
+                    ) - 1.0) / 2.0, 4))
+    if np.any(np.isnan(distances)):
+        print(f'WARNING: {np.count_nonzero(np.isnan(distances))} nan values in angular distances' +
+              f'(despite rounding before arccos computation to avoid numerical issues)')
     return distances
 
 
-def pairwise_combined_distances(graspset1, graspset2, weight=1000.0):
+def combined_distances(graspset1, graspset2, weight=1000.0):
     """
-    Computes the pairwisse combined distances between the provided grasps from set1 and set2.
+    Computes the pairwise combined distances between the provided grasps from set1 and set2.
     The combined distance is `weight * euclidean distance [m] + angular_distance [deg]`.
 
     :param graspset1: GraspSet of length N (or single Grasp)
@@ -66,10 +71,64 @@ def pairwise_combined_distances(graspset1, graspset2, weight=1000.0):
 
     :return: (N, M) matrix of combined distances
     """
-    combined_distances = weight * pairwise_euclidean_distances(graspset1, graspset2) + \
-        np.rad2deg(pairwise_angular_distances(graspset1, graspset2))
+    combined_distances = weight * euclidean_distances(graspset1, graspset2) + \
+        np.rad2deg(angular_distances(graspset1, graspset2))
 
     return combined_distances
+
+
+def _get_default_gripper_keypoints():
+    w = 0.08
+    h = 0.08
+    tip = 0.03
+    keypoints = np.array([
+        [-w/2, 0, 0],
+        [w/2, 0, 0],
+        [-w/2, 0, tip],
+        [w/2, 0, tip],
+        [0, 0, h]
+    ])
+    return keypoints
+
+
+def avg_gripper_point_distances(graspset1, graspset2, gripper_points=None):
+    """
+    Computes the pairwise distances between graspset1 and graspset2 by transforming a model gripper to the grasp
+    pose and computing the average point-wise distance of certain gripper key points.
+
+    In default mode, five key points are used (two on each finger tip, one at the gripper stem).
+
+    :param graspset1: GraspSet of length N (or single Grasp)
+    :param graspset2: GraspSet of length M (or single Grasp)
+    :param gripper_points: o3d point cloud (or np (K, 3) array) with gripper points to be used
+
+    :return: (N, M) matrix of combined distances
+    """
+    if gripper_points is None:
+        gripper_points = _get_default_gripper_keypoints()
+    if type(gripper_points) is o3d.geometry.PointCloud:
+        gripper_points = util.o3d_pc_to_numpy(gripper_points)
+
+    def _tf_points(points, transforms):
+        # points (n, 3)
+        # transforms (m, 4, 4)
+        # result (m, n, 3)
+        return np.einsum('ijk,lk->ilj',
+                         transforms,
+                         np.concatenate([points, np.ones((len(points), 1))], axis=1))[..., :3]
+
+    tf_pts_1 = _tf_points(gripper_points, graspset1.poses)
+    tf_pts_2 = _tf_points(gripper_points, graspset2.poses)
+
+    # compute pairwise euclidean distances, then average for all gripper points
+    # (N, M, 5) -> (N, M)
+    distances = np.average(
+        np.linalg.norm(
+            tf_pts_1[:, np.newaxis, ...] - tf_pts_2[np.newaxis, ...], axis=-1
+        ),
+        axis=-1
+    )
+    return distances
 
 
 def coverage_brute_force(reference_grasp_set, query_grasp_set, epsilon=15.0):
@@ -88,7 +147,7 @@ def coverage_brute_force(reference_grasp_set, query_grasp_set, epsilon=15.0):
     :return: float in [0, 1] corresponding to the fraction of grasps in the reference grasp set which are covered by
              grasps from the query grasp set
     """
-    cov = np.any(pairwise_combined_distances(reference_grasp_set, query_grasp_set) <= epsilon, axis=1)
+    cov = np.any(combined_distances(reference_grasp_set, query_grasp_set) <= epsilon, axis=1)
     return np.count_nonzero(cov) / len(cov)
 
 
@@ -150,7 +209,7 @@ def coverage(reference_grasp_set, query_grasp_set, epsilon=15.0, print_timings=F
     covered = 0
     for i, indices in enumerate(list_of_indices):
         if len(indices) > 0:
-            if np.any(pairwise_combined_distances(reference_grasp_set[i], query_grasp_set[indices]) <= epsilon):
+            if np.any(combined_distances(reference_grasp_set[i], query_grasp_set[indices]) <= epsilon):
                 covered += 1
 
     if print_timings:
