@@ -7,7 +7,7 @@ import burg_toolkit as burg
 
 # here's a collection of paths... choose correct combination in options
 # base directories
-exp_dir_linux = '/home/rudorfem/dev/exp_grasping/exp_GPNet_Deco/'
+exp_dir_linux = '/home/rudorfem/dev/exp_GPNet_Deco/'
 exp_dir_win = 'E:/data/UoB/research/BURG/ShapeGrasp/exp_GPNet_Deco/'
 
 shapes_dir_linux = '/home/rudorfem/dev/3d_Grasping/GPNet/simulator/gpnet_data/processed/'
@@ -22,10 +22,10 @@ deco_wLRsched = 'deco_fixLR_lrSched_tanh_grid/gridlen22_gridnum10/bs1_wd0.0001_l
 #######################
 # options
 SHOW_GRASPS_BEFORE_NMS = True
-EPOCH = 500
-SHAPES_DIR = shapes_dir_win
-BASE_EXP_DIR = exp_dir_win
-EXP_DIR = basel_noLRsched
+EPOCH = 450
+SHAPES_DIR = shapes_dir_linux
+BASE_EXP_DIR = exp_dir_linux
+EXP_DIR = deco_noLRsched
 #######################
 
 # files
@@ -113,6 +113,8 @@ def inspect_grasps(grasp_sets, shape_dir, npz_files_dir=None):
     for obj, grasp_set in grasp_sets.items():
         # print a summary
         print('shape', obj, 'has', len(grasp_set), 'grasps')
+        if obj != 'fa23aa60ec51c8e4c40fe5637f0a27e1':
+            continue
         scores = grasp_set.scores
         for key in s2c.keys():
             print(f'* {(scores == key).sum()} x {s2c[key][1]} ({s2c[key][2]})')
@@ -148,5 +150,5 @@ def inspect_grasps(grasp_sets, shape_dir, npz_files_dir=None):
 if __name__ == "__main__":
     print('hi')
     gs_dict = read_simulation_log_file(os.path.join(BASE_EXP_DIR, EXP_DIR, sim_log_fn))
-    inspect_grasps(gs_dict, shapes_dir_win, os.path.join(BASE_EXP_DIR, EXP_DIR, all_grasps_dir))
+    inspect_grasps(gs_dict, SHAPES_DIR, os.path.join(BASE_EXP_DIR, EXP_DIR, all_grasps_dir))
     print('bye')

@@ -22,6 +22,7 @@ def test_distance_and_coverage():
     grasp.translation = np.asarray([0, 0, 0.003])
     grasp.rotation_matrix = rot_mat
     gs[0] = grasp
+    print(grasp)
 
     theta = 15 / 180 * np.pi
     rot_mat = np.asarray([[np.cos(theta), 0, np.sin(theta)],
@@ -32,8 +33,12 @@ def test_distance_and_coverage():
     grasp.translation = np.asarray([0, 0, 0])
     grasp.rotation_matrix = rot_mat
     gs[1] = grasp
+    print(grasp)
 
-    dist = burg.metrics.pairwise_combined_distances(gs[0], gs[1])
+    print('average gripper point distances between 20 and 50 elem graspset')
+    print(burg.metrics.avg_gripper_point_distances(gs[0:20], gs).shape)
+
+    dist = burg.metrics.combined_distances(gs[0], gs[1])
     print('computation of pairwise_distances (15 degree and 3 mm)', dist.shape, dist)
 
     t1 = timer()
