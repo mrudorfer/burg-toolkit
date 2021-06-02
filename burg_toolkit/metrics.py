@@ -91,7 +91,7 @@ def _get_default_gripper_keypoints():
     return keypoints
 
 
-def avg_gripper_point_distances(graspset1, graspset2, gripper_points=None):
+def avg_gripper_point_distances(graspset1, graspset2, gripper_points=None, consider_symmetry=False):
     """
     Computes the pairwise distances between graspset1 and graspset2 by transforming a model gripper to the grasp
     pose and computing the average point-wise distance of certain gripper key points.
@@ -101,6 +101,8 @@ def avg_gripper_point_distances(graspset1, graspset2, gripper_points=None):
     :param graspset1: GraspSet of length N (or single Grasp)
     :param graspset2: GraspSet of length M (or single Grasp)
     :param gripper_points: o3d point cloud (or np (K, 3) array) with gripper points to be used
+    :param consider_symmetry: bool, whether or not to also flip the gripper representation (note this only works
+                              for the default gripper points so far)
 
     :return: (N, M) matrix of combined distances
     """
@@ -120,15 +122,20 @@ def avg_gripper_point_distances(graspset1, graspset2, gripper_points=None):
     tf_pts_1 = _tf_points(gripper_points, graspset1.poses)
     tf_pts_2 = _tf_points(gripper_points, graspset2.poses)
 
-    # compute pairwise euclidean distances, then average for all gripper points
-    # (N, M, 5) -> (N, M)
-    distances = np.average(
-        np.linalg.norm(
-            tf_pts_1[:, np.newaxis, ...] - tf_pts_2[np.newaxis, ...], axis=-1
-        ),
-        axis=-1
-    )
-    return distances
+    # compute pairwise euclidean distances (N, M, 5)
+    distances = np.linalg.norm(tf_pts_1[:, np.newaxis, ...] - tf_pts_2[np.newaxis, ...], axis=-1)
+
+    # note this only works for the default gripper points so far
+    if consider_symmetry:
+        # flip the gripper points of gs2
+        tf_pts_2 = tf_pts_2[:, [1, 0, 3, 2, 4], :]
+        distances = np.minimum(
+            distances,
+            np.linalg.norm(tf_pts_1[:, np.newaxis, ...] - tf_pts_2[np.newaxis, ...], axis=-1)
+        )
+
+    # average distance for all gripper points (N, M, 5) -> (N, M)
+    return np.average(distances, axis=-1)
 
 
 def coverage_brute_force(reference_grasp_set, query_grasp_set, epsilon=15.0):
