@@ -151,10 +151,10 @@ def test_cone_sampling():
 
 if __name__ == "__main__":
     print('hi')
-    test_distance_and_coverage()
+    # test_distance_and_coverage()
     # test_antipodal_grasp_sampling()
     # test_rotation_to_align_vectors()
     # test_angles()
     # test_cone_sampling()
-    # test_new_antipodal_grasp_sampling()
+    test_new_antipodal_grasp_sampling()
     print('bye')

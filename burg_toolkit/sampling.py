@@ -110,7 +110,8 @@ class AntipodalGraspSampler:
         # center points in the middle between ref and target, x-axis pointing towards target point
         d = target_points - reference_point
         center_points = reference_point + 1/2 * d
-        x_axis = d / np.linalg.norm(d, axis=-1)[:, np.newaxis]
+        distances = np.linalg.norm(d, axis=-1)
+        x_axis = d / distances[:, np.newaxis]
 
         # construct y-axis and z-axis orthogonal to x-axis
         y_axis = np.zeros(x_axis.shape)
@@ -136,8 +137,12 @@ class AntipodalGraspSampler:
 
         # apply transforms
         tfs = np.matmul(tf_basis[np.newaxis, :, :, :], tf_rot[:, np.newaxis, :, :]).reshape(-1, 4, 4)
+        gs = grasp.GraspSet.from_poses(tfs)
 
-        return grasp.GraspSet.from_poses(tfs)
+        # add distances as gripper widths (repeat n_orientation times)
+        gs.widths = np.tile(distances, n_orientations).reshape(n_orientations, len(distances)).T.reshape(-1)
+
+        return gs
 
     def sample(self, n=10):
         # probably do some checks before starting... is gripper None? is mesh None? ...
