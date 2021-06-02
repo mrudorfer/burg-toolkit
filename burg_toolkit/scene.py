@@ -24,6 +24,10 @@ class ObjectType:
         self.restitution_coeff = restitution_coeff or 0.1
         self.urdf_fn = None
 
+    def __str__(self):
+        return f'ObjectType: {self.identifier}\n\thas mesh: {self.mesh is not None}\n\tmass: {self.mass}\n\t' + \
+            f'friction: {self.friction_coeff}\n\trestitution: {self.restitution_coeff}\n\turdf: {self.urdf_fn}'
+
     def make_urdf_file(self, directory, overwrite_existing=False):
         """
         This method will produce a temporary .obj file which stores the current status of the mesh, so we don't have
