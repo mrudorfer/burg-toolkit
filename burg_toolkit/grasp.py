@@ -322,7 +322,7 @@ class GraspSet:
 
         :return: Itself.
         """
-        self._gs_array = np.concatenate([self._gs_array, grasp_set.internal_array])
+        self._gs_array = np.concatenate([self._gs_array, grasp_set._gs_array])
         return self
 
     def transform(self, tf):
