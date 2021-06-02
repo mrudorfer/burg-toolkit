@@ -119,6 +119,9 @@ class ObjectLibrary(UserDict):
         for name, obj in self.data.items():
             obj.make_urdf_file(directory, overwrite_existing=overwrite_existing)
 
+    def __len__(self):
+        return len(self.data.keys())
+
 
 class Camera:
     """
