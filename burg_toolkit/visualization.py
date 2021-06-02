@@ -101,16 +101,19 @@ def _get_scene_geometries(scene: scene.Scene, with_bg_objs=True):
     return o3d_pcs
 
 
-def show_full_scene_point_cloud(scene: scene.Scene, with_bg_objs=True):
+def show_scene(scene: scene.Scene, with_bg_objs=True, add_plane=False):
     """
-    shows the complete (ground truth) point cloud of a scene
+    shows the objects of a scene
 
     :param scene: a core_types.Scene object
-    :param with_bg_objs: whether to show background objects as well
+    :param with_bg_objs: whether to show background objects as well, defaults to True
+    :param add_plane: whether to add a plane to the scene, defaults to False
 
     :return: returns when viewer is closed by user
     """
     o3d_pcs = _get_scene_geometries(scene, with_bg_objs=with_bg_objs)
+    if add_plane:
+        o3d_pcs.append(create_plane())
 
     # and visualize
     show_o3d_point_clouds(o3d_pcs)
