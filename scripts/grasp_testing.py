@@ -93,7 +93,7 @@ def test_antipodal_grasp_sampling():
         max_sum_of_angles=30,
         visualize=True
     )
-    print('grasp_set', grasp_set.internal_array.shape)
+    print('grasp_set', grasp_set)
 
     # print('saving grasp set to', SAVE_FILE)
     # with open(SAVE_FILE, 'wb') as f:

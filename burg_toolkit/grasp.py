@@ -11,9 +11,9 @@ class Grasp:
     change in the future.
 
     :param np_array: optional, the internal numpy array which is structured as follows:
-                     [translation(3), rotation_matrix(3x3)[:], score], length = ARRAY_LEN
+                     [translation(3), rotation_matrix(3x3)[:], score, width], length = ARRAY_LEN
     """
-    ARRAY_LEN = 13
+    ARRAY_LEN = 14
 
     def __init__(self, np_array=None):
         if np_array is None:
@@ -26,21 +26,6 @@ class Grasp:
     def __str__(self):
         s = f"Grasp with score {self.score} at pose:\n{self.pose}."
         return s
-
-    @property
-    def internal_array(self):
-        """
-        :return: the internal ndarray representation. only use when you know what you're doing.
-        """
-        return self._grasp_array
-
-    @internal_array.setter
-    def internal_array(self, np_array):
-        """
-        :param np_array: the new internal array, must be of length Grasp.ARRAY_LEN. use with caution.
-        """
-        assert(len(np_array) == self.ARRAY_LEN), 'provided np_array has wrong length.'
-        self._grasp_array = np_array.astype(np.float32)
 
     @property
     def translation(self):
@@ -101,6 +86,20 @@ class Grasp:
         :param score: a float value as the score
         """
         self._grasp_array[12] = float(score)
+
+    @property
+    def width(self):
+        """
+        :return: the width of this grasp as float value
+        """
+        return self._grasp_array[13]
+
+    @width.setter
+    def width(self, width):
+        """
+        :param width: a float value as the opening width of the grasp
+        """
+        self._grasp_array[13] = float(width)
 
     def as_grasp_set(self):
         """
@@ -221,32 +220,18 @@ class GraspSet:
             if type(value) is GraspSet:
                 if len(value) != 1:
                     raise ValueError('If type(index) is int, value needs to be Grasp or GraspSet of length 1.')
-                value = Grasp(value.internal_array)
-            if type(value) is not Grasp:
+                self._gs_array[key] = value._gs_array.flatten()
+            elif type(value) is Grasp:
+                self._gs_array[key] = value._grasp_array
+            else:
                 raise TypeError('Provided value has wrong type. Expected Grasp or GraspSet of length 1.')
-            self._gs_array[key] = value.internal_array
 
         elif (type(key) == slice) or (type(key) == list) or (type(key) == np.ndarray):
             if type(value) is not GraspSet:
                 raise TypeError('Provided value has wrong type. Expected GraspSet.')
-            self._gs_array[key] = value.internal_array
+            self._gs_array[key] = value._gs_array
         else:
             raise TypeError('unknown index type calling GraspSet.__setitem__')
-
-    @property
-    def internal_array(self):
-        """
-        :return: gives the internal numpy array representation of shape (N, Grasp.ARRAY_LEN)
-        """
-        return self._gs_array
-
-    @internal_array.setter
-    def internal_array(self, np_array):
-        """
-        :param np_array: sets the new internal np array, must be of dim (n, Grasp.ARRAY_LEN). use with caution.
-        """
-        assert(np_array.shape[1] == Grasp.ARRAY_LEN), 'provided np_array has wrong shape.'
-        self._gs_array = np_array.astype(np.float32)
 
     @property
     def translations(self):
@@ -313,6 +298,21 @@ class GraspSet:
         """
         assert(len(scores) == len(self)), "provided scores have wrong array length"
         self._gs_array[:, 12] = scores[:]
+
+    @property
+    def widths(self):
+        """
+        :return: (n,) np array with opening widths as float (if they are set)
+        """
+        return self._gs_array[:, 13]
+
+    @widths.setter
+    def widths(self, widths):
+        """
+        :param widths: (n,) np array with widths
+        """
+        assert(len(widths) == len(self)), "provided widths have wrong array length"
+        self._gs_array[:, 13] = widths[:]
 
     def add(self, grasp_set):
         """
