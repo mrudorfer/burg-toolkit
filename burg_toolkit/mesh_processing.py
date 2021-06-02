@@ -21,6 +21,9 @@ def check_properties(mesh):
     watertight = mesh.is_watertight()
     orientable = mesh.is_orientable()
 
+    print(f"  no vertices:            {len(mesh.vertices)}")
+    print(f"  no triangles:           {len(mesh.triangles)}")
+    print(f"  dims (x, y, z):         {dimensions(mesh)}")
     print(f"  has triangle normals:   {has_triangle_normals}")
     print(f"  has vertex normals:     {has_vertex_normals}")
     print(f"  has textures:           {has_texture}")
@@ -30,6 +33,17 @@ def check_properties(mesh):
     print(f"  self_intersecting:      {self_intersecting}")
     print(f"  watertight:             {watertight}")
     print(f"  orientable:             {orientable}")
+
+
+def dimensions(mesh):
+    """
+    Returns the extent of the mesh in [x, y, z] directions, i.e. of the axis aligned bbox.
+
+    :param mesh: open3d.geometry.TriangleMesh
+
+    :return: (3) np array
+    """
+    return mesh.get_max_bound().flatten() - mesh.get_min_bound().flatten()
 
 
 def poisson_disk_sampling(mesh, radius=0.003, n_points=None, with_normals=True, init_factor=5):
