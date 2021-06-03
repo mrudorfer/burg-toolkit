@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import trimesh
 import open3d as o3d
@@ -167,6 +169,7 @@ class AntipodalGraspSampler:
             print('mu is', self.mu, 'hence angle of friction cone is', np.rad2deg(angle), '°')
 
         gs = grasp.GraspSet()
+        gs_contacts = np.empty((0, 2, 3))
         i_ref_point = 0
 
         while len(gs) < n:
@@ -263,6 +266,7 @@ class AntipodalGraspSampler:
                 continue
 
             # actually construct all the grasps (with n_orientations)
+            # todo: maybe we can choose more intelligently here, e.g. the farthest point?
             if len(locations) > self.max_targets_per_ref_point:
                 indices = np.arange(len(locations))
                 np.random.shuffle(indices)
@@ -271,11 +275,39 @@ class AntipodalGraspSampler:
                 print(f'* ... of which we randomly choose {len(locations)} to construct grasps')
 
             grasps = self.construct_grasp_set(p_r, locations, self.n_orientations)
+            # also provide the contact points
+            contacts = np.empty((len(locations), 2, 3))
+            contacts[:, 0] = p_r
+            contacts[:, 1] = locations
+            contacts = np.repeat(contacts, self.n_orientations, axis=0)
+            gs_contacts = np.concatenate([gs_contacts, contacts], axis=0)
+
             gs.add(grasps)
             if self.verbose:
                 print(f'* added {len(grasps)} grasps (with {self.n_orientations} orientations for each point pair)')
 
-        return gs
+        return gs, gs_contacts
+
+    def check_collisions(self, graspset, use_width=True):
+        # we need collision operations which are not available in o3d yet
+        # hence convert the mesh to trimesh
+        self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
+        manager = trimesh.collision.CollisionManager()
+        manager.add('shape', self._trimesh)
+
+        gripper_mesh = copy.deepcopy(self.gripper.mesh)
+        tf = gripper.tf_base_to_TCP
+        gripper_mesh.transform(tf)
+
+        collision_array = np.empty(len(graspset), dtype=np.bool)
+
+        for i, g in enumerate(graspset):
+            tf_squeeze = np.eye(4)
+            if use_width:
+                tf_squeeze[0, 0] = (g.width + 0.005) / gripper.opening_width
+            collision_array[i] = manager.in_collision_single(gripper_mesh, transform=g.pose @ tf_squeeze)
+
+        return collision_array
 
 
 def sample_antipodal_grasps(point_cloud, gripper_model: gripper.ParallelJawGripper, n=10, apex_angle=30, seed=42,
