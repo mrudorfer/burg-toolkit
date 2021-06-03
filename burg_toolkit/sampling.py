@@ -4,6 +4,7 @@ import numpy as np
 import trimesh
 import open3d as o3d
 from timeit import default_timer as timer
+from tqdm import tqdm
 
 from . import grasp
 from . import gripper
@@ -293,18 +294,21 @@ class AntipodalGraspSampler:
         # hence convert the mesh to trimesh
         self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
         manager = trimesh.collision.CollisionManager()
-        manager.add('shape', self._trimesh)
+        manager.add_object('shape', self._trimesh)
 
         gripper_mesh = copy.deepcopy(self.gripper.mesh)
-        tf = gripper.tf_base_to_TCP
+        tf = self.gripper.tf_base_to_TCP
         gripper_mesh.transform(tf)
+        gripper_mesh = util.o3d_mesh_to_trimesh(gripper_mesh)
 
         collision_array = np.empty(len(graspset), dtype=np.bool)
 
-        for i, g in enumerate(graspset):
+        if self.verbose:
+            print('checking collisions...')
+        for i, g in tqdm(enumerate(graspset), disable=not self.verbose):
             tf_squeeze = np.eye(4)
             if use_width:
-                tf_squeeze[0, 0] = (g.width + 0.005) / gripper.opening_width
+                tf_squeeze[0, 0] = (g.width + 0.005) / self.gripper.opening_width
             collision_array[i] = manager.in_collision_single(gripper_mesh, transform=g.pose @ tf_squeeze)
 
         return collision_array
