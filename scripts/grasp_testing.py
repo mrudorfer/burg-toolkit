@@ -110,9 +110,15 @@ def test_new_antipodal_grasp_sampling():
     ags = burg.sampling.AntipodalGraspSampler()
     ags.mesh = burg.io.load_mesh(mesh_fn)
     ags.gripper = gripper_model
-    ags.verbose = True
-    gs = ags.sample(500)
-    burg.visualization.show_grasp_set([ags.mesh], gs, gripper=gripper_model)
+    ags.verbose = False
+    gs, contacts = ags.sample(50)
+    gs.scores = ags.check_collisions(gs, use_width=True)
+    print(contacts)
+    print(gs.widths)
+    print(gs)
+    print(contacts.shape)
+    burg.visualization.show_grasp_set([ags.mesh], gs, gripper=gripper_model, use_width=True,
+                                      score_color_func=lambda s: [s, 0 if s else 1, 0])
 
 
 def test_rotation_to_align_vectors():

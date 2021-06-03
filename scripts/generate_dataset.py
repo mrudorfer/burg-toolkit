@@ -69,20 +69,32 @@ if __name__ == "__main__":
         print('dims:', burg.mesh_processing.dimensions(shape.mesh))
         check_mesh_dimensions(shape.mesh)
 
+        # store files to folder
+        shape_dir = os.path.join(arguments.output_dir, 'shapes/')
+        shape.make_urdf_file(shape_dir, overwrite_existing=True)
+
         # sample some grasps
-        # also need contact points, widths
+        gripper_model = burg.gripper.ParallelJawGripper(opening_width=0.085,
+                                                        finger_length=0.03,
+                                                        finger_thickness=0.003)
+        ags = burg.sampling.AntipodalGraspSampler()
+        ags.mesh = shape.mesh
+        ags.gripper = gripper_model
+        graspset, contacts = ags.sample(10000)
+        ags.verbose = True
+        # score 0: collision, score 1: ok so far
+        graspset.scores = np.logical_not(ags.check_collisions(graspset, use_width=True))
 
         # find a resting pose for the object
         tri_mesh = burg.util.o3d_mesh_to_trimesh(shape.mesh)
         transforms, probs = trimesh.poses.compute_stable_poses(tri_mesh)
         print('transforms', transforms.shape)
         print('probs', probs)
-        print('>0.05:', np.count_nonzero(probs >= 0.05))
+        transforms = transforms[probs >= 0.05]
+        print('>0.05:', len(transforms))
+        np.save(os.path.join(shape_dir, f'{shape_name}_poses'), transforms)
 
         for i in range(len(transforms)):
-            if probs[i] < 0.05:
-                break
-
             instance = burg.scene.ObjectInstance(shape, transforms[i])
             s = burg.scene.Scene(objects=[instance])
             print('probability:', probs[i])
@@ -93,7 +105,6 @@ if __name__ == "__main__":
             shape.mesh.transform(transforms[i])
             shape.identifier = shape_name + f'_pose_{i}'
 
-            shape_dir = os.path.join(arguments.output_dir, 'shapes/')
             shape.make_urdf_file(shape_dir, overwrite_existing=True)
 
             # revert changes
