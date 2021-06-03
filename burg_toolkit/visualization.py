@@ -147,7 +147,7 @@ def create_plane(l=0.3, w=0.3, h=0.001):
     return ground_plane
 
 
-def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=None, with_plane=False):
+def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=None, with_plane=False, use_width=False):
     """
     visualizes a given grasp set with the specified gripper.
 
@@ -158,6 +158,7 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
     :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
                              if None, some coloring scheme will be used irrespective of score
     :param with_plane: if True, a plane at z=0 will be displayed
+    :param use_width: if True, will squeeze the gripper model to the width of the grasps
     """
     if type(gs) is grasp.Grasp:
         gs = gs.as_grasp_set()
@@ -176,7 +177,12 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
         else:
             gripper_vis = copy.deepcopy(gripper.mesh)
             tf = gripper.tf_base_to_TCP
-        gripper_vis.transform(np.matmul(g.pose, tf))
+
+        tf_squeeze = np.eye(4)
+        if use_width:
+            tf_squeeze[0, 0] = (g.width + 0.005) / gripper.opening_width
+
+        gripper_vis.transform(g.pose @ tf_squeeze @ tf)
 
         if score_color_func is not None:
             gripper_vis.paint_uniform_color(score_color_func(g.score))
