@@ -5,6 +5,7 @@ import trimesh
 import open3d as o3d
 from timeit import default_timer as timer
 from tqdm import tqdm
+from scipy.spatial.transform import Rotation as R
 
 from . import grasp
 from . import gripper
@@ -95,10 +96,79 @@ class AntipodalGraspSampler:
         return normals
 
     @staticmethod
+    def construct_halfspace_grasp_set(reference_point, target_points, n_orientations):
+        """
+        For all pairs of reference point and target point grasps will be constructed at the center point.
+        A grasp can be seen as a frame, the x-axis will point towards the target point and the z-axis will point
+        in the direction from which the gripper will be approaching.
+        This method only samples grasps from the halfspace above, the object will not be grasped from below.
+        (Similar to GPNet data set.)
+
+        :param reference_point: (3,) np array
+        :param target_points: (n, 3) np array
+        :param n_orientations: int, number of different orientations to use
+
+        :return: grasp.GraspSet
+        """
+        reference_point = np.reshape(reference_point, (1, 3))
+        target_points = np.reshape(target_points, (-1, 3))
+
+        # center points in the middle between ref and target, x-axis pointing towards target point
+        d = target_points - reference_point
+        center_points = reference_point + 1/2 * d
+        distances = np.linalg.norm(d, axis=-1)
+        x_axes = d / distances[:, np.newaxis]
+
+        # get unique x_axis representation = must only point upwards in z
+        mask = x_axes[:, 2] < 0
+        x_axes[mask] *= -1
+
+        # y_tangent is constructed orthogonal to world z and gripper x
+        y_tangent = -np.cross(x_axes, [0, 0, 1])
+        y_tangent = y_tangent / np.linalg.norm(y_tangent, axis=-1)[:, np.newaxis]
+
+        # the z-axes of the grasps are this y_tangent vector, but rotated around grasp's x-axis by theta
+        # let's get the axis-angle representation to construct the rotations
+        theta = np.linspace(0, np.pi, num=n_orientations)
+        # multiply each of the x_axes with each of the thetas
+        # [n, 3] * [m] --> [n, m, 3] --> [n*m, 3]
+        # (first we have 1st x-axis with all thetas, then 2nd x-axis with all thetas, etc..)
+        axis_angles = np.einsum('ik,j->ijk', x_axes, theta).reshape(-1, 3)
+        rotations = R.from_rotvec(axis_angles)
+        poses = np.empty(shape=(len(rotations), 4, 4))
+        cosines = np.empty(shape=(len(rotations)))
+
+        cosine_error = 0
+        for i in range(len(x_axes)):
+            for j in range(n_orientations):
+                # apply the rotation to the y_tangent to get grasp z
+                index = i*n_orientations + j
+                rot_mat = rotations[index].as_matrix()
+                z_axis = rot_mat @ y_tangent[i]
+
+                # finally get y
+                y_axis = np.cross(z_axis, x_axes[i])
+                y_axis = y_axis / np.linalg.norm(y_axis)
+
+                poses[index] = util.tf_from_xyz_pos(x_axes[i], y_axis, z_axis, center_points[i])
+
+                # let's confirm the cosine angle
+                cos = np.dot(z_axis, y_tangent[i])
+                cos_should_be = np.cos(theta[j])
+                cosines[index] = cos_should_be
+                cosine_error += np.square(cos - cos_should_be)
+
+        print(f'cosine MSE is: {cosine_error}')
+
+        gs = grasp.GraspSet.from_poses(poses)
+        gs.widths = cosines  # todo for now
+        return gs
+
+    @staticmethod
     def construct_grasp_set(reference_point, target_points, n_orientations):
         """
         For all pairs of reference point and target point grasps will be constructed at the center point.
-        A grasps can be seen as a frame, the x-axis will point towards the target point and the z-axis will point
+        A grasp can be seen as a frame, the x-axis will point towards the target point and the z-axis will point
         in the direction from which the gripper will be approaching.
 
         :param reference_point: (3,) np array
@@ -275,7 +345,8 @@ class AntipodalGraspSampler:
             if self.verbose:
                 print(f'* ... of which we randomly choose {len(locations)} to construct grasps')
 
-            grasps = self.construct_grasp_set(p_r, locations, self.n_orientations)
+            # grasps = self.construct_grasp_set(p_r, locations, self.n_orientations)
+            grasps = self.construct_halfspace_grasp_set(p_r, locations, self.n_orientations)
             # also provide the contact points
             contacts = np.empty((len(locations), 2, 3))
             contacts[:, 0] = p_r
