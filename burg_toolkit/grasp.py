@@ -74,6 +74,20 @@ class Grasp:
         self.rotation_matrix = pose[0:3, 0:3]
 
     @property
+    def quaternion(self):
+        """
+        :return: the rotation as quaternion (w, x, y, z)
+        """
+        return quaternion.as_float_array(quaternion.from_rotation_matrix(self.rotation_matrix))
+
+    @quaternion.setter
+    def quaternion(self, quat):
+        """
+        :param quat: the quaterion in normalized (w, x, y, z) format, as list or float array
+        """
+        self.rotation_matrix = quaternion.as_rotation_matrix(quaternion.from_float_array(quat))
+
+    @property
     def score(self):
         """
         :return: the score of this grasp as float value
@@ -157,9 +171,7 @@ class GraspSet:
         gs.translations = translations
 
         # get rotation matrices (using the numpy-quaternion package, which offers vectorized implementations)
-        quats = quaternion.as_quat_array(quaternions)
-        rotation_matrices = quaternion.as_rotation_matrix(quats)
-        gs.rotation_matrices = rotation_matrices
+        gs.quaternions = quaternions
 
         return gs
 
@@ -263,6 +275,21 @@ class GraspSet:
         """
         assert(rotation_matrices.shape == (len(self), 3, 3)), "provided rotation matrices have wrong shape"
         self._gs_array[:, 3:12] = rotation_matrices.reshape((-1, 9))
+
+    @property
+    def quaternions(self):
+        """
+        :return: (n, 4) np array with quaternions in (w, x, y, z) format
+        """
+        return quaternion.as_float_array(quaternion.from_rotation_matrix(self.rotation_matrices))
+
+    @quaternions.setter
+    def quaternions(self, quats):
+        """
+        :param quats: (n, 4) array with normalized quaternions in (w, x, y, z) format
+        """
+        assert(quats.shape == (len(self), 4)), "provided quaternions have wrong shape"
+        self.rotation_matrices = quaternion.as_rotation_matrix(quaternion.from_float_array(quats))
 
     @property
     def poses(self):
