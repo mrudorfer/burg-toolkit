@@ -164,7 +164,7 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
         gs = gs.as_grasp_set()
 
     if n is not None:
-        n = np.min(n, len(gs))
+        n = np.minimum(n, len(gs))
         indices = np.random.choice(len(gs), n, replace=False)
         gs = gs[indices]
 
