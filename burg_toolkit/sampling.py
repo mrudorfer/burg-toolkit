@@ -136,9 +136,12 @@ class AntipodalGraspSampler:
         axis_angles = np.einsum('ik,j->ijk', x_axes, theta).reshape(-1, 3)
         rotations = R.from_rotvec(axis_angles)
         poses = np.empty(shape=(len(rotations), 4, 4))
-        cosines = np.empty(shape=(len(rotations)))
 
-        cosine_error = 0
+        get_cosines_instead_of_width = False
+        if get_cosines_instead_of_width:
+            cosines = np.empty(shape=(len(rotations)))
+            cosine_error = 0
+
         for i in range(len(x_axes)):
             for j in range(n_orientations):
                 # apply the rotation to the y_tangent to get grasp z
@@ -152,16 +155,20 @@ class AntipodalGraspSampler:
 
                 poses[index] = util.tf_from_xyz_pos(x_axes[i], y_axis, z_axis, center_points[i])
 
-                # let's confirm the cosine angle
-                cos = np.dot(z_axis, y_tangent[i])
-                cos_should_be = np.cos(theta[j])
-                cosines[index] = cos_should_be
-                cosine_error += np.square(cos - cos_should_be)
-
-        print(f'cosine MSE is: {cosine_error}')
+                if get_cosines_instead_of_width:
+                    # let's confirm the cosine angle
+                    cos = np.dot(z_axis, y_tangent[i])
+                    cos_should_be = np.cos(theta[j])
+                    cosines[index] = cos_should_be
+                    cosine_error += np.square(cos - cos_should_be)
 
         gs = grasp.GraspSet.from_poses(poses)
-        gs.widths = cosines  # todo for now
+        gs.widths = np.tile(distances, n_orientations).reshape(n_orientations, len(distances)).T.reshape(-1)
+
+        if get_cosines_instead_of_width:
+            print(f'cosine MSE is: {cosine_error}')
+            gs.widths = cosines
+
         return gs
 
     @staticmethod
@@ -337,7 +344,8 @@ class AntipodalGraspSampler:
                 continue
 
             # actually construct all the grasps (with n_orientations)
-            # todo: maybe we can choose more intelligently here, e.g. the farthest point?
+            # todo: maybe we can choose more intelligently here
+            #       e.g. some farthest point sampling so grasps are likely to be more diverse
             if len(locations) > self.max_targets_per_ref_point:
                 indices = np.arange(len(locations))
                 np.random.shuffle(indices)
@@ -360,12 +368,32 @@ class AntipodalGraspSampler:
 
         return gs, gs_contacts
 
-    def check_collisions(self, graspset, use_width=True):
+    def check_collisions(self, graspset, use_width=True, width_tolerance=0.01, additional_objects=None,
+                         exclude_shape=False):
+        """
+        This will check collisions for the given graspset using the gripper mesh of the object's gripper.
+
+        :param graspset: The n-elem grasp.GraspSet to check collisions for
+        :param use_width: If True, will squeeze the gripper mesh to fit the opening width plus width_tolerance
+        :param width_tolerance: As squeezing the gripper to the distance of the contact points will most certainly lead
+                                to collisions, this tolerance is added to the opening width.
+        :param additional_objects: list of o3d meshes that should be included in the collision manager (e.g. plane)
+        :param exclude_shape: bool, if True will only check collisions with provided additional objects. Note that if
+                              this is set to True additional objects must be provided.
+        """
+        if not additional_objects and exclude_shape:
+            raise ValueError('no collision objects specified.')
+
         # we need collision operations which are not available in o3d yet
-        # hence convert the mesh to trimesh
-        self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
+        # hence use trimesh
         manager = trimesh.collision.CollisionManager()
-        manager.add_object('shape', self._trimesh)
+        if not exclude_shape:
+            self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
+            manager.add_object('shape', self._trimesh)
+
+        # additional objects
+        for i, obj in enumerate(additional_objects):
+            manager.add_object(f'add_obj_{i}', util.o3d_mesh_to_trimesh(obj))
 
         gripper_mesh = copy.deepcopy(self.gripper.mesh)
         tf = self.gripper.tf_base_to_TCP
@@ -379,7 +407,7 @@ class AntipodalGraspSampler:
         for i, g in tqdm(enumerate(graspset), disable=not self.verbose):
             tf_squeeze = np.eye(4)
             if use_width:
-                tf_squeeze[0, 0] = (g.width + 0.005) / self.gripper.opening_width
+                tf_squeeze[0, 0] = (g.width + width_tolerance) / self.gripper.opening_width
             collision_array[i] = manager.in_collision_single(gripper_mesh, transform=g.pose @ tf_squeeze)
 
         return collision_array
