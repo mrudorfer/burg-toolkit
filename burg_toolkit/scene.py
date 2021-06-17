@@ -55,7 +55,7 @@ class ObjectType:
         # this does produce warnings that it can't write triangle normals to obj file. don't know how to suppress.
         o3d.io.write_triangle_mesh(mesh_path, self.mesh, write_vertex_normals=False)
 
-        inertia = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
+        inertia, com = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
         origin = [0, 0, 0]  # meshes are already saved as is, so we have no displacement
         with open(self.urdf_fn, 'w') as urdf:
             urdf.write(f'<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -83,7 +83,7 @@ class ObjectType:
             urdf.write(f'\t\t\t<mass value="{self.mass}"/>\n')
             urdf.write(f'\t\t\t<inertia ixx="{inertia[0, 0]}" ixy="{inertia[0, 1]}" ixz="{inertia[0, 2]}"' +
                        f' iyy="{inertia[1, 1]}" iyz="{inertia[1, 2]}" izz="{inertia[2, 2]}" />\n')
-            urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
+            urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, com))}"/>\n')
             urdf.write(f'\t\t</inertial>\n')
 
             urdf.write(f'\t</link>\n')

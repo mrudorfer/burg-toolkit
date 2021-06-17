@@ -19,7 +19,7 @@ target_object = object_library['flatheadScrewdriver']
 
 mesh = target_object.mesh
 burg.mesh_processing.check_properties(mesh)
-inertia = burg.mesh_processing.compute_mesh_inertia(mesh, target_object.mass)
+inertia, com = burg.mesh_processing.compute_mesh_inertia(mesh, target_object.mass)
 print('inertia:\n', inertia)
 
 object_library.generate_urdf_files('../data/tmp', overwrite_existing=True)

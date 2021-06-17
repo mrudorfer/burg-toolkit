@@ -20,6 +20,8 @@ def check_properties(mesh):
     self_intersecting = mesh.is_self_intersecting()
     watertight = mesh.is_watertight()
     orientable = mesh.is_orientable()
+    _trimesh = util.o3d_mesh_to_trimesh(mesh)
+    convex = trimesh.convex.is_convex(_trimesh)
 
     print(f"  no vertices:            {len(mesh.vertices)}")
     print(f"  no triangles:           {len(mesh.triangles)}")
@@ -33,6 +35,8 @@ def check_properties(mesh):
     print(f"  self_intersecting:      {self_intersecting}")
     print(f"  watertight:             {watertight}")
     print(f"  orientable:             {orientable}")
+    print(f"  convex:                 {convex}")
+    print(f"  components:             {_trimesh.body_count}")
 
 
 def dimensions(mesh):
@@ -87,7 +91,7 @@ def compute_mesh_inertia(o3d_mesh, mass):
     :param o3d_mesh: open3d.geometry.TriangleMesh
     :param mass: mass of object in kg
 
-    :return: moment of inertia matrix, (3, 3) float ndarray
+    :return: moment of inertia matrix, (3, 3) float ndarray, origin center of mass (3) float ndarray
     """
     mesh = util.o3d_mesh_to_trimesh(o3d_mesh)
     if not mesh.is_watertight:
@@ -95,4 +99,4 @@ def compute_mesh_inertia(o3d_mesh, mass):
 
     # trimesh meshes are density-based, so let's set density based on given mass and mesh volume
     mesh.density = mass / mesh.volume
-    return mesh.moment_inertia
+    return mesh.moment_inertia, mesh.center_mass
