@@ -37,7 +37,9 @@ pip install --upgrade setuptools wheel
 # install burg_toolkit in editable mode
 pip install -e .
 ```
-This will also install all required dependencies (except python-fcl which is only required for collision checks with trimesh and can currently not be installed automatically in a platform-independent way). If you experience any problems, please open an issue.
+This will also install all required dependencies (except python-fcl which is only required for collision checks with trimesh and can currently not be installed automatically in a platform-independent way).
+Note that some steps may take a long time.
+If you experience any problems, please open an issue or contact me.
 
 You can check successful install by executing the script:
 ```
