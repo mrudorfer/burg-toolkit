@@ -15,8 +15,10 @@ requirements_default = [
     'numpy-quaternion',  # numpy integration for quaternions
     'configparser',  # parsing configuration files
     'tqdm',         # progress bars
-    'open3d>=0.12.0',      # point clouds and processing
-    'trimesh[all]',  # for collision detections, which might get incorporated in newer version of open3d
+    'open3d==0.12.0',      # point clouds and processing
+    'trimesh[easy]',  # we need python-fcl for some collision checks though, which is in trimesh[all]
+                      # there is python-fcl for linux and python-fcl-win32 for win, so using trimesh[all] breaks
+                      # the windows install
     'pybullet'        # for the simulation module
 ]
 
