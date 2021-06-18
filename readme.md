@@ -19,6 +19,8 @@ The project contains the following directories:
 
 ### installation
 
+The project requires Python 3.6-3.8 to work.
+Older and newer versions are not supported.
 Recommended way is to install in a virtual environment.
 Go inside project main directory (where the `setup.py` resides) and execute:
 
