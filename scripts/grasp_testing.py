@@ -111,16 +111,13 @@ def test_new_antipodal_grasp_sampling():
     ags.mesh = burg.io.load_mesh(mesh_fn)
     ags.gripper = gripper_model
     ags.n_orientations = 18
-    ags.verbose = False
+    ags.verbose = True
     ags.max_targets_per_ref_point = 2
-    gs, contacts = ags.sample(100)
-    gs.scores = ags.check_collisions(gs, use_width=False)
-    # print(contacts)
-    # print(gs.widths)
-    # print(gs)
+    graspset, contacts = ags.sample(100)
+    # gs.scores = ags.check_collisions(gs, use_width=False)  # need to install python-fcl
     print('contacts.shape', contacts.shape)
-    burg.visualization.show_grasp_set([ags.mesh], gs, gripper=gripper_model, use_width=False,
-                                      score_color_func=lambda s: [s, 0 if s else 1, 0], with_plane=True)
+    burg.visualization.show_grasp_set([ags.mesh], graspset, gripper=gripper_model, use_width=False,
+                                      score_color_func=lambda s: [s, 1-s, 0], with_plane=True)
 
 
 def test_rotation_to_align_vectors():
