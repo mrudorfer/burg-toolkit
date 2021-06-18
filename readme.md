@@ -37,7 +37,16 @@ pip install --upgrade setuptools wheel
 # install burg_toolkit in editable mode
 pip install -e .
 ```
-This will also install all required dependencies. If you experience any problems, please open an issue.
+This will also install all required dependencies (except python-fcl which is only required for collision checks with trimesh and can currently not be installed automatically in a platform-independent way). If you experience any problems, please open an issue.
+
+You can check successful install by executing the script:
+```
+cd scripts
+python grasp_testing.py
+```
+
+This should load a screwdriver object, sample some antipodal grasps and visualise them.
+Note that there are some other scripts, but they require additional data to be downloaded.
 
 ### usage
 
