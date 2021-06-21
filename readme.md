@@ -1,19 +1,23 @@
 # BURG toolkit
 
-This becomes a Python toolkit for **B**enchmarking and **U**nderstanding **R**obotic **G**rasping. Features are:
-- visualize scenes generated with the sceneGeneration_MATLAB project
-- visualize dense ground truth grasps from [Eppner et al., 2019](#references)
-- algorithms for grasp sampling (future)
-- evaluate grasp similarity as well as grasp coverage of sampler w.r.t. to the ground truth set
+This is a Python toolkit for **B**enchmarking and **U**nderstanding **R**obotic **G**rasping, developed 
+in the scope of [BURG project](#references) funded by CHIST-ERA / EPSRC. Features are:
+- core data structures for object types and instances, scenes, grippers, grasps and grasp sets
+- antipodal grasp sampling
+- metrics for evaluation of grasps and grasp sets (analytic / simulation) [in progress]
+- visualization of scenes and grasps
+- interfaces to datasets, e.g.:
+  - scenes generated with the sceneGeneration_MATLAB project
+  - densely sampled ground truth grasps from [Eppner et al., 2019](#references)
 
 ## project structure
 
 The project contains the following directories:
 - **docs** - configuration files to create documentation with sphinx
 - **burg_toolkit** - the core Python library, used for io, mesh and point cloud processing, data visualization, etc.
-- **scripts** - entry points, scripts for exploring the data, compiling datasets, evaluation
+- **scripts** - entry points, scripts with examples, or for exploring the data, compiling datasets, evaluation
 - **config** - configuration files, specifying e.g. important paths, which meshes to use, scale factors, etc.
-- **data** - simple data samples which allow to use the scripts
+- **data** - simple data samples which allow to use the examples
 
 ## first steps
 
@@ -84,23 +88,26 @@ The docs should then be in `docs/_build/html`folder.
 
 ## plans for the project
 ### todos
+- render depth images for existing scenes/objects/instances
 - grasp sampler
-    - implement option to use random rotation offset for creating grasp orientations
-    - universal grasp representation: add required opening width and required grasping depth and filter grasps accordingly
+    - there is some unused code currently, needs better structure
+    - more configurable AGS, e.g. with option to use random rotation offset for creating grasp orientations
+    - more consistency in grasp representations, i.e. canonical forms, opening width, grasping depth etc.
 - simulation-based grasp assessment using pybullet
     - determine simulation-based grasp success rate for grasp sets
+- more reasonable constructors for grasp/graspset (hide internal arrays completely)
+- unify visualisation methods
+- update to open3d 0.13
 
 ### longer-term todos:
 - task-oriented grasp sampling based on source/target scene
 - io: move functionality related to a certain paper or approach to particular reader-class
-- create new scenes with pybullet
-- render new depth images for existing scenes
-- once newer version of o3d comes with collision detection, try to get rid of trimesh dependency
-- implement rule-based evaluation, e.g. for precision metrics from eppner2019
 - implement analytic success metrics (force-closure) from fang2020, or ferrari-canny
-- make repo public and use ReadTheDocs (once it is a bit more useful)
+- use proper branching & merging and do some versioning
+- make repo public and use ReadTheDocs (once it is a bit more useful).. PyPi?
 
 ## References
 
+- BURG research project: https://burg.acin.tuwien.ac.at/
 - Clemens Eppner, Arsalan Mousavian and Dieter Fox: "A Billion Ways to Grasps - An Evaluation of Grasp Sampling Schemes on a Dense, Physics-based Grasp Data Set", ISRR 2019 - https://sites.google.com/view/abillionwaystograsp
 - Qian-Yi Zhou, Jaesik Park, and Vladlen Koltun: "Open3D: A modern library for 3D data processing", 2018 - http://www.open3d.org/
