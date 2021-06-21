@@ -417,7 +417,7 @@ class AntipodalGraspSampler:
             manager.add_object('shape', self._trimesh)
 
         # additional objects
-        if not additional_objects:
+        if additional_objects:
             for i, obj in enumerate(additional_objects):
                 manager.add_object(f'add_obj_{i}', util.o3d_mesh_to_trimesh(obj))
 
