@@ -417,8 +417,9 @@ class AntipodalGraspSampler:
             manager.add_object('shape', self._trimesh)
 
         # additional objects
-        for i, obj in enumerate(additional_objects):
-            manager.add_object(f'add_obj_{i}', util.o3d_mesh_to_trimesh(obj))
+        if not additional_objects:
+            for i, obj in enumerate(additional_objects):
+                manager.add_object(f'add_obj_{i}', util.o3d_mesh_to_trimesh(obj))
 
         gripper_mesh = copy.deepcopy(self.gripper.mesh)
         tf = self.gripper.tf_base_to_TCP
