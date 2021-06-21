@@ -1,5 +1,6 @@
 import os
 from collections import UserDict
+import copy
 
 import numpy as np
 import open3d as o3d
@@ -107,6 +108,18 @@ class ObjectInstance:
 
     def __str__(self):
         return f'instance of {self.object_type.identifier} object type. pose:\n{self.pose}'
+
+    def get_mesh(self):
+        """
+        Returns a copy of the mesh of the object type in the pose of the instance.
+
+        :return: open3d.geometry.TriangleMesh
+        """
+        if self.object_type.mesh is None:
+            raise ValueError('no mesh associated with this object type')
+        mesh = copy.deepcopy(self.object_type.mesh)
+        mesh.transform(self.pose)
+        return mesh
 
 
 class ObjectLibrary(UserDict):
