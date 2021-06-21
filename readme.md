@@ -37,7 +37,7 @@ pip install --upgrade setuptools wheel
 # install burg_toolkit in editable mode
 pip install -e .
 ```
-This will also install all required dependencies (except python-fcl which is only required for collision checks with trimesh and can currently not be installed automatically in a platform-independent way).
+This will also install all required dependencies*. 
 Note that some steps may take a long time.
 If you experience any problems, please open an issue or contact me.
 
@@ -49,6 +49,11 @@ python grasp_testing.py
 
 This should load a screwdriver object, sample some antipodal grasps and visualise them.
 Note that there are some other scripts, but they require additional data to be downloaded.
+
+*Note that python-fcl is only available for linux and will not be installed when using other platforms.
+This package is used for mesh-mesh collision checks via trimesh and does not affect any other functionality.
+Corresponding error messages should be easily recognisable.
+
 
 ### usage
 

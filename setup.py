@@ -1,3 +1,4 @@
+import sys
 import setuptools
 
 with open("readme.md", "r", encoding="utf-8") as fh:
@@ -16,11 +17,18 @@ requirements_default = [
     'configparser',  # parsing configuration files
     'tqdm',         # progress bars
     'open3d==0.12.0',      # point clouds and processing
-    'trimesh[easy]',  # we need python-fcl for some collision checks though, which is in trimesh[all]
-                      # there is python-fcl for linux and python-fcl-win32 for win, so using trimesh[all] breaks
-                      # the windows install
+    'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
     'pybullet'        # for the simulation module
 ]
+
+if sys.platform == 'linux':
+    requirements_default.append('python-fcl')  # for collision checks with trimesh, linux only
+else:
+    # there are some efforts to bring python-fcl to Windows, e.g. there are packages like python-fcl-win32 and
+    # python-fcl-win32-nr, but there seem to be issues installing those, see:
+    # https://github.com/BerkeleyAutomation/python-fcl/issues/17
+    # (i have also not been able to install either of those packages with pip)
+    print('Platform does not support collision checks with python-fcl')
 
 requirements_docs = [
     'Sphinx',      # tool for creating docs
