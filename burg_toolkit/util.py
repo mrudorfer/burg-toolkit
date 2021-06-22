@@ -117,15 +117,12 @@ def look_at(position, target=None, up=None):
     # if that fails as well just use random
     x_vec = np.cross(z_vec, up)
     faults = np.linalg.norm(x_vec, axis=-1) < 1e-3
-    print('faults on up', faults)
     if np.any(faults):
         x_vec[faults] = np.cross(z_vec[faults], up[[2, 0, 1]])
         faults = np.linalg.norm(x_vec[faults], axis=-1) < 1e-3
-        print('faults on up[[2, 0, 1]]', faults)
         while np.any(faults):
             x_vec[faults] = np.cross(z_vec[faults], generate_random_unit_vector())
             faults = np.linalg.norm(x_vec[faults], axis=-1) < 1e-3
-            print('faults on random', faults)
     x_vec = x_vec / np.linalg.norm(x_vec, axis=-1)[:, np.newaxis]
 
     y_vec = np.cross(z_vec, x_vec)
