@@ -9,21 +9,33 @@ class PoseIndicator(burg.gripper.ParallelJawGripper):
         super().__init__(mesh=mesh)
 
 
-def visualize_camera_positions(generator):
-    print('number of poses', generator.number_of_poses)
-    count = 0
-    for _ in enumerate(generator.poses()):
-        count += 1
-    print('actual count', count)
-
-    poses = np.empty(shape=(generator.number_of_poses, 4, 4))
-    for i, pose in enumerate(generator.poses()):
-        poses[i] = pose
-
+def plot_camera_poses(poses, additional_objects=None):
     gs = burg.grasp.GraspSet.from_poses(poses)
     indicator = PoseIndicator(o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1))
-    burg.visualization.show_grasp_set([o3d.geometry.TriangleMesh.create_sphere(radius=0.1)], gs, with_plane=True,
+    if not additional_objects:
+        additional_objects = []
+    additional_objects.append(o3d.geometry.TriangleMesh.create_sphere(radius=0.1))
+    burg.visualization.show_grasp_set(additional_objects, gs, with_plane=True,
                                       gripper=indicator)
+
+
+def visualize_camera_positions():
+    cpg = burg.render.CameraPoseGenerator(cam_distance_min=0.4, cam_distance_max=0.55)
+    random_poses = cpg.random(120)
+    ico_poses = cpg.icosphere(subdivisions=3, in_plane_rotations=1, random_distances=True, scales=1)
+    print('ico poses:', ico_poses.shape)
+
+    cam_info = np.load('E:/data/UoB/tmp/CameraInfo.npy')
+    cam_pos = np.empty((len(cam_info), 3))
+    cam_quat = np.empty((len(cam_info), 4))
+    for i in range(len(cam_info)):
+        cam_pos[i] = cam_info[i][1]
+        cam_quat[i] = cam_info[i][2]
+
+    gs = burg.grasp.GraspSet.from_translations_and_quaternions(cam_pos, cam_quat)
+
+    for poses in [random_poses, ico_poses, gs.poses]:
+        plot_camera_poses(poses)
 
 
 def look_at_func():
@@ -42,12 +54,20 @@ def look_at_func():
                                       gripper=indicator)
 
 
+def do_some_rendering():
+    mesh_fn = '../data/samples/flathead-screwdriver/flatheadScrewdriverMediumResolution.ply'
+    mesh = burg.io.load_mesh(mesh_fn)
+    cpg = burg.render.CameraPoseGenerator()
+    camera = burg.scene.Camera()
+    camera.set_resolution(320, 240)
+    camera.set_intrinsic_parameters(fx=350, fy=350, cx=160, cy=120)
+    renderer = burg.render.MeshRenderer(mesh, '../data/tmp/', camera)
+    poses = cpg.random(3)
+    plot_camera_poses(poses)
+    renderer.render_depth(poses)
+
+
 if __name__ == "__main__":
-    look_at_func()
-    visualize_camera_positions(
-        burg.camera_pose_generators.RandomCameraPoseGenerator(number_of_poses=60, lower_hemisphere=False,
-                                                              cam_distance_min=0.5, cam_distance_max=1.0))
-    visualize_camera_positions(burg.camera_pose_generators.IcoSphereCameraPoseGenerator(in_plane_rotations=3,
-                                                                                        subdivisions=2,
-                                                                                        scales=1,
-                                                                                        random_distances=True))
+    # look_at_func()
+    # visualize_camera_positions()
+    do_some_rendering()
