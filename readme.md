@@ -96,7 +96,8 @@ The docs should then be in `docs/_build/html`folder.
 - simulation-based grasp assessment using pybullet
     - determine simulation-based grasp success rate for grasp sets
 - more reasonable constructors for grasp/graspset (hide internal arrays completely)
-- unify visualisation methods
+- refactor visualisation methods so that they are more concise and intuitive
+- replace printouts and verbose flags with package-level logging
 - update to open3d 0.13
 
 ### longer-term todos:
