@@ -82,7 +82,7 @@ def angle(vec_a, vec_b, sign_array=None, as_degree=True):
     return angles
 
 
-def look_at(position, target=None, up=None):
+def look_at(position, target=None, up=None, flip=False):
     """
     Computes the 4x4 matrix where z-axis will be oriented towards the target, and we try to make x-axis orthogonal to
     up vector to get a reproducible in-plane rotation (although this might not always be possible, in these cases we
@@ -92,6 +92,8 @@ def look_at(position, target=None, up=None):
     :param position: (3,) or (n, 3) ndarray, position from where we look
     :param target: (3,) ndarray, position where to look at, if None `[0, 0, 0]` will be used
     :param up: (3,) ndarray, upward vector for reproducible in-plane rotations, if None `[0, 0, 1]` is used
+    :param flip: bool, if set to True the z-axes will be flipped, i.e. they will actually point away from the target.
+                 This is useful e.g. for getting OpenGL camera coordinates (as used by pyrender).
 
     :return: (4, 4) or (n, 4, 4) ndarray, transformation matrix
     """
@@ -109,19 +111,19 @@ def look_at(position, target=None, up=None):
     elif isinstance(up, list):
         up = np.array(up)
 
-    z_vec = target - position
+    z_vec = position - target if flip else target - position
     z_vec = z_vec / np.linalg.norm(z_vec, axis=-1)[:, np.newaxis]
 
     # handle problems if z_axis and up axis are not linearly independent
     # then try some other canonical in-plane rotation
     # if that fails as well just use random
-    x_vec = np.cross(z_vec, up)
+    x_vec = np.cross(up, z_vec)
     faults = np.linalg.norm(x_vec, axis=-1) < 1e-3
     if np.any(faults):
-        x_vec[faults] = np.cross(z_vec[faults], up[[2, 0, 1]])
+        x_vec[faults] = np.cross(up[[2, 0, 1]], z_vec[faults])
         faults = np.linalg.norm(x_vec[faults], axis=-1) < 1e-3
         while np.any(faults):
-            x_vec[faults] = np.cross(z_vec[faults], generate_random_unit_vector())
+            x_vec[faults] = np.cross(generate_random_unit_vector(), z_vec[faults])
             faults = np.linalg.norm(x_vec[faults], axis=-1) < 1e-3
     x_vec = x_vec / np.linalg.norm(x_vec, axis=-1)[:, np.newaxis]
 
