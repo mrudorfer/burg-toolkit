@@ -142,16 +142,15 @@ class ObjectLibrary(UserDict):
 
 class Camera:
     """
-    holds intrinsic and extrinsic parameters
+    holds intrinsic and extrinsic parameters, initialises with some Kinect-like intrinsics.
     """
-
     def __init__(self):
-        self.resolution = [0, 0]  # w x h
+        self.resolution = [640, 480]  # w x h
         self.intrinsic_parameters = {
-            'fx': 0.0,
-            'fy': 0.0,
-            'cx': 0.0,
-            'cy': 0.0
+            'fx': 572.41140,
+            'fy': 573.57043,
+            'cx': 325.26110,
+            'cy': 242.04899
         }
         self.pose = np.eye(4)
 
