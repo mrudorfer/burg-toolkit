@@ -1,5 +1,5 @@
-import sys
 import setuptools
+import itertools
 
 with open("readme.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -18,31 +18,32 @@ requirements_default = [
     'tqdm',         # progress bars
     'open3d==0.12.0',      # point clouds and processing
     'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
+    'pyrender',       # rendering
     'pybullet'        # for the simulation module
 ]
 
-if sys.platform == 'linux':
-    requirements_default.append('python-fcl')  # for collision checks with trimesh, linux only
-else:
-    # there are some efforts to bring python-fcl to Windows, e.g. there are packages like python-fcl-win32 and
-    # python-fcl-win32-nr, but there seem to be issues installing those, see:
-    # https://github.com/BerkeleyAutomation/python-fcl/issues/17
-    # (i have also not been able to install either of those packages with pip)
-    print('Platform does not support collision checks with python-fcl')
+extras_require = {
+    'docs': [
+        'Sphinx',  # tool for creating docs
+        'm2r2'    # for automatically parsing the python modules
+    ],
+    'collision': [
+        'python-fcl'   # collision checks with trimesh, on linux only
+    ],
+    'openexr': [
+        'pyexr'     # relies on openexr, which must be manually installed on the system prior to pip install
+    ]
+}
 
-requirements_docs = [
-    'Sphinx',      # tool for creating docs
-    'm2r2'         # for automatically parsing the python modules
-]
-
-# merge requirements and remove duplicates
-reqs_all = list(set(requirements_default + requirements_docs))
+# also create a full installation with all extras
+extras_require['full'] = set(itertools.chain.from_iterable(extras_require.values()))
 
 setuptools.setup(
     name='BURG-toolkit',
     version='0.1',
     python_requires=python_versions,
-    install_requires=reqs_all,
+    install_requires=requirements_default,
+    extras_require=extras_require,
     packages=setuptools.find_packages(),
     url='',
     license='',

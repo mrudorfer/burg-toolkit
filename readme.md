@@ -41,7 +41,7 @@ pip install --upgrade setuptools wheel
 # install burg_toolkit in editable mode
 pip install -e .
 ```
-This will also install all required dependencies*. 
+This will also install basic required dependencies. 
 Note that some steps may take a long time.
 If you experience any problems, please open an issue or contact me.
 
@@ -54,10 +54,48 @@ python grasp_testing.py
 This should load a screwdriver object, sample some antipodal grasps and visualise them.
 Note that there are some other scripts, but they require additional data to be downloaded.
 
-*Note that python-fcl is only available for linux and will not be installed when using other platforms.
-This package is used for mesh-mesh collision checks via trimesh and does not affect any other functionality.
-Corresponding error messages should be easily recognisable.
+### installing extras
 
+There are some dependencies not included in the default installation.
+These are mostly packages that are either not required for regular usage or not installing smoothly on all platforms.
+The following extras are available (general installation procedure as above):
+```
+pip install -e .['docs']  # includes packages required to build documentation
+pip install -e .['collision']  # mesh-mesh collision checks
+pip install -e .['openexr']  # read/write .exr image files
+pip install -e .['full']  # install all optional dependencies
+```
+
+#### docs
+
+Dependencies for the documentation should install smoothly on all platforms.
+You can build the documentation on the command line (with virtual environment activated) via:
+
+```
+sphinx-apidoc -f -o docs burg_toolkit
+cd docs/
+make html  # linux
+./make.bat html  # windows
+```
+
+The docs can then be found in `docs/_build/html`folder.
+
+
+#### collision
+
+Mesh-mesh collisions currently rely on `python-fcl` which is only available for linux.
+There are some efforts to bring `python-fcl` to Windows, e.g. there are packages like
+`python-fcl-win32` and `python-fcl-win32-nr`, but there seem to be issues installing those, see:
+ https://github.com/BerkeleyAutomation/python-fcl/issues/17.
+So far I have not been able to install either of those packages with `pip`.
+
+#### openexr
+
+This is required for saving images to `.exr` file format specified by OpenEXR.
+It requires to install OpenEXR on your system.
+On Linux, you can `sudo apt-get install libopenexr-dev` upon which the package should install smoothly.
+On Windows, it is more complicated.
+See https://stackoverflow.com/a/68102521/1264582.
 
 ### usage
 
@@ -74,18 +112,6 @@ print('grasp coverage is:', burg.grasp.coverage(gs1, gs2))
 
 See the scripts for more examples on usage and the docs for more detailed specifications.
 
-### documentation
-
-You should be able to build the documentation on the command line (with virtual environment activated) via:
-
-```
-sphinx-apidoc -f -o docs burg_toolkit
-cd docs/
-make html  # linux
-./make.bat html  # windows
-```
-
-The docs should then be in `docs/_build/html`folder.
 
 ## plans for the project
 ### todos
