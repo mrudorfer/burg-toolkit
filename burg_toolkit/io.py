@@ -1,5 +1,6 @@
 import glob
 import os
+import pathlib
 
 import numpy as np
 import mat73
@@ -204,3 +205,16 @@ def read_grasp_file_eppner2019(grasp_fn):
     print('done')
 
     return gs, hf['object_com'][:]
+
+
+def make_sure_directory_exists(directory):
+    """
+    Creates directory including all the parent directories if they do not already exist.
+
+    :param directory: string with path, or list of paths
+    """
+    if not isinstance(directory, list):
+        directory = [directory]
+
+    for path in directory:
+        pathlib.Path(path).mkdir(parents=True, exist_ok=True)

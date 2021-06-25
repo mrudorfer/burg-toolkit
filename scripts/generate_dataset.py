@@ -415,7 +415,6 @@ def inspect_meshes():
         burg.visualization.show_o3d_point_clouds([vhacd_mesh])
 
 
-
 if __name__ == "__main__":
     print('generate dataset')
     arguments = parse_args()
@@ -430,15 +429,13 @@ if __name__ == "__main__":
     tmp_dir = os.path.join(arguments.output_dir, 'annotations/tmp/')
 
     # make sure all paths exist
-    for path in [shape_dir, annotation_dir, sim_result_dir, tmp_dir]:
-        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+    burg.io.make_sure_directory_exists([shape_dir, annotation_dir, sim_result_dir, tmp_dir])
 
     shape_dir_originals = os.path.join(shape_dir, 'originals')
     shape_dir_transformed = os.path.join(shape_dir, 'transformed')
     shape_dir_vhacd = os.path.join(shape_dir, 'vhacd')
 
-    for path in [shape_dir_originals, shape_dir_transformed, shape_dir_vhacd]:
-        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+    burg.io.make_sure_directory_exists([shape_dir_originals, shape_dir_transformed, shape_dir_vhacd])
 
     # inspect_meshes()
     # preprocess_shapes(cfg['General'], [arguments.shape])
