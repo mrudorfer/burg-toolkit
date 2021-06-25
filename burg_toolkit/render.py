@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import quaternion
 import trimesh
 import pyrender
 import open3d as o3d
@@ -18,6 +19,7 @@ except ImportError:
 
 from . import util
 from . import scene
+from . import io
 from . import visualization
 ## todo temp
 
@@ -174,12 +176,18 @@ class MeshRenderer:
     Default intrinsic parameters will be set which resemble a Kinect and can be overridden using
     `set_camera_parameters()` function.
 
+    todo: it probably makes sense to provide the MeshRenderer object info like Camera Intrinsics, file type(s) to
+          write, extensions to use, file name schemes to use, etc. - then the render function would get the mesh
+          and some output dir suffix
+
     :param mesh: o3d.geometry.TriangleMesh - the mesh which shall be rendered
     :param output_dir: directory where to put files
     :param camera: burg.scene.Camera that holds relevant intrinsic parameters
     """
     def __init__(self, mesh, output_dir='../data/output/', camera=None):
         self.output_dir = output_dir
+        io.make_sure_directory_exists(self.output_dir)
+
         self.mesh = mesh
         if camera is None:
             self.camera = scene.Camera()
@@ -187,26 +195,17 @@ class MeshRenderer:
             self.camera = camera
 
     def render_depth(self, camera_poses):
-        #############################################
-        # prepare the scene:
-        # load model, configure camera and lights
-        #############################################
-
-        # if only one provided
+        # make sure shape fits if only one pose provided
         camera_poses = camera_poses.reshape(-1, 4, 4)
 
+        # convert o3d meshes but else assume trimesh.Trimesh
         if isinstance(self.mesh, o3d.geometry.TriangleMesh):
             tmesh = util.o3d_mesh_to_trimesh(self.mesh)
         else:
-            # assume trimesh
             tmesh = self.mesh
-
         if not isinstance(tmesh, trimesh.Trimesh):
             raise ValueError(f'provided mesh must be either o3d.geometry.TriangleMesh or trimesh.Trimesh, but ' +
                              f'is {type(tmesh)} instead.')
-
-        render_scene = pyrender.Scene()
-        render_scene.add(pyrender.Mesh.from_trimesh(tmesh))
 
         # let's determine camera's znear and zfar as limits for rendering, with some safety margin (factor 2)
         # assuming we look onto origin
@@ -222,34 +221,20 @@ class MeshRenderer:
                 intrinsics['cx'],
                 intrinsics['cy'],
                 znear=lower_bound, zfar=upper_bound))
+
+        # setup the pyrender scene
+        render_scene = pyrender.Scene()
+        render_scene.add(pyrender.Mesh.from_trimesh(tmesh))
         render_scene.add_node(cam_node)
-
-        # todo todo todo
-        # do we need light for depth images?
-        # set up the light -- a single spot light in the same spot as the camera
-        # light_node = pyrender.Node(light=pyrender.SpotLight(color=np.ones(3), intensity=3.0, innerConeAngle=np.pi/16.0))
-        # render_scene.add_node(light_node)
-
-        ###############################
-        # start rendering loop
-        ###############################
 
         # set up rendering settings
         resolution = self.camera.resolution
         r = pyrender.OffscreenRenderer(resolution[0], resolution[1])
 
         for i in tqdm(range(len(camera_poses))):
-            # get next pose and set camera and light accordingly
             render_scene.set_pose(cam_node, pose=camera_poses[i])
-            # render_scene.set_pose(light_node, pose=camera_poses[i])
-
-            # render the color and depth images
             # color is rgb, depth is mono float in [m]
             _, depth = r.render(render_scene)
-
-            # create mask... we might not need this, just let it be zero (?)
-            # mask = depth == 0
-            # depth[mask] = np.inf
 
             # store images to file (extend to three channels and store in exr)
             depth_fn = f'render{i:d}Depth0001.exr'
@@ -257,5 +242,22 @@ class MeshRenderer:
             _check_pyexr()  # raises error if package is not available
             pyexr.write(os.path.join(self.output_dir, depth_fn), img, channel_names=['R', 'G', 'B'])
 
-    # save camera info to npy file
-        pass
+        # save camera info to npy file
+        cam_info = np.empty(len(camera_poses), dtype=([
+            ('id', 'S16'),
+            ('position', '<f4', (3,)),
+            ('orientation', '<f4', (4,)),
+            ('calibration_matrix', '<f8', (9,)),
+            ('distance', '<f8')]))
+
+        cam_info['id'] = [f'view{i}'.encode('UTF-8') for i in range(len(camera_poses))]
+        cam_info['position'] = camera_poses[:, 0:3, 3]
+        cam_info['orientation'] = quaternion.as_float_array(quaternion.from_rotation_matrix(camera_poses[:, 0:3, 0:3]))
+        cam_info['calibration_matrix'] = np.array([intrinsics['fx'], 0, intrinsics['cx'],
+                                                   0, intrinsics['fy'], intrinsics['cy'],
+                                                   0, 0, 1])
+        # not really sure what to put here
+        # alternative would be to find some actual distance to object (e.g. depth value at center point), but
+        # this seems arbitrary as well. i don't think it's used by gpnet anyways.
+        cam_info['distance'] = np.linalg.norm(cam_info['position'], axis=-1)
+        np.save(os.path.join(self.output_dir, 'CameraInfo.npy'), cam_info)
