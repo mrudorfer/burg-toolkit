@@ -13,15 +13,9 @@ except ImportError:
     pyexr = None
     print('OpenEXR support: NONE')
 
-# todo: include pyexr, pyrender dependencies in package
-# rendering requires openexr which does not install without prerequisites.
-# see https://stackoverflow.com/a/68102521/1264582
-
 from . import util
 from . import scene
 from . import io
-from . import visualization
-## todo temp
 
 
 def _check_pyexr():
@@ -176,36 +170,62 @@ class MeshRenderer:
     Default intrinsic parameters will be set which resemble a Kinect and can be overridden using
     `set_camera_parameters()` function.
 
-    todo: it probably makes sense to provide the MeshRenderer object info like Camera Intrinsics, file type(s) to
-          write, extensions to use, file name schemes to use, etc. - then the render function would get the mesh
-          and some output dir suffix
-
-    :param mesh: o3d.geometry.TriangleMesh - the mesh which shall be rendered
     :param output_dir: directory where to put files
     :param camera: burg.scene.Camera that holds relevant intrinsic parameters
+    :param fn_func: function to generate filenames (string) from integer, if None some default will be used
+    :param fn_type: file format to store rendered images, defaults to 'exr', others not supported yet
     """
-    def __init__(self, mesh, output_dir='../data/output/', camera=None):
+    def __init__(self, output_dir='../data/output/', camera=None, fn_func=None, fn_type='exr'):
         self.output_dir = output_dir
         io.make_sure_directory_exists(self.output_dir)
 
-        self.mesh = mesh
         if camera is None:
             self.camera = scene.Camera()
         else:
             self.camera = camera
 
-    def render_depth(self, camera_poses):
+        if fn_func is None:
+            self.fn_func = self._default_fn_func
+        else:
+            self.fn_func = fn_func
+
+        if fn_type is None:
+            self.fn_type = 'exr'
+        else:
+            self.fn_type = fn_type
+
+        if fn_type == 'exr':
+            _check_pyexr()  # check that module is loaded (is an optional dependency)
+        else:
+            raise NotImplementedError('other file types than "exr" are currently not supported')
+
+        self.cam_info_fn = 'CameraInfo'
+
+    @staticmethod
+    def _default_fn_func(i):
+        return f'depth{i:04d}'
+
+    def render_depth(self, mesh, camera_poses, sub_dir=''):
+        """
+        Renders depth images of the given mesh, from the given camera poses.
+        Uses the configuration of the MeshRenderer object.
+
+        :param mesh: o3d.geometry.TriangleMesh or trimesh.Trimesh - the mesh which shall be rendered
+        :param camera_poses: (4, 4) or (n, 4, 4) ndarray with poses
+        :param sub_dir: directory where to produce output files (will be relative to the object's `output_dir`)
+        """
+        output_dir = os.path.join(self.output_dir, sub_dir)
+        io.make_sure_directory_exists(output_dir)
+
         # make sure shape fits if only one pose provided
         camera_poses = camera_poses.reshape(-1, 4, 4)
 
         # convert o3d meshes but else assume trimesh.Trimesh
-        if isinstance(self.mesh, o3d.geometry.TriangleMesh):
-            tmesh = util.o3d_mesh_to_trimesh(self.mesh)
-        else:
-            tmesh = self.mesh
-        if not isinstance(tmesh, trimesh.Trimesh):
+        if isinstance(mesh, o3d.geometry.TriangleMesh):
+            mesh = util.o3d_mesh_to_trimesh(mesh)
+        if not isinstance(mesh, trimesh.Trimesh):
             raise ValueError(f'provided mesh must be either o3d.geometry.TriangleMesh or trimesh.Trimesh, but ' +
-                             f'is {type(tmesh)} instead.')
+                             f'is {type(mesh)} instead.')
 
         # let's determine camera's znear and zfar as limits for rendering, with some safety margin (factor 2)
         # assuming we look onto origin
@@ -224,7 +244,7 @@ class MeshRenderer:
 
         # setup the pyrender scene
         render_scene = pyrender.Scene()
-        render_scene.add(pyrender.Mesh.from_trimesh(tmesh))
+        render_scene.add(pyrender.Mesh.from_trimesh(mesh))
         render_scene.add_node(cam_node)
 
         # set up rendering settings
@@ -236,11 +256,11 @@ class MeshRenderer:
             # color is rgb, depth is mono float in [m]
             _, depth = r.render(render_scene)
 
-            # store images to file (extend to three channels and store in exr)
-            depth_fn = f'render{i:d}Depth0001.exr'
-            img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
-            _check_pyexr()  # raises error if package is not available
-            pyexr.write(os.path.join(self.output_dir, depth_fn), img, channel_names=['R', 'G', 'B'])
+            if self.fn_type == 'exr':
+                # store images to file (extend to three channels and store in exr)
+                depth_fn = self.fn_func(i) + '.' + self.fn_type
+                img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
+                pyexr.write(os.path.join(output_dir, depth_fn), img, channel_names=['R', 'G', 'B'])
 
         # save camera info to npy file
         cam_info = np.empty(len(camera_poses), dtype=([
@@ -260,4 +280,4 @@ class MeshRenderer:
         # alternative would be to find some actual distance to object (e.g. depth value at center point), but
         # this seems arbitrary as well. i don't think it's used by gpnet anyways.
         cam_info['distance'] = np.linalg.norm(cam_info['position'], axis=-1)
-        np.save(os.path.join(self.output_dir, 'CameraInfo.npy'), cam_info)
+        np.save(os.path.join(output_dir, self.cam_info_fn), cam_info)
