@@ -81,7 +81,8 @@ You should be able to build the documentation on the command line (with virtual 
 ```
 sphinx-apidoc -f -o docs burg_toolkit
 cd docs/
-make html
+make html  # linux
+./make.bat html  # windows
 ```
 
 The docs should then be in `docs/_build/html`folder.
@@ -89,6 +90,8 @@ The docs should then be in `docs/_build/html`folder.
 ## plans for the project
 ### todos
 - render depth images for existing scenes/objects/instances
+  - render images in other format if exr not available
+  - make images readable into our burg structures
 - grasp sampler
     - there is some unused code currently, needs better structure
     - more configurable AGS, e.g. with option to use random rotation offset for creating grasp orientations
@@ -97,9 +100,10 @@ The docs should then be in `docs/_build/html`folder.
     - determine simulation-based grasp success rate for grasp sets
 - more reasonable constructors for grasp/graspset (hide internal arrays completely)
 - unify visualisation methods
-- update to open3d 0.13
 
 ### longer-term todos:
+- update to `open3d` 0.13
+- include example files, see `imageio` which includes files that are readable by path(?)
 - task-oriented grasp sampling based on source/target scene
 - io: move functionality related to a certain paper or approach to particular reader-class
 - implement analytic success metrics (force-closure) from fang2020, or ferrari-canny
