@@ -57,15 +57,17 @@ def look_at_func():
 def do_some_rendering():
     mesh_fn = '../data/samples/flathead-screwdriver/flatheadScrewdriverMediumResolution.ply'
     mesh = burg.io.load_mesh(mesh_fn)
+    # mesh.translate([2, 2, 2])
 
     camera = burg.scene.Camera()
     camera.set_resolution(320, 240)
     camera.set_intrinsic_parameters(fx=350, fy=350, cx=160, cy=120)
-    renderer = burg.render.MeshRenderer('../data/tmp/', camera, fn_func=lambda i: f'render{i:d}Depth0001')
+    renderer = burg.render.MeshRenderer('../data/tmp/', camera, fn_func=lambda i: f'render{i:d}Depth0001', fn_type='png')
 
-    cpg = burg.render.CameraPoseGenerator()
-    poses = cpg.random(3)
-    plot_camera_poses(poses)
+    # cpg = burg.render.CameraPoseGenerator(center_point=[2, 2, 2])
+    cpg = burg.render.CameraPoseGenerator(center_point=[0, 0.1, 0.1])
+    poses = cpg.icosphere(subdivisions=2, in_plane_rotations=1, scales=1)[:4]
+    plot_camera_poses(poses, additional_objects=[mesh])
 
     renderer.render_depth(mesh, poses, sub_dir='flathead-screwdriver/')
 

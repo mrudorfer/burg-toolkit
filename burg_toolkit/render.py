@@ -6,6 +6,7 @@ import trimesh
 import pyrender
 import open3d as o3d
 from tqdm import tqdm
+import imageio
 try:
     import pyexr
     print('OpenEXR support: ACTIVE')
@@ -27,22 +28,24 @@ def _check_pyexr():
 
 class CameraPoseGenerator:
     """
-    A class that offers various ways to generate camera poses. All poses look towards the origin. Their distance is
-    between ``cam_distance_min`` and ``cam_distance_max``. ``rand_seed`` can be set to get reproducible results.
+    A class that offers various ways to generate camera poses. All poses look towards the center point. Their distance
+    is between ``cam_distance_min`` and ``cam_distance_max``. ``rand_seed`` can be set to get reproducible results.
     You can also choose the hemispheres from which you want to get poses.
 
     :param cam_distance_min: float, minimum distance of camera poses (to origin)
     :param cam_distance_max: float, maximum distance of camera poses (to origin)
     :param upper_hemisphere: bool, whether to sample poses from upper hemisphere
     :param lower_hemisphere: bool, whether to sample poses from lower hemisphere
+    :param center_point: (3,) array or list, the center point around which to construct camera poses
     :param rand_seed: int, provide seed for the rng for reproducible results, use None (default) for random seed
     """
     def __init__(self, cam_distance_min=0.6, cam_distance_max=0.9, upper_hemisphere=True,
-                 lower_hemisphere=False, rand_seed=None):
+                 lower_hemisphere=False, center_point=None, rand_seed=None):
         self.cam_distance_min = cam_distance_min
         self.cam_distance_max = cam_distance_max
         self.upper_hemisphere = upper_hemisphere
         self.lower_hemisphere = lower_hemisphere
+        self.center_point = center_point
         self.rand_seed = rand_seed
 
     def _random_distance(self, rng=None):
@@ -61,6 +64,12 @@ class CameraPoseGenerator:
     def _check_hemisphere_setting(self):
         if not (self.upper_hemisphere or self.lower_hemisphere):
             raise ValueError('bad configuration: need at least one hemisphere to generate camera poses.')
+
+    def _apply_offset(self, poses):
+        if self.center_point is not None:
+            # shift all poses towards center point
+            offset = np.array(self.center_point).flatten()
+            poses[:, 0:3, 3] += offset
 
     def random(self, n=64):
         """
@@ -86,6 +95,7 @@ class CameraPoseGenerator:
             cam_pos = unit_vec * self._random_distance(rng)
             poses[i] = util.look_at(cam_pos, target=[0, 0, 0], up=[0, 0, 1], flip=True)
 
+        self._apply_offset(poses)
         return poses
 
     def _number_of_icosphere_poses(self, subdivisions, in_plane_rotations, scales):
@@ -161,6 +171,7 @@ class CameraPoseGenerator:
                 # now apply the in-plane rotation
                 base_pose = base_pose @ in_plane_rotation_matrix
 
+        self._apply_offset(poses)
         return poses
 
 
@@ -173,9 +184,9 @@ class MeshRenderer:
     :param output_dir: directory where to put files
     :param camera: burg.scene.Camera that holds relevant intrinsic parameters
     :param fn_func: function to generate filenames (string) from integer, if None some default will be used
-    :param fn_type: file format to store rendered images, defaults to 'exr', others not supported yet
+    :param fn_type: file format to store rendered images, defaults to 'tum' (png), 'exr' also possible
     """
-    def __init__(self, output_dir='../data/output/', camera=None, fn_func=None, fn_type='exr'):
+    def __init__(self, output_dir='../data/output/', camera=None, fn_func=None, fn_type='tum'):
         self.output_dir = output_dir
         io.make_sure_directory_exists(self.output_dir)
 
@@ -189,16 +200,14 @@ class MeshRenderer:
         else:
             self.fn_func = fn_func
 
-        if fn_type is None:
-            self.fn_type = 'exr'
-        else:
-            self.fn_type = fn_type
-
         if fn_type == 'exr':
             _check_pyexr()  # check that module is loaded (is an optional dependency)
-        else:
-            raise NotImplementedError('other file types than "exr" are currently not supported')
 
+        supported_fn_types = ['exr', 'tum']
+        if fn_type not in supported_fn_types:
+            raise NotImplementedError(f'file type {fn_type} not supported. available types are: {supported_fn_types}.')
+
+        self.fn_type = fn_type
         self.cam_info_fn = 'CameraInfo'
 
     @staticmethod
@@ -251,16 +260,27 @@ class MeshRenderer:
         resolution = self.camera.resolution
         r = pyrender.OffscreenRenderer(resolution[0], resolution[1])
 
+        # just for observation
+        n_points = np.empty(len(camera_poses))
+
         for i in tqdm(range(len(camera_poses))):
             render_scene.set_pose(cam_node, pose=camera_poses[i])
             # color is rgb, depth is mono float in [m]
             _, depth = r.render(render_scene)
+            n_points[i] = np.count_nonzero(depth)
 
-            if self.fn_type == 'exr':
+            depth_fn = os.path.join(output_dir, self.fn_func(i) + '.' + self.fn_type)
+            if self.fn_type == 'tum':
+                # use tum file format (which is actually a scaled 16bit png)
+                # https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
+                imageio.imwrite(depth_fn[:-3] + 'png', (depth * 5000).astype(np.uint16))
+            elif self.fn_type == 'exr':
                 # store images to file (extend to three channels and store in exr)
-                depth_fn = self.fn_func(i) + '.' + self.fn_type
+                # this is for compatibility with GPNet, although it bloats the file size
                 img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
-                pyexr.write(os.path.join(output_dir, depth_fn), img, channel_names=['R', 'G', 'B'])
+                pyexr.write(depth_fn, img, channel_names=['R', 'G', 'B'], precision=pyexr.FLOAT)
+
+        print(f'nonzero pixels (n points): avg {np.mean(n_points)}, min {np.min(n_points)}, max {np.max(n_points)}')
 
         # save camera info to npy file
         cam_info = np.empty(len(camera_poses), dtype=([
