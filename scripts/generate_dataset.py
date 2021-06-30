@@ -2,9 +2,9 @@ import os
 import sys
 
 # Add simulator path
-base_path = '/home/rudorfem/dev/3d_Grasping/GPNet/'
-sim_path = os.path.join(base_path, 'simulator')
-sim_test_path = os.path.join(base_path, 'simulator', 'simulateTest')
+gpnet_base_path = '/home/rudorfem/dev/3d_Grasping/GPNet/'
+sim_path = os.path.join(gpnet_base_path, 'simulator')
+sim_test_path = os.path.join(gpnet_base_path, 'simulator', 'simulateTest')
 for add_path in [sim_path, sim_test_path]:
     if add_path not in sys.path:
         sys.path.insert(0, add_path)
@@ -13,7 +13,6 @@ import argparse
 import copy
 import configparser
 import csv
-import pathlib
 import shutil
 
 import numpy as np
@@ -134,22 +133,25 @@ def preprocess_shapes(data_cfg, shapes):
         print(f'\tfound {len(probs)}, of which {np.count_nonzero(probs >= min_prob)} are sufficiently' +
               f' probable, of which we use {len(transforms)}')
 
-        # save original mesh and poses as well, although not needed, just so we know what's going on
-        shape.make_urdf_file(os.path.join(shape_dir, 'originals'), overwrite_existing=True)
-        np.save(os.path.join(shape_dir_originals, f'{shape_name}_poses'), transforms)
-
         for i in range(len(transforms)):
             print(f'pose {i} with probability:', probs[i])
 
             # change object to store it in correct pose
             orig_mesh = copy.deepcopy(shape.mesh)
             shape.mesh.transform(transforms[i])
+
+            # put center of mass onto the z-axis
+            translation = np.eye(4)
+            translation[0:2, 3] = -shape.mesh.get_center()[:2]
+            shape.mesh.transform(translation)
+            transforms[i] = translation @ transforms[i]  # so we save corrected poses later on
+
             shape.identifier = shape_name + f'_pose_{i}'
-            shape.make_urdf_file(shape_dir_transformed, overwrite_existing=True)
+            shape.make_urdf_file(shape_dir_transformed, overwrite_existing=True, default_inertia=np.eye(3)*0.001,
+                                 mass_factor=0.001)
 
             # find vhacd and store it as well
             p.connect(p.DIRECT)
-
             transformed_fn = os.path.join(shape_dir_transformed, shape.identifier + '.obj')
             vhacd_fn = os.path.join(shape_dir_vhacd, shape.identifier + '.obj')
             log_fn = os.path.join(shape_dir_vhacd, shape.identifier + '_log.txt')
@@ -170,19 +172,31 @@ def preprocess_shapes(data_cfg, shapes):
             shape.identifier = shape_name
             shape.mesh = orig_mesh
 
+        # save original mesh and poses as well, although not needed, just so we know what's going on
+        shape.make_urdf_file(os.path.join(shape_dir, 'originals'), overwrite_existing=True)
+        np.save(os.path.join(shape_dir_originals, f'{shape_name}_poses'), transforms)
 
-def create_grasp_samples(shapes):
+
+def get_relevant_shapes(shapes=None):
+    """
+    will retrieve all shapes from the shape file, except when certain shapes were specified anyways
+    """
     if shapes is None:
         shapes = []
         with open(shapes_fn, 'r') as f:
             for line in f.readlines():
                 shapes.append(line.strip())
+    return shapes
+
+
+def create_grasp_samples(shapes=None):
+    shapes = get_relevant_shapes(shapes)
 
     for shape_name in shapes:
         print('\n************************')
         print('object:', shape_name)
 
-        mesh = burg.io.load_mesh(os.path.join(shape_dir_transformed, shape_name))
+        mesh = burg.io.load_mesh(os.path.join(shape_dir_transformed, shape_name + '.obj'))
 
         # make settings for grasp sampling
         ags = burg.sampling.AntipodalGraspSampler()
@@ -298,11 +312,7 @@ class dotdict(dict):
 
 
 def simulate_grasp_samples(shapes=None):
-    if shapes is None:
-        shapes = []
-        with open(shapes_fn, 'r') as f:
-            for line in f.readlines():
-                shapes.append(line.strip())
+    shapes = get_relevant_shapes(shapes)
 
     # annotation_dir = '/home/rudorfem/datasets/GPNet_release_data/annotations/candidate/'
 
@@ -330,21 +340,28 @@ def simulate_grasp_samples(shapes=None):
 
         sim_data = read_sim_csv_file(shape_tmp_fn[:-4] + '_log.csv')
         success = sim_data[shape][:, 9]
-        results.append((np.count_nonzero(success), len(success)))
+        results.append((shape, np.count_nonzero(success), len(success)))
 
         bool_array = np.empty(len(success), dtype=np.bool)
         bool_array[:] = success
         np.save(os.path.join(sim_result_dir, shape + '.npy'), bool_array)
 
     for result in results:
-        print(f'{result[0]} of {result[1]} successful')
+        print(f'{result[0]}: {result[1]} of {result[2]} successful')
 
 
-def visualize_data():
-    shapes = []
-    with open(shapes_fn, 'r') as f:
-        for line in f.readlines():
-            shapes.append(line.strip())
+def show_meshes(shapes=None):
+    shapes = get_relevant_shapes(shapes)
+
+    meshes = [burg.visualization.create_plane()]
+    for shape in shapes:
+        meshes.append(burg.io.load_mesh(os.path.join(shape_dir_transformed, shape + '.obj')))
+
+    burg.visualization.show_o3d_point_clouds(meshes)
+
+
+def visualize_data(shapes=None):
+    shapes = get_relevant_shapes(shapes)
 
     for shape in shapes:
         # read the grasp data and put it in some other file which can be read by the simulator
@@ -367,14 +384,26 @@ def visualize_data():
         print('dups', dups.shape)
         print('number:', np.count_nonzero(dups))
 
-        mesh = burg.io.load_mesh(os.path.join(shape_dir, shape + '.obj'))
-        pc_centers = burg.util.numpy_pc_to_o3d(gs.translations)
-        pc_contacts = burg.util.numpy_pc_to_o3d(contacts.reshape(-1, 3))
+        mesh = burg.io.load_mesh(os.path.join(shape_dir_transformed, shape + '.obj'))
+        pc_centers = burg.util.numpy_pc_to_o3d(gs[scores < 0.5].translations)
+        pc_contacts = burg.util.numpy_pc_to_o3d(contacts[scores < 0.5].reshape(-1, 3))
+
+        pc_centers.paint_uniform_color([0.8, 0.8, 0.8])
+        pc_contacts.paint_uniform_color([0.8, 0.3, 0.2])
 
         pos_centers = burg.util.numpy_pc_to_o3d(gs[scores > 0.5].translations)
         pos_contacts = burg.util.numpy_pc_to_o3d((contacts[scores > 0.5].reshape(-1, 3)))
 
-        burg.visualization.show_o3d_point_clouds([mesh, pc_centers, pc_contacts, pos_centers, pos_contacts])
+        pos_centers.paint_uniform_color([0.5, 0.5, 0.5])
+        pos_contacts.paint_uniform_color([0.3, 0.8, 0.2])
+
+        vis_objs = [mesh, pc_centers, pc_contacts, pos_centers, pos_contacts,
+                    burg.visualization.create_plane()]
+        burg.visualization.show_o3d_point_clouds(vis_objs)
+
+        burg.visualization.show_grasp_set([mesh], gs[3*18:5*18], with_plane=True, score_color_func=lambda s: [1-s, s, 0],
+                                          gripper=burg.gripper.ParallelJawGripper(finger_thickness=0.003,
+                                                                                  opening_width=0.085))
 
         burg.visualization.show_grasp_set([mesh], gs[scores > 0.5], n=100, with_plane=True,
                                           gripper=burg.gripper.ParallelJawGripper(finger_thickness=0.003,
@@ -415,6 +444,42 @@ def inspect_meshes():
         burg.visualization.show_o3d_point_clouds([vhacd_mesh])
 
 
+def generate_depth_images(shapes=None):
+    shapes = get_relevant_shapes(shapes)
+
+    for shape in shapes:
+        mesh = burg.io.load_mesh(os.path.join(shape_dir_transformed, shape + '.obj'))
+
+        # gpnet camera parameters (not that it matters much..)
+        camera = burg.scene.Camera()
+        camera.set_resolution(320, 240)
+        camera.set_intrinsic_parameters(fx=350, fy=350, cx=160, cy=120)
+        renderer = burg.render.MeshRenderer(images_dir, camera, fn_func=lambda i: f'render{i:d}Depth0001',
+                                            fn_type='tum')
+
+        cpg = burg.render.CameraPoseGenerator(cam_distance_min=0.4, cam_distance_max=0.6,
+                                              center_point=mesh.get_center())
+        poses = cpg.icosphere(subdivisions=3, scales=1, in_plane_rotations=1, random_distances=True)
+        # plot_camera_poses(poses)
+        print(f'rendering {len(poses)} depth images')
+        renderer.render_depth(mesh, poses, sub_dir=shape)
+
+
+def create_aabb_file(shapes=None):
+    shapes = get_relevant_shapes(shapes)
+    aabb_arr = np.empty(len(shapes), dtype=([('objId', 'S32'), ('aabbValue', '<f8', (6,))]))
+
+    for i, shape in enumerate(shapes):
+        mesh = burg.io.load_mesh(os.path.join(shape_dir_transformed, shape + '.obj'))
+        print(mesh.get_center())
+        aabb = mesh.get_axis_aligned_bounding_box()
+        aabb_arr[i]['objId'] = shape
+        aabb_arr[i]['aabbValue'][:3] = aabb.min_bound
+        aabb_arr[i]['aabbValue'][3:6] = aabb.max_bound
+
+    print(aabb_arr)
+    np.save(os.path.join(base_dir, 'aabbValue.npy'), aabb_arr)
+
 
 if __name__ == "__main__":
     print('generate dataset')
@@ -423,6 +488,7 @@ if __name__ == "__main__":
     cfg = configparser.ConfigParser()
     cfg.read(arguments.config)
 
+    base_dir = arguments.output_dir
     shapes_fn = os.path.join(arguments.output_dir, 'shapes.csv')
     shape_dir = os.path.join(arguments.output_dir, 'shapes/')
     annotation_dir = os.path.join(arguments.output_dir, 'annotations/candidate/')
@@ -430,19 +496,21 @@ if __name__ == "__main__":
     tmp_dir = os.path.join(arguments.output_dir, 'annotations/tmp/')
 
     # make sure all paths exist
-    for path in [shape_dir, annotation_dir, sim_result_dir, tmp_dir]:
-        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+    burg.io.make_sure_directory_exists([shape_dir, annotation_dir, sim_result_dir, tmp_dir])
 
     shape_dir_originals = os.path.join(shape_dir, 'originals')
     shape_dir_transformed = os.path.join(shape_dir, 'transformed')
     shape_dir_vhacd = os.path.join(shape_dir, 'vhacd')
 
-    for path in [shape_dir_originals, shape_dir_transformed, shape_dir_vhacd]:
-        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+    images_dir = os.path.join(arguments.output_dir, 'images/')
+
+    burg.io.make_sure_directory_exists([shape_dir_originals, shape_dir_transformed, shape_dir_vhacd, images_dir])
 
     # inspect_meshes()
     # preprocess_shapes(cfg['General'], [arguments.shape])
     # create_grasp_samples()
-    # simulate_grasp_samples(['128ecbc10df5b05d96eaf1340564a4de'])
-    simulate_grasp_samples(['mug_pose_0'])
-    # visualize_data()
+    # simulate_grasp_samples()
+    # generate_depth_images()
+    # create_aabb_file()
+    visualize_data()
+    # show_meshes()

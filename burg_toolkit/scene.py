@@ -29,7 +29,7 @@ class ObjectType:
         return f'ObjectType: {self.identifier}\n\thas mesh: {self.mesh is not None}\n\tmass: {self.mass}\n\t' + \
             f'friction: {self.friction_coeff}\n\trestitution: {self.restitution_coeff}\n\turdf: {self.urdf_fn}'
 
-    def make_urdf_file(self, directory, overwrite_existing=False):
+    def make_urdf_file(self, directory, overwrite_existing=False, default_inertia=None, mass_factor=1.0):
         """
         This method will produce a temporary .obj file which stores the current status of the mesh, so we don't have
         to bother about scaling or displacement applied during loading the mesh.
@@ -38,6 +38,9 @@ class ObjectType:
 
         :param directory: string with directory in which the files shall be stored.
         :param overwrite_existing: bool that indicates whether to overwrite existing files or not.
+        :param default_inertia: (3, 3) ndarray, provide an inertia matrix to override the mesh's actual properties
+        :param mass_factor: actual mass of object will be multiplied by this factor (note that original mass will be
+                            used to compute the inertia)
         """
         mesh_fn = self.identifier + '.obj'
         mesh_path = os.path.join(directory, mesh_fn)
@@ -56,7 +59,12 @@ class ObjectType:
         # this does produce warnings that it can't write triangle normals to obj file. don't know how to suppress.
         o3d.io.write_triangle_mesh(mesh_path, self.mesh, write_vertex_normals=False)
 
-        inertia, com = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
+        if default_inertia is not None:
+            inertia = default_inertia
+            com = self.mesh.get_center()
+        else:
+            inertia, com = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
+
         origin = [0, 0, 0]  # meshes are already saved as is, so we have no displacement
         with open(self.urdf_fn, 'w') as urdf:
             urdf.write(f'<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -81,7 +89,7 @@ class ObjectType:
 
             # physics
             urdf.write(f'\t\t<inertial>\n')
-            urdf.write(f'\t\t\t<mass value="{self.mass}"/>\n')
+            urdf.write(f'\t\t\t<mass value="{self.mass * mass_factor}"/>\n')
             urdf.write(f'\t\t\t<inertia ixx="{inertia[0, 0]}" ixy="{inertia[0, 1]}" ixz="{inertia[0, 2]}"' +
                        f' iyy="{inertia[1, 1]}" iyz="{inertia[1, 2]}" izz="{inertia[2, 2]}" />\n')
             urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, com))}"/>\n')
@@ -142,16 +150,15 @@ class ObjectLibrary(UserDict):
 
 class Camera:
     """
-    holds intrinsic and extrinsic parameters
+    holds intrinsic and extrinsic parameters, initialises with some Kinect-like intrinsics.
     """
-
     def __init__(self):
-        self.resolution = [0, 0]  # w x h
+        self.resolution = [640, 480]  # w x h
         self.intrinsic_parameters = {
-            'fx': 0.0,
-            'fy': 0.0,
-            'cx': 0.0,
-            'cy': 0.0
+            'fx': 572.41140,
+            'fy': 573.57043,
+            'cx': 325.26110,
+            'cy': 242.04899
         }
         self.pose = np.eye(4)
 
