@@ -1,14 +1,4 @@
 import os
-import sys
-
-# Add simulator path
-gpnet_base_path = '/home/rudorfem/dev/3d_Grasping/GPNet/'
-sim_path = os.path.join(gpnet_base_path, 'simulator')
-sim_test_path = os.path.join(gpnet_base_path, 'simulator', 'simulateTest')
-for add_path in [sim_path, sim_test_path]:
-    if add_path not in sys.path:
-        sys.path.insert(0, add_path)
-
 import argparse
 import copy
 import configparser
@@ -22,7 +12,13 @@ from tqdm import tqdm
 import pybullet as p
 
 import burg_toolkit as burg
-from simulateTest.simulatorTestDemo import *
+
+# try importing simulation
+try:
+    import gpnet_sim
+except ImportError:
+    gpnet_sim = None
+    print('Warning: package gpnet_sim not found. Please install from https://github.com/mrudorfer/GPNet-simulator')
 
 
 def parse_args():
@@ -304,17 +300,13 @@ def read_sim_csv_file(filename, keep_num=None):
     return sim_data
 
 
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-
 def simulate_grasp_samples(shapes=None):
     shapes = get_relevant_shapes(shapes)
 
     # annotation_dir = '/home/rudorfem/datasets/GPNet_release_data/annotations/candidate/'
+
+    if gpnet_sim is None:
+        raise ImportError('cannot simulate grasp samples as package gpnet_sim is not loaded.')
 
     results = []
     for shape in shapes:
@@ -325,18 +317,12 @@ def simulate_grasp_samples(shapes=None):
         shape_tmp_fn = os.path.join(tmp_dir, shape + '_poses.txt')
         write_shape_poses_file({shape: grasps}, shape_tmp_fn)
 
-        dict_simulation = dotdict({
-            'testFile': shape_tmp_fn,  # current nms_poses_view0.txt file path
-            # below: keeping everything at default value!
-            'processNum': 10,
-            'width': False,
-            'gripperFile': os.path.join(sim_path, 'gpnet_data/gripper/parallel_simple.urdf'),
-            'objMeshRoot': shape_dir_vhacd,
-            # 'objMeshRoot': os.path.join(sim_path, 'gpnet_data/urdf/'),
-            'visual': False,
-            'dir': 'None'
-        })
-        main_simulator(dict_simulation)
+        conf = gpnet_sim.default_conf()
+        conf.testFile = shape_tmp_fn
+        conf.objMeshRoot = shape_dir_vhacd
+        # todo: this path should be accessible in a better way, but this is gpnet_sim package's problem
+        conf.gripperFile = '/home/rudorfem/dev/GPNet-simulator/gpnet_data/gripper/parallel_simple.urdf'
+        gpnet_sim.simulate(conf)
 
         sim_data = read_sim_csv_file(shape_tmp_fn[:-4] + '_log.csv')
         success = sim_data[shape][:, 9]
@@ -509,8 +495,8 @@ if __name__ == "__main__":
     # inspect_meshes()
     # preprocess_shapes(cfg['General'], [arguments.shape])
     # create_grasp_samples()
-    # simulate_grasp_samples()
+    simulate_grasp_samples()
     # generate_depth_images()
     # create_aabb_file()
-    visualize_data()
+    # visualize_data()
     # show_meshes()
