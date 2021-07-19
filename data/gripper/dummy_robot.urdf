@@ -65,7 +65,7 @@
         <parent link="yaw_control"/>
         <child link="pitch_control"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-31.4" upper="31.4" velocity="3.14" effort="10000"/>
+        <limit lower="-3.14" upper="3.14" velocity="3.14" effort="10000"/>
     </joint>
 
     <link name="pitch_control">thetaList
@@ -81,7 +81,7 @@
         <parent link="pitch_control"/>
         <child link="roll_control"/>
         <axis xyz="0 1 0"/>
-        <limit lower="-31.4" upper="31.4" velocity="3.14" effort="10000"/>
+        <limit lower="-3.14" upper="3.14" velocity="3.14" effort="10000"/>
     </joint>
 
     <link name="roll_control">
@@ -97,7 +97,7 @@
         <parent link="roll_control"/>
         <child link="end_effector_link"/>
         <axis xyz="1 0 0"/>
-        <limit lower="-31.4" upper="31.4" velocity="3.14" effort="100000"/>
+        <limit lower="-3.14" upper="3.14" velocity="3.14" effort="10000"/>
     </joint>
 
     <link name="end_effector_link">
