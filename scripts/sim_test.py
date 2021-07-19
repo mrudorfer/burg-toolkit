@@ -48,8 +48,11 @@ def simulate_demo(data_conf):
 
     # simulation should look like that as well
     sim = burg.sim.SingleObjectGraspSimulator(target_object=target_object_instance, gripper=gripper_model, verbose=True)
-    sim.simulate_grasp_set(g)
+    scores = sim.simulate_grasp_set(g)
     sim.dismiss()
+
+    print('grasp scores')
+    print(burg.sim.GraspScores.score2description(scores))
 
 
 if __name__ == "__main__":
