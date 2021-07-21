@@ -251,10 +251,6 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
             shape.mesh.transform(tf_actual)
             print('min bound after tf', shape.mesh.get_min_bound())
 
-            burg.visualization.show_o3d_point_clouds(
-                [shape.mesh, burg.visualization.create_plane()]
-            )
-
             # now we have to do all the file saving and vhacd computing again unfortunately
             burg.io.save_mesh_and_urdf(shape, shape_dir_transformed, name=name, default_inertia=default_inertia,
                                        mass_factor=mass_factor)
