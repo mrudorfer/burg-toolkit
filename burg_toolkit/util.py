@@ -353,6 +353,40 @@ def position_and_quaternion_from_tf(tf, convention='wxyz'):
     raise ValueError(f'unknown convention {convention}, needs to be one of xyzw / pybullet / wxyz / numpy-quaternion.')
 
 
+def tf_from_pos_quat(pos=None, quat=None, convention='wxyz'):
+    """
+    Function to compute transformation matrix from given position and quaternion.
+
+    :param pos: (3) xyz, if None then [0,0,0] is used
+    :param quat: (4) quaternion, according to convention, if None, then [0,0,0,1] is used
+    :param convention: can be 'wxyz' or 'xyzw' and describes the convention for given quaternion.
+                       E.g. numpy-quaternion package uses 'wxyz' and py_bullet uses 'xyzw'. Defaults to 'wxyz'.
+                       For convenience, we can also use 'pybullet' or 'numpy-quaternion' as strings.
+
+    :return: (position(3), quaternion(4))
+    """
+    # does not support n inputs yet, might extend functionality when needed
+
+    if pos is None:
+        pos = [0, 0, 0]
+    if quat is None:
+        quat = [1, 0, 0, 0]
+        convention = 'wxyz'
+
+    if convention in ('xyzw', 'pybullet'):
+        quat = [quat[3], quat[0], quat[1], quat[2]]
+    elif convention in ('wxyz', 'numpy-quaternion'):
+        pass
+    else:
+        raise ValueError(
+            f'unknown convention {convention}, needs to be one of xyzw / pybullet / wxyz / numpy-quaternion.')
+
+    tf = np.eye(4)
+    tf[0:3, 0:3] = quaternion.as_rotation_matrix(quaternion.from_float_array(quat))
+    tf[0:3, 3] = pos
+    return tf
+
+
 def o3d_mesh_to_trimesh(o3d_mesh):
     """
     Create a trimesh object from open3d.geometry.TriangleMesh.
