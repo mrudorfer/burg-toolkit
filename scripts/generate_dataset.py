@@ -23,9 +23,13 @@ except ImportError:
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='../config/linux-config.cfg', help='path to config file')
+    parser.add_argument('-c', '--config', type=str, default='../config/linux-config.cfg', help='path to config file, ' +
+                        'only used for Hectors objects, ignored otherwise')
+    parser.add_argument('-y', '--ycb_path', type=str, default=None,
+                        help='path to YCB objects in downloaded format, overrides -c option')
     parser.add_argument('-s', '--shape', type=str, default='mug', help='name of shape to process, None processes all')
-    parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp/', help='where to put generated files')
+    parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp_tmp/',
+                        help='where to put generated dataset files')
     return parser.parse_args()
 
 
@@ -97,12 +101,59 @@ def z_move(graspset, contacts, z_move_length=0.015):
     return graspset, contacts
 
 
-def preprocess_shapes(data_cfg, shapes):
-    reader = burg.io.BaseviMatlabScenesReader(data_cfg)
+class YCBObjectReader:
+    """
+    Class to read the YCB objects from a directory into an object library.
+    Assumes directory structure:
+    - base_path
+        - shape_name_1
+            - model_type
+                - model_fn
+        - shape_name_2
+        - ...
+    """
+    def __init__(self, base_path, model_type='google_16k', model_fn='nontextured.ply'):
+        self.base_path = base_path
+        self.model_type = model_type
+        self.model_fn = model_fn
 
-    print('preprocessor...')
-    print('read object library')
-    object_library, index2name = reader.read_object_library()
+    def read_object_library(self):
+        shape_names = [x for x in os.listdir(self.base_path) if os.path.isdir(os.path.join(self.base_path, x))]
+        object_library = burg.scene.ObjectLibrary()
+
+        for shape_name in shape_names:
+            # this assumes the directory structure
+            model_path = os.path.join(self.base_path, shape_name, self.model_type, self.model_fn)
+            mesh = burg.io.load_mesh(model_path)
+            obj_type = burg.scene.ObjectType(identifier=shape_name, mesh=mesh)
+
+            object_library[shape_name] = obj_type
+
+        # this is a bloody mass hack
+        object_library['003_cracker_box'].mass = 0.411
+        object_library['005_tomato_soup_can'].mass = 0.349
+        object_library['006_mustard_bottle'].mass = 0.603
+        object_library['010_potted_meat_can'].mass = 0.370
+        object_library['025_mug'].mass = 0.118
+        object_library['044_flat_screwdriver'].mass = 0.0984
+        object_library['051_large_clamp'].mass = 0.125
+        object_library['056_tennis_ball'].mass = 0.058
+
+        return object_library
+
+
+def preprocess_shapes(data_cfg, ycb_path, shapes):
+    if ycb_path is None:
+        if data_cfg is None:
+            raise ValueError('either data_cfg or ycb_path must be given')
+        reader = burg.io.BaseviMatlabScenesReader(data_cfg)
+        print('preprocessor...')
+        print('read object library')
+        object_library, index2name = reader.read_object_library()
+    else:
+        reader = YCBObjectReader(base_path=ycb_path)
+        object_library = reader.read_object_library()
+
     object_library.yell()
 
     for shape_name in shapes:
@@ -122,7 +173,7 @@ def preprocess_shapes(data_cfg, shapes):
 
         # find the resting poses for the object
         min_prob = 0.05
-        max_num = 4
+        max_num = 10
         print(f'searching at most {max_num} resting positions with prob at least {min_prob}...')
         transforms, probs = trimesh.poses.compute_stable_poses(tri_mesh)
         transforms = transforms[probs >= min_prob][:max_num]
@@ -134,12 +185,14 @@ def preprocess_shapes(data_cfg, shapes):
 
             # change object to store it in correct pose
             orig_mesh = copy.deepcopy(shape.mesh)
+            # print('mesh is watertight (before transform):', shape.mesh.is_watertight())
             shape.mesh.transform(transforms[i])
-
+            # print('mesh is watertight (after transform):', shape.mesh.is_watertight())
             # put center of mass onto the z-axis
             translation = np.eye(4)
             translation[0:2, 3] = -shape.mesh.get_center()[:2]
             shape.mesh.transform(translation)
+            # print('mesh is watertight (after translate):', shape.mesh.is_watertight())
             transforms[i] = translation @ transforms[i]  # so we save corrected poses later on
 
             shape.identifier = shape_name + f'_pose_{i}'
@@ -471,8 +524,12 @@ if __name__ == "__main__":
     print('generate dataset')
     arguments = parse_args()
 
-    cfg = configparser.ConfigParser()
-    cfg.read(arguments.config)
+    if arguments.ycb_path is None:
+        cfg = configparser.ConfigParser()
+        cfg.read(arguments.config)
+        cfg = cfg['General']
+    else:
+        cfg = None
 
     base_dir = arguments.output_dir
     shapes_fn = os.path.join(arguments.output_dir, 'shapes.csv')
@@ -493,9 +550,9 @@ if __name__ == "__main__":
     burg.io.make_sure_directory_exists([shape_dir_originals, shape_dir_transformed, shape_dir_vhacd, images_dir])
 
     # inspect_meshes()
-    # preprocess_shapes(cfg['General'], [arguments.shape])
+    preprocess_shapes(cfg, arguments.ycb_path, [arguments.shape])
     # create_grasp_samples()
-    simulate_grasp_samples()
+    # simulate_grasp_samples()
     # generate_depth_images()
     # create_aabb_file()
     # visualize_data()
