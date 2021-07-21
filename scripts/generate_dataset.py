@@ -10,6 +10,7 @@ import open3d as o3d
 import trimesh
 from tqdm import tqdm
 import pybullet as p
+import pybullet_data
 
 import burg_toolkit as burg
 
@@ -155,6 +156,8 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
         object_library = reader.read_object_library()
 
     object_library.yell()
+    default_inertia = np.eye(3) * 0.001
+    mass_factor = 0.001
 
     for shape_name in shapes:
         shape = object_library[shape_name]
@@ -169,12 +172,16 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
         print('\tdims:', burg.mesh_processing.dimensions(shape.mesh))
         check_mesh_dimensions(shape.mesh)
 
+        burg.io.save_mesh_and_urdf(shape, shape_dir_originals, default_inertia=default_inertia, mass_factor=mass_factor)
+
         tri_mesh = burg.util.o3d_mesh_to_trimesh(shape.mesh)
 
         # find the resting poses for the object
         min_prob = 0.05
         max_num = 10
         print(f'searching at most {max_num} resting positions with prob at least {min_prob}...')
+        # this function requires watertight meshes, not all of them are watertight but it works reasonably well
+        # note that applies to meshes that have self-intersecting triangles - holes might be a different story
         transforms, probs = trimesh.poses.compute_stable_poses(tri_mesh)
         transforms = transforms[probs >= min_prob][:max_num]
         print(f'\tfound {len(probs)}, of which {np.count_nonzero(probs >= min_prob)} are sufficiently' +
@@ -185,44 +192,93 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
 
             # change object to store it in correct pose
             orig_mesh = copy.deepcopy(shape.mesh)
-            # print('mesh is watertight (before transform):', shape.mesh.is_watertight())
             shape.mesh.transform(transforms[i])
-            # print('mesh is watertight (after transform):', shape.mesh.is_watertight())
             # put center of mass onto the z-axis
             translation = np.eye(4)
             translation[0:2, 3] = -shape.mesh.get_center()[:2]
             shape.mesh.transform(translation)
-            # print('mesh is watertight (after translate):', shape.mesh.is_watertight())
             transforms[i] = translation @ transforms[i]  # so we save corrected poses later on
 
-            shape.identifier = shape_name + f'_pose_{i}'
-            shape.make_urdf_file(shape_dir_transformed, overwrite_existing=True, default_inertia=np.eye(3)*0.001,
-                                 mass_factor=0.001)
+            # sometimes the meshes have individual vertices below z=0 - this messes with the simulation
+            # upon starting a grasp sim, the object will then move a little bit
+            # to avoid this, we simulate the object in its pose and record the final pose
 
-            # find vhacd and store it as well
+            name = shape_name + f'_pose_{i}'
+            burg.io.save_mesh_and_urdf(shape, shape_dir_transformed, name=name, default_inertia=default_inertia,
+                                       mass_factor=mass_factor)
+
+            # create vhacd and store it as well
             p.connect(p.DIRECT)
-            transformed_fn = os.path.join(shape_dir_transformed, shape.identifier + '.obj')
-            vhacd_fn = os.path.join(shape_dir_vhacd, shape.identifier + '.obj')
-            log_fn = os.path.join(shape_dir_vhacd, shape.identifier + '_log.txt')
+            transformed_fn = os.path.join(shape_dir_transformed, name + '.obj')
+            vhacd_fn = os.path.join(shape_dir_vhacd, name + '.obj')
+            log_fn = os.path.join(shape_dir_vhacd, name + '_log.txt')
+            p.vhacd(transformed_fn, vhacd_fn, log_fn)
+
+            # we now want to associate the urdf file with the vhacd obj file
+            # since vhacd and transformed have the same names which are referenced in urdf, we can just copy urdf files
+            original_urdf = os.path.join(shape_dir_transformed, name + '.urdf')
+            shutil.copy2(original_urdf, shape_dir_vhacd)
+
+            # let's start a simulation now with the vhacd object resting on a plane
+            p.setGravity(0, 0, -9.81)
+            p.setAdditionalSearchPath(pybullet_data.getDataPath())
+            p.loadURDF("plane.urdf")
+            oid = p.loadURDF(os.path.join(shape_dir_vhacd, name + '.urdf'))
+
+            pos1, quat1 = p.getBasePositionAndOrientation(oid)
+            print('*********************')
+            print(f'pos {pos1}, quat {quat1}, before simulation')
+            dt = 1/240
+            seconds = 3
+            for _ in range(int(seconds/dt)):
+                p.stepSimulation()
+            pos2, quat2 = p.getBasePositionAndOrientation(oid)
+            print(f'pos {pos2}, quat {quat2}, after simulation')
+            print('*********************')
+            diff_quat = p.getDifferenceQuaternion(quat1, quat2)
+            diff_pos = np.asarray(pos2) - np.asarray(pos1)
+            p.disconnect()
+
+            # retrieve final pose
+            # problem is, pybullet data is in the inertia frame, so position is offset to COM
+            tf_pos = burg.util.tf_from_pos_quat(pos=np.asarray(pos1))
+            tf_pos_back = burg.util.tf_from_pos_quat(pos=-np.asarray(pos1))
+            tf_pybullet = burg.util.tf_from_pos_quat(diff_pos, diff_quat, convention='pybullet')
+            tf_actual = tf_pos_back @ tf_pybullet @ tf_pos
+            print('computed tf', tf_actual)
+            transforms[i] = tf_actual @ transforms[i]
+            print('min bound before tf', shape.mesh.get_min_bound())
+            shape.mesh.transform(tf_actual)
+            print('min bound after tf', shape.mesh.get_min_bound())
+
+            burg.visualization.show_o3d_point_clouds(
+                [shape.mesh, burg.visualization.create_plane()]
+            )
+
+            # now we have to do all the file saving and vhacd computing again unfortunately
+            burg.io.save_mesh_and_urdf(shape, shape_dir_transformed, name=name, default_inertia=default_inertia,
+                                       mass_factor=mass_factor)
+
+            # create vhacd and store it as well
+            p.connect(p.DIRECT)
+            transformed_fn = os.path.join(shape_dir_transformed, name + '.obj')
+            vhacd_fn = os.path.join(shape_dir_vhacd, name + '.obj')
+            log_fn = os.path.join(shape_dir_vhacd, name + '_log.txt')
             p.vhacd(transformed_fn, vhacd_fn, log_fn)
             p.disconnect()
 
-            # we now want to associate the urdf files with the vhacd obj files
-            # since vhacd and transformed have the same names which are referenced in urdf, we can just copy urdf files
-            # (creating them anew would give new properties as well, which we don't want)
-            original_urdf = os.path.join(shape_dir_transformed, shape.identifier + '.urdf')
+            # copy urdf files to vhacd
+            original_urdf = os.path.join(shape_dir_transformed, name + '.urdf')
             shutil.copy2(original_urdf, shape_dir_vhacd)
 
             # finally add to list of shapes
             with open(shapes_fn, 'a') as f:
-                f.write(shape.identifier + '\n')
+                f.write(name + '\n')
 
             # revert changes
-            shape.identifier = shape_name
             shape.mesh = orig_mesh
 
         # save original mesh and poses as well, although not needed, just so we know what's going on
-        shape.make_urdf_file(os.path.join(shape_dir, 'originals'), overwrite_existing=True)
         np.save(os.path.join(shape_dir_originals, f'{shape_name}_poses'), transforms)
 
 
