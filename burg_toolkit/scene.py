@@ -42,6 +42,9 @@ class ObjectType:
         :param mass_factor: actual mass of object will be multiplied by this factor (note that original mass will be
                             used to compute the inertia)
         """
+        raise DeprecationWarning('This method is obsolete and will be removed.'
+                                 'Please use burg.io.save_mesh_and_urdf() instead.')
+
         mesh_fn = self.identifier + '.obj'
         mesh_path = os.path.join(directory, mesh_fn)
         self.urdf_fn = os.path.join(directory, self.identifier + '.urdf')
