@@ -61,7 +61,8 @@ class AntipodalGraspSampler:
         self.n_rays = 100
         self.min_grasp_width = 0.002
         self.width_tolerance = 0.005
-        self.max_targets_per_ref_point = 10
+        self.max_targets_per_ref_point = 1
+        self.only_grasp_from_above = False
         self.no_contact_below_z = None
         self.verbose = True
         self.verbose_debug = False
@@ -139,11 +140,6 @@ class AntipodalGraspSampler:
         rotations = R.from_rotvec(axis_angles)
         poses = np.empty(shape=(len(rotations), 4, 4))
 
-        get_cosines_instead_of_width = False
-        if get_cosines_instead_of_width:
-            cosines = np.empty(shape=(len(rotations)))
-            cosine_error = 0
-
         for i in range(len(x_axes)):
             for j in range(n_orientations):
                 # apply the rotation to the y_tangent to get grasp z
@@ -157,19 +153,8 @@ class AntipodalGraspSampler:
 
                 poses[index] = util.tf_from_xyz_pos(x_axes[i], y_axis, z_axis, center_points[i])
 
-                if get_cosines_instead_of_width:
-                    # let's confirm the cosine angle
-                    cos = np.dot(z_axis, y_tangent[i])
-                    cos_should_be = np.cos(theta[j])
-                    cosines[index] = cos_should_be
-                    cosine_error += np.square(cos - cos_should_be)
-
         gs = grasp.GraspSet.from_poses(poses)
         gs.widths = np.tile(distances, n_orientations).reshape(n_orientations, len(distances)).T.reshape(-1)
-
-        if get_cosines_instead_of_width:
-            print(f'cosine MSE is: {cosine_error}')
-            gs.widths = cosines
 
         return gs
 
@@ -240,7 +225,7 @@ class AntipodalGraspSampler:
         # triangles, we cannot sample individual points (as this would get very similar points all the time).
         # therefore, we first sample many points at once and then just use some of these at random
         # let's have a wild guess of how many are many ...
-        n_sample = np.max([n, 5000, 3*len(self.mesh.triangles)])
+        n_sample = np.max([n, 1000, len(self.mesh.triangles)])
         ref_points = util.o3d_pc_to_numpy(mesh_processing.poisson_disk_sampling(self.mesh, n_points=n_sample))
         np.random.shuffle(ref_points)
 
@@ -376,8 +361,10 @@ class AntipodalGraspSampler:
                 if self.verbose_debug:
                     print(f'* ... of which we randomly choose {len(locations)} to construct grasps')
 
-                # grasps = self.construct_grasp_set(p_r, locations, self.n_orientations)
-                grasps = self.construct_halfspace_grasp_set(p_r, locations, self.n_orientations)
+                if self.only_grasp_from_above:
+                    grasps = self.construct_halfspace_grasp_set(p_r, locations, self.n_orientations)
+                else:
+                    grasps = self.construct_grasp_set(p_r, locations, self.n_orientations)
 
                 # also compute the contact points
                 contacts = np.empty((len(locations), 2, 3))

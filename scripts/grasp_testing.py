@@ -112,9 +112,10 @@ def test_new_antipodal_grasp_sampling():
     ags.gripper = gripper_model
     ags.n_orientations = 18
     ags.verbose = True
-    ags.max_targets_per_ref_point = 2
+    ags.max_targets_per_ref_point = 1
     graspset, contacts = ags.sample(100)
     # gs.scores = ags.check_collisions(gs, use_width=False)  # need to install python-fcl
+    print('len graspset', len(graspset))
     print('contacts.shape', contacts.shape)
     burg.visualization.show_grasp_set([ags.mesh], graspset, gripper=gripper_model, use_width=False,
                                       score_color_func=lambda s: [s, 1-s, 0], with_plane=True)
