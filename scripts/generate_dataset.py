@@ -28,7 +28,7 @@ def parse_args():
                         'only used for Hectors objects, ignored otherwise')
     parser.add_argument('-y', '--ycb_path', type=str, default=None,
                         help='path to YCB objects in downloaded format, overrides -c option')
-    parser.add_argument('-s', '--shape', type=str, default='mug', help='name of shape to process, None processes all')
+    parser.add_argument('-s', '--shape', type=str, default=None, help='name of shape to process, None processes all')
     parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp_tmp/',
                         help='where to put generated dataset files')
     return parser.parse_args()
@@ -156,6 +156,12 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
         object_library = reader.read_object_library()
 
     object_library.yell()
+
+    if shapes is None:
+        shapes = object_library.keys()
+    print('will preprocess the following shapes:')
+    print(shapes)
+
     default_inertia = np.eye(3) * 0.001
     mass_factor = 0.001
 
@@ -164,8 +170,8 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
         print('\n************************')
         print('object:', shape_name)
 
-        # print some stats
-        burg.mesh_processing.check_properties(shape.mesh)
+        # print some stats (takes long)
+        # burg.mesh_processing.check_properties(shape.mesh)
 
         # check that object complies with dimension requirements
         print('checking dimensions...')
@@ -602,7 +608,9 @@ if __name__ == "__main__":
     burg.io.make_sure_directory_exists([shape_dir_originals, shape_dir_transformed, shape_dir_vhacd, images_dir])
 
     # inspect_meshes()
-    preprocess_shapes(cfg, arguments.ycb_path, [arguments.shape])
+    if arguments.shape is not None:
+        arguments.shape = [arguments.shape]
+    preprocess_shapes(cfg, arguments.ycb_path, arguments.shape)
     # create_grasp_samples()
     # simulate_grasp_samples()
     # generate_depth_images()
