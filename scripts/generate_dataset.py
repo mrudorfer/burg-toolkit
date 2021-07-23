@@ -1,9 +1,11 @@
 import os
+import sys
 import argparse
 import copy
 import configparser
 import csv
 import shutil
+import time
 
 import numpy as np
 import open3d as o3d
@@ -31,6 +33,7 @@ def parse_args():
     parser.add_argument('-s', '--shape', type=str, default=None, help='name of shape to process, None processes all')
     parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp_tmp/',
                         help='where to put generated dataset files')
+    parser.add_argument('-l', '--log_file', type=str, default=None, help='name of log file within output dir')
     return parser.parse_args()
 
 
@@ -185,13 +188,19 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
         # find the resting poses for the object
         min_prob = 0.05
         max_num = 10
-        print(f'searching at most {max_num} resting positions with prob at least {min_prob}...')
+        min_num = 1  # even if min_prob is not achieved
+        print(f'searching {min_num} to {max_num} resting positions with prob at least {min_prob}...')
         # this function requires watertight meshes, not all of them are watertight but it works reasonably well
         # note that applies to meshes that have self-intersecting triangles - holes might be a different story
         transforms, probs = trimesh.poses.compute_stable_poses(tri_mesh)
-        transforms = transforms[probs >= min_prob][:max_num]
+        used_tf_indices = probs >= min_prob
+        if np.count_nonzero(used_tf_indices) < min_num:
+            transforms = transforms[:min_num]
+        else:
+            transforms = transforms[used_tf_indices][:max_num]
+
         print(f'\tfound {len(probs)}, of which {np.count_nonzero(probs >= min_prob)} are sufficiently' +
-              f' probable, of which we use {len(transforms)}')
+              f' probable, and we use {len(transforms)}')
 
         for i in range(len(transforms)):
             print(f'pose {i} with probability:', probs[i])
@@ -199,19 +208,9 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
             # change object to store it in correct pose
             orig_mesh = copy.deepcopy(shape.mesh)
             shape.mesh.transform(transforms[i])
-            # put center of mass onto the z-axis
-            translation = np.eye(4)
-            translation[0:2, 3] = -shape.mesh.get_center()[:2]
-            shape.mesh.transform(translation)
-            transforms[i] = translation @ transforms[i]  # so we save corrected poses later on
-
-            # sometimes the meshes have individual vertices below z=0 - this messes with the simulation
-            # upon starting a grasp sim, the object will then move a little bit
-            # to avoid this, we simulate the object in its pose and record the final pose
 
             name = shape_name + f'_pose_{i}'
-            burg.io.save_mesh_and_urdf(shape, shape_dir_transformed, name=name, default_inertia=default_inertia,
-                                       mass_factor=mass_factor)
+            burg.io.save_mesh(os.path.join(shape_dir_transformed, name + '.obj'), shape.mesh)
 
             # create vhacd and store it as well
             p.connect(p.DIRECT)
@@ -219,80 +218,101 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
             vhacd_fn = os.path.join(shape_dir_vhacd, name + '.obj')
             log_fn = os.path.join(shape_dir_vhacd, name + '_log.txt')
             p.vhacd(transformed_fn, vhacd_fn, log_fn)
+            p.disconnect()
 
-            # we now want to associate the urdf file with the vhacd obj file
-            # since vhacd and transformed have the same names which are referenced in urdf, we can just copy urdf files
-            original_urdf = os.path.join(shape_dir_transformed, name + '.urdf')
-            shutil.copy2(original_urdf, shape_dir_vhacd)
+            # get vhacd mesh
+            vhacd_mesh = burg.io.load_mesh(vhacd_fn)
 
-            # let's start a simulation now with the vhacd object resting on a plane
+            # create urdf file
+            # we use COM of vhacd mesh
+            urdf_fn = os.path.join(shape_dir_transformed, name + '.urdf')
+            burg.io.save_urdf(urdf_fn, name + '.obj', name, inertia=default_inertia, com=vhacd_mesh.get_center(),
+                              mass=shape.mass * mass_factor)
+            shutil.copy2(urdf_fn, shape_dir_vhacd)  # associate with vhacd obj files as well
+
+            # ** DOUBLE_CHECK SIM
+            # we could be done here, however, at the start of the sim the object may move slightly, mainly because
+            # we comute resting poses for complete meshes and use vhacd meshes for simulation
+            # therefore we use found pose to initialise a simulation with vhacd and retrieve final resting pose
+            p.connect(p.DIRECT)
             p.setGravity(0, 0, -9.81)
             p.setAdditionalSearchPath(pybullet_data.getDataPath())
             p.loadURDF("plane.urdf")
             oid = p.loadURDF(os.path.join(shape_dir_vhacd, name + '.urdf'))
-
             pos1, quat1 = p.getBasePositionAndOrientation(oid)
             print('*********************')
+            print(f'shape center {shape.mesh.get_center()}')
+            print(f'vhacd center {vhacd_mesh.get_center()}')
             print(f'pos {pos1}, quat {quat1}, before simulation')
             dt = 1/240
-            seconds = 3
+            seconds = 5
             for _ in range(int(seconds/dt)):
                 p.stepSimulation()
+                # time.sleep(2*dt)
             pos2, quat2 = p.getBasePositionAndOrientation(oid)
+            p.disconnect()
+
+            # ** APPLY POSE ADJUSTMENTS FOUND IN SIM
+
             print(f'pos {pos2}, quat {quat2}, after simulation')
             print('*********************')
-            diff_quat = p.getDifferenceQuaternion(quat1, quat2)
             diff_pos = np.asarray(pos2) - np.asarray(pos1)
-            p.disconnect()
 
-            # retrieve final pose
-            # problem is, pybullet data is in the inertia frame, so position is offset to COM
-            tf_pos = burg.util.tf_from_pos_quat(pos=np.asarray(pos1))
-            tf_pos_back = burg.util.tf_from_pos_quat(pos=-np.asarray(pos1))
-            tf_pybullet = burg.util.tf_from_pos_quat(diff_pos, diff_quat, convention='pybullet')
-            tf_actual = tf_pos_back @ tf_pybullet @ tf_pos
-            print('computed tf', tf_actual)
-            transforms[i] = tf_actual @ transforms[i]
-            print('min bound before tf', shape.mesh.get_min_bound())
-            shape.mesh.transform(tf_actual)
-            print('min bound after tf', shape.mesh.get_min_bound())
+            print('min bounds before adjustments')
+            print('shape', shape.mesh.get_min_bound())
+            print('vhacd', vhacd_mesh.get_min_bound())
 
-            # now we have to do all the file saving and vhacd computing again unfortunately
-            burg.io.save_mesh_and_urdf(shape, shape_dir_transformed, name=name, default_inertia=default_inertia,
-                                       mass_factor=mass_factor)
+            # apply orientation
+            rot_mat = burg.util.tf_from_pos_quat(quat=quat2, convention='pybullet')[:3, :3]
+            rot_center = vhacd_mesh.get_center()
+            shape.mesh.rotate(rot_mat, center=rot_center)
+            vhacd_mesh.rotate(rot_mat, center=rot_center)
 
-            # create vhacd and store it as well
-            p.connect(p.DIRECT)
-            transformed_fn = os.path.join(shape_dir_transformed, name + '.obj')
-            vhacd_fn = os.path.join(shape_dir_vhacd, name + '.obj')
-            log_fn = os.path.join(shape_dir_vhacd, name + '_log.txt')
-            p.vhacd(transformed_fn, vhacd_fn, log_fn)
-            p.disconnect()
+            # apply translation
+            shape.mesh.translate(diff_pos, relative=True)
+            vhacd_mesh.translate(diff_pos, relative=True)
 
-            # copy urdf files to vhacd
-            original_urdf = os.path.join(shape_dir_transformed, name + '.urdf')
-            shutil.copy2(original_urdf, shape_dir_vhacd)
+            print('min bounds after adjustments')
+            print('shape', shape.mesh.get_min_bound())
+            print('vhacd', vhacd_mesh.get_min_bound())
+
+            # finally put center of mass onto the z-axis
+            target_pos = np.zeros(3)
+            target_pos[2] = shape.mesh.get_center()[2]
+            shape.mesh.translate(target_pos, relative=False)
+            target_pos[2] = vhacd_mesh.get_center()[2]
+            vhacd_mesh.translate(target_pos, relative=False)
+
+            # ** STORE FINAL FILES
+            # since the mesh got transformed, we save it again (and recreate urdf files)
+            burg.io.save_mesh(os.path.join(shape_dir_transformed, name + '.obj'), shape.mesh)
+            burg.io.save_mesh(vhacd_fn, vhacd_mesh)
+            burg.io.save_urdf(urdf_fn, name + '.obj', name, inertia=default_inertia, com=vhacd_mesh.get_center(),
+                              mass=shape.mass * mass_factor)
+            shutil.copy2(urdf_fn, shape_dir_vhacd)  # associate with vhacd obj files as well
 
             # finally add to list of shapes
             with open(shapes_fn, 'a') as f:
                 f.write(name + '\n')
 
-            # revert changes
+            # revert changes to get clean state for next pose
             shape.mesh = orig_mesh
-
-        # save original mesh and poses as well, although not needed, just so we know what's going on
-        np.save(os.path.join(shape_dir_originals, f'{shape_name}_poses'), transforms)
 
 
 def get_relevant_shapes(shapes=None):
     """
     will retrieve all shapes from the shape file, except when certain shapes were specified anyways
     """
+    all_shapes = []
+    with open(shapes_fn, 'r') as f:
+        for line in f.readlines():
+            all_shapes.append(line.strip())
     if shapes is None:
-        shapes = []
-        with open(shapes_fn, 'r') as f:
-            for line in f.readlines():
-                shapes.append(line.strip())
+        return all_shapes
+
+    for shape in shapes:
+        if shape not in all_shapes:
+            raise ValueError(f'shape "{shape}" is not available. list of all available shapes: {all_shapes}')
     return shapes
 
 
@@ -313,6 +333,7 @@ def create_grasp_samples(shapes=None):
         ags.n_orientations = 18
         ags.max_targets_per_ref_point = 1
         ags.no_contact_below_z = 0.015
+        ags.only_grasp_from_above = True
         ags.mesh = mesh
 
         print('sampling...')
@@ -541,6 +562,32 @@ def inspect_meshes():
         burg.visualization.show_o3d_point_clouds([vhacd_mesh])
 
 
+def see_vhacd_in_sim(shapes=None):
+    shapes = get_relevant_shapes(shapes)
+
+    for shape in shapes:
+        p.connect(p.GUI)
+        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        p.setGravity(0, 0, -9.81)
+        p.loadURDF('plane.urdf')
+        fn = os.path.join(shape_dir_vhacd, shape + '.urdf')
+        print(fn)
+        oid = p.loadURDF(fn)
+
+        print('position and quaternion at start:\n', p.getBasePositionAndOrientation(oid))
+        print('press enter to start simulation')
+        input()
+
+        seconds = 10
+        dt = 1/240
+        for i in range(int(seconds/dt)):
+            p.stepSimulation()
+            time.sleep(dt*2)
+
+        print('position and quaternion at end:\n', p.getBasePositionAndOrientation(oid))
+        p.disconnect()
+
+
 def generate_depth_images(shapes=None):
     shapes = get_relevant_shapes(shapes)
 
@@ -578,8 +625,39 @@ def create_aabb_file(shapes=None):
     np.save(os.path.join(base_dir, 'aabbValue.npy'), aabb_arr)
 
 
+def frame(tf=None):
+    mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(0.1)
+    if tf is not None:
+        mesh.transform(tf)
+    return mesh
+
+
+def understand_transforms():
+    tf_1 = np.asarray([[0, 1, 0, 0],
+                       [1, 0, 0, 0.5],
+                       [0, 0, -1, 0],
+                       [0, 0, 0, 1]])
+
+    tf_pos = np.eye(4)
+    tf_pos[2, 3] = 0.2
+    tf_pos[0, 3] = 0.1
+
+    theta = 0.83
+    tf_rot = np.asarray([[1, 0, 0, 0],
+                       [0, np.cos(theta), np.sin(theta), 0.1],
+                       [0, -np.sin(theta), np.cos(theta), 0],
+                       [0, 0, 0, 1]])
+
+    tf_pos_back = np.eye(4)
+    tf_pos_back[2, 3] = -0.2
+    tf_pos_back[0, 3] = -0.1
+
+    plane = burg.visualization.create_plane(2, 2)
+    f1 = frame(tf_1)
+    f1.transform
+
+
 if __name__ == "__main__":
-    print('generate dataset')
     arguments = parse_args()
 
     if arguments.ycb_path is None:
@@ -590,6 +668,17 @@ if __name__ == "__main__":
         cfg = None
 
     base_dir = arguments.output_dir
+    # redirect output to log file
+    if arguments.log_file is not None:
+        orig_stdout = sys.stdout
+        f = open(os.path.join(base_dir, arguments.log_file + '.log'), 'w')
+        sys.stdout = f
+
+    print(f'generate dataset - called {time.strftime("%a, %d %b %Y at %H:%M:%S")} with arguments:')
+    for key, value in vars(arguments).items():
+        print(f'\t{key}:\t{value}')
+    print('****************************')
+
     shapes_fn = os.path.join(arguments.output_dir, 'shapes.csv')
     shape_dir = os.path.join(arguments.output_dir, 'shapes/')
     annotation_dir = os.path.join(arguments.output_dir, 'annotations/candidate/')
@@ -611,9 +700,15 @@ if __name__ == "__main__":
     if arguments.shape is not None:
         arguments.shape = [arguments.shape]
     preprocess_shapes(cfg, arguments.ycb_path, arguments.shape)
+    # see_vhacd_in_sim(arguments.shape)
+    # understand_transforms()
     # create_grasp_samples()
     # simulate_grasp_samples()
     # generate_depth_images()
     # create_aabb_file()
     # visualize_data()
     # show_meshes()
+
+    if arguments.log_file is not None:
+        sys.stdout = orig_stdout
+        f.close()
