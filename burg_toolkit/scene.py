@@ -6,6 +6,7 @@ import numpy as np
 import open3d as o3d
 
 from . import mesh_processing
+from . import io
 
 
 class ObjectType:
@@ -23,11 +24,10 @@ class ObjectType:
         self.mass = mass or 0
         self.friction_coeff = friction_coeff or 0.24
         self.restitution_coeff = restitution_coeff or 0.1
-        self.urdf_fn = None
 
     def __str__(self):
         return f'ObjectType: {self.identifier}\n\thas mesh: {self.mesh is not None}\n\tmass: {self.mass}\n\t' + \
-            f'friction: {self.friction_coeff}\n\trestitution: {self.restitution_coeff}\n\turdf: {self.urdf_fn}'
+            f'friction: {self.friction_coeff}\n\trestitution: {self.restitution_coeff}'
 
     def make_urdf_file(self, directory, overwrite_existing=False, default_inertia=None, mass_factor=1.0):
         """
@@ -145,7 +145,7 @@ class ObjectLibrary(UserDict):
 
     def generate_urdf_files(self, directory, overwrite_existing=False):
         for name, obj in self.data.items():
-            obj.make_urdf_file(directory, overwrite_existing=overwrite_existing)
+            io.save_mesh_and_urdf(obj, directory, overwrite_existing=overwrite_existing)
 
     def __len__(self):
         return len(self.data.keys())
