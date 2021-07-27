@@ -68,12 +68,16 @@ class GraspSimulatorBase(ABC):
 
     :param target_object: the object instance that shall be grasped
     :param gripper: the gripper object which will be used
+    :param object_urdf_dir: directory where to look for object urdf files, initialised as data/tmp
     :param verbose: optional, indicates whether to show GUI and output debug info, defaults to False
     """
-    def __init__(self, target_object, gripper, verbose=False):
+    def __init__(self, target_object, gripper, object_urdf_dir=None, verbose=False):
         self.target_object = target_object
         self.gripper = gripper
         self.verbose = verbose
+        if object_urdf_dir is None:
+            object_urdf_dir = os.path.join(os.path.dirname(__file__), '../data/tmp/')
+        self.object_urdf_dir = object_urdf_dir
         self.dt = 1./240.  # this is the default and should not be changed light-heartedly
         self.SOLVER_STEPS = 100  # a bit more than default helps in contact-rich tasks
         self.TIME_SLEEP = self.dt * 3  # for visualization
@@ -163,11 +167,13 @@ class GraspSimulatorBase(ABC):
 
         :return: object id if object could be added, else raises an Error
         """
-        if object_instance.object_type.urdf_fn is None:
-            raise ValueError(f'object type {object_instance.object_type.identifier} does not provide an urdf file.')
+        urdf_fn = os.path.join(self.object_urdf_dir, object_instance.object_type.identifier + '.urdf')
+        if not os.path.exists(urdf_fn):
+            raise ValueError(f'could not find urdf file for object type {object_instance.object_type.identifier}.' +
+                             f'expected it at {urdf_fn}.')
 
         pos, quat = util.position_and_quaternion_from_tf(object_instance.pose, convention='pybullet')
-        object_id = self._p.loadURDF(object_instance.object_type.urdf_fn,
+        object_id = self._p.loadURDF(urdf_fn,
                                      basePosition=pos, baseOrientation=quat,
                                      useFixedBase=int(fixed_base))
 
@@ -223,7 +229,10 @@ class GraspSimulatorBase(ABC):
                     lateralFriction=friction,
                     spinningFriction=self.SPINNING_FRICTION,
                     rollingFriction=self.ROLLING_FRICTION,
-                    frictionAnchor=True  # todo: not sure whether we really want the friction anchor
+                    frictionAnchor=False  # todo: not sure whether we really want the friction anchor
+                    # documentation says:
+                    # enable or disable a friction anchor: friction drift correction
+                    # (disabled by default, unless set in the URDF contact section)
                 )
             joint_info = self._get_joint_info(body_id, joint_idx)
             joint_infos[joint_info['link_name']] = joint_info
@@ -262,6 +271,18 @@ class GraspSimulatorBase(ABC):
         for i in range(num_joints):
             print(f'joint {i}:')
             [print(f'\t{key}: {val}') for key, val in self._get_joint_info(body_id, i).items()]
+
+    def _print_joint_positions(self, body_id):
+        """
+        prints out the positions of all joints of the body
+
+        :param body_id: id of the body
+        """
+        num_joints = self._p.getNumJoints(body_id)
+        print(f'getting {num_joints} joint positions of body {body_id}, {self._p.getBodyInfo(body_id)}')
+        joint_states = self._p.getJointStates(body_id, list(range(num_joints)))
+        for joint_state in joint_states:
+            print(f'\t{joint_state[0]}')
 
     def _are_in_collision(self, body_id_1, body_id_2):
         """
@@ -360,18 +381,15 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
         # PHASE 0: PLACING GRIPPER IN GRASP POSE
         # we have TCP grasp representation, hence need to transform gripper to TCP-oriented pose as well
         tf = np.matmul(g.pose, self.gripper.tf_base_to_TCP)
-        grasp_pos, grasp_quat = util.position_and_quaternion_from_tf(tf, convention='pybullet')
+        grasp_pos, grasp_quat = util.position_and_quaternion_from_tf(g.pose, convention='pybullet')
+        gripper_pos, gripper_quat = util.position_and_quaternion_from_tf(tf, convention='pybullet')
         # load a dummy robot which we can move everywhere and connect the gripper to it
         self._body_ids['robot'], robot_joints = self._load_robot(
-            self.DUMMY_XYZ_ROBOT_URDF, position=grasp_pos, orientation=grasp_quat, fixed_base=True
+            self.DUMMY_XYZ_ROBOT_URDF, position=gripper_pos, orientation=gripper_quat, fixed_base=True
         )
         self._body_ids['gripper'], gripper_joints = self._load_robot(
-            self.gripper.path_to_urdf, position=grasp_pos, orientation=grasp_quat, fixed_base=False, friction=1.0
+            self.gripper.path_to_urdf, position=gripper_pos, orientation=gripper_quat, fixed_base=False, friction=1.0
         )
-        print('\tloaded.')
-        print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
-        print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
-        print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
 
         self._p.createConstraint(
             self._body_ids['robot'], robot_joints['end_effector_link']['id'],
@@ -381,12 +399,8 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
 
-        print('\tconstrained.')
-        print(f'\tgripper pos: {self._p.getBasePositionAndOrientation(self._body_ids["gripper"])}')
-        print(f'\trobot   pos: {self._p.getBasePositionAndOrientation(self._body_ids["robot"])}')
-        print(f'\tend-eff pos: {self._p.getLinkState(self._body_ids["robot"], robot_joints["end_effector_link"]["id"])[0:2]}')
-
         if self.verbose:
+            print('all objects loaded')
             self._inspect_body(self._body_ids['target_object'])
             self._inspect_body(self._body_ids['robot'])
             self._inspect_body(self._body_ids['gripper'])
@@ -449,47 +463,34 @@ class SingleObjectGraspSimulator(GraspSimulatorBase):
             input()
 
         # ok so our dummy robot can be controlled with prismatic (linear) joints in xyz
-        # however, the base of the dummy robot has some arbitrary pose in space, therefore we need to transform
-        # the desired movement in z according to the gripper's orientation
+        # however, the base of the dummy robot has some arbitrary pose in space, so it's not just controlling z
         target_movement = [0, 0, self.LIFTING_HEIGHT]  # x, y, z
-
-        # transform target movement into the grasp frame (which is the base frame of the robot)
-        joint_pos_target, _ = self._p.multiplyTransforms(
-            positionA=[0, 0, 0], orientationA=grasp_quat,
-            positionB=target_movement, orientationB=[0, 0, 0, 1]
-        )
-        joint_pos_target = list(joint_pos_target)
-
-        # get current joint poses (should in fact all be zero)
-        joint_pos_current = [joint[0] for joint in
-                             self._p.getJointStates(self._body_ids["robot"], list(range(len(robot_joints))))]
-
-        # add current joint poses to transformed target movement
-        for i in range(len(robot_joints)):
-            if i < 3:
-                joint_pos_target[i] += joint_pos_current[i]
-            else:  # only applies to dummy_robot, but not do dummy_xyz_robot
-                joint_pos_target.append(joint_pos_current[i])
-
-        if self.verbose:
-            print(f'joint poses pre lift: {joint_pos_current}')
-            print(f'joint poses target lift: {joint_pos_target}')
-
-        # setup position control with target joint values
-        self._p.setJointMotorControlArray(
-            self._body_ids['robot'],
-            jointIndices=range(len(robot_joints)),
-            controlMode=p.POSITION_CONTROL,
-            targetPositions=joint_pos_target,
-            targetVelocities=[0.01 for _ in robot_joints.keys()],
-            forces=[np.minimum(item['max_force'], 80) for _, item in robot_joints.items()]
-        )
 
         pos, *_ = self._p.getLinkState(
             self._body_ids['robot'],
             robot_joints['end_effector_link']['id']
         )
         target_position = np.array(target_movement) + np.array(pos)
+
+        target_joint_pos = self._p.calculateInverseKinematics(
+            self._body_ids['robot'],
+            robot_joints['end_effector_link']['id'],
+            list(target_position)
+        )
+
+        if self.verbose:
+            print('target position:', list(target_position))
+            print('target joint pos:', target_joint_pos)
+
+        # setup position control with target joint values
+        self._p.setJointMotorControlArray(
+            self._body_ids['robot'],
+            jointIndices=range(len(robot_joints)),
+            controlMode=p.POSITION_CONTROL,
+            targetPositions=target_joint_pos,
+            targetVelocities=[0.01 for _ in robot_joints.keys()],
+            forces=[np.minimum(item['max_force'], 80) for _, item in robot_joints.items()]
+        )
 
         n_steps = 0
         timeout = 1.5  # seconds

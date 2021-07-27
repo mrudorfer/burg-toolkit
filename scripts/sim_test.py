@@ -36,6 +36,13 @@ def simulate_demo(data_conf):
         [0, 1, 0, 0],
         [0, 0, 0, 1]
     ])
+    rot_x = np.asarray([
+        [1,    0,         0,        0],
+        [0,    0.8660,   -0.5000,   0],
+        [0,    0.5000,    0.8660,   0],
+        [0,    0,         0,        1]
+    ])
+    grasp_pose = grasp_pose @ rot_x
     g = burg.grasp.Grasp()
     g.pose = grasp_pose
 
