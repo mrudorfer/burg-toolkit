@@ -52,7 +52,8 @@ python grasp_testing.py
 ```
 
 This should load a screwdriver object, sample some antipodal grasps and visualise them.
-Note that there are some other scripts, but they require additional data to be downloaded.
+Sometimes, especially if numpy has already been installed in the environment, there may be a mismatch of compiler versions which cause numpy-quaternion to fail. See https://github.com/moble/quaternion/issues/72 for details.
+Note that there are some other scripts, but they require additionaldata to be downloaded.
 
 ### installing extras
 
