@@ -186,7 +186,7 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
         tri_mesh = burg.util.o3d_mesh_to_trimesh(shape.mesh)
 
         # find the resting poses for the object
-        min_prob = 0.05
+        min_prob = 0.02
         max_num = 10
         min_num = 1  # even if min_prob is not achieved
         print(f'searching {min_num} to {max_num} resting positions with prob at least {min_prob}...')
@@ -201,9 +201,11 @@ def preprocess_shapes(data_cfg, ycb_path, shapes):
 
         print(f'\tfound {len(probs)}, of which {np.count_nonzero(probs >= min_prob)} are sufficiently' +
               f' probable, and we use {len(transforms)}')
+        print('all probs:', probs)
 
         for i in range(len(transforms)):
-            print(f'pose {i} with probability:', probs[i])
+            print('**********************')
+            print(f'{shape} pose {i} with probability:', probs[i])
 
             # change object to store it in correct pose
             orig_mesh = copy.deepcopy(shape.mesh)
@@ -625,36 +627,15 @@ def create_aabb_file(shapes=None):
     np.save(os.path.join(base_dir, 'aabbValue.npy'), aabb_arr)
 
 
-def frame(tf=None):
-    mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(0.1)
-    if tf is not None:
-        mesh.transform(tf)
-    return mesh
+def browse_shapes(shapes=None):
+    shapes = get_relevant_shapes(shapes)
 
-
-def understand_transforms():
-    tf_1 = np.asarray([[0, 1, 0, 0],
-                       [1, 0, 0, 0.5],
-                       [0, 0, -1, 0],
-                       [0, 0, 0, 1]])
-
-    tf_pos = np.eye(4)
-    tf_pos[2, 3] = 0.2
-    tf_pos[0, 3] = 0.1
-
-    theta = 0.83
-    tf_rot = np.asarray([[1, 0, 0, 0],
-                       [0, np.cos(theta), np.sin(theta), 0.1],
-                       [0, -np.sin(theta), np.cos(theta), 0],
-                       [0, 0, 0, 1]])
-
-    tf_pos_back = np.eye(4)
-    tf_pos_back[2, 3] = -0.2
-    tf_pos_back[0, 3] = -0.1
-
-    plane = burg.visualization.create_plane(2, 2)
-    f1 = frame(tf_1)
-    f1.transform
+    for shape in shapes:
+        fn = os.path.join(shape_dir_transformed, shape + '.obj')
+        mesh = burg.io.load_mesh(fn)
+        print(f'{shape}\tdims: {burg.mesh_processing.dimensions(mesh)}')
+        plane = burg.visualization.create_plane()
+        burg.visualization.show_o3d_point_clouds([plane, mesh])
 
 
 if __name__ == "__main__":
@@ -699,13 +680,13 @@ if __name__ == "__main__":
     # inspect_meshes()
     if arguments.shape is not None:
         arguments.shape = [arguments.shape]
-    preprocess_shapes(cfg, arguments.ycb_path, arguments.shape)
+    # preprocess_shapes(cfg, arguments.ycb_path, arguments.shape)
+    # browse_shapes(arguments.shape)
     # see_vhacd_in_sim(arguments.shape)
-    # understand_transforms()
-    # create_grasp_samples()
-    # simulate_grasp_samples()
-    # generate_depth_images()
-    # create_aabb_file()
+    create_grasp_samples()
+    simulate_grasp_samples()
+    generate_depth_images()
+    create_aabb_file()
     # visualize_data()
     # show_meshes()
 
