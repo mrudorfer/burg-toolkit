@@ -462,7 +462,7 @@ def simulate_grasp_samples(shapes=None):
         success = sim_data[shape][:, 9]
         results.append((shape, np.count_nonzero(success), len(success)))
 
-        bool_array = np.empty(len(success), dtype=np.bool)
+        bool_array = np.empty(len(success), dtype=bool)
         bool_array[:] = success
         np.save(os.path.join(sim_result_dir, shape + '.npy'), bool_array)
 
@@ -485,17 +485,16 @@ def visualize_data(shapes=None):
 
     for shape in shapes:
         # read the grasp data and put it in some other file which can be read by the simulator
+        print('***********')
+        print(f'shape: {shape}')
         centers = np.load(os.path.join(annotation_dir, shape + '_c.npy'))
         quats = np.load(os.path.join(annotation_dir, shape + '_q.npy'))
         contacts = np.load(os.path.join(annotation_dir, shape + '_contact.npy'))
         gs = burg.grasp.GraspSet.from_translations_and_quaternions(centers, quats)
 
-        print('centers:', np.min(centers[:, 2], axis=0))
-        print('contact1:', np.min(contacts[:, 0, 2], axis=0))
-        print('contact2:', np.min(contacts[:, 1, 2], axis=0))
-
         scores = np.load(os.path.join(sim_result_dir, shape + '.npy'))
         gs.scores = scores
+        n_success = np.count_nonzero(scores > 0.5)
 
         gs, contacts = z_move(gs, contacts, z_move_length=-0.015)
 
@@ -517,14 +516,26 @@ def visualize_data(shapes=None):
         pos_centers.paint_uniform_color([0.5, 0.5, 0.5])
         pos_contacts.paint_uniform_color([0.3, 0.8, 0.2])
 
-        vis_objs = [mesh, pc_centers, pc_contacts, pos_centers, pos_contacts,
-                    burg.visualization.create_plane()]
+        if n_success == 0:
+            print('no successful grasps found')
+            vis_objs = [mesh, pc_centers, pc_contacts,
+                        burg.visualization.create_plane()]
+        else:
+            vis_objs = [mesh, pc_centers, pc_contacts, pos_centers, pos_contacts,
+                        burg.visualization.create_plane()]
+        print('showing contacts and centers: \n\tsuccessful centers darker than unsuccessful ones' +
+              '\n\tsuccessful contacts green, unsuccessful red')
         burg.visualization.show_o3d_point_clouds(vis_objs)
 
+        print('showing some example grasp streaks')
         burg.visualization.show_grasp_set([mesh], gs[3*18:5*18], with_plane=True, score_color_func=lambda s: [1-s, s, 0],
                                           gripper=burg.gripper.ParallelJawGripper(finger_thickness=0.003,
                                                                                   opening_width=0.085))
+        if n_success == 0:
+            print('cannot show any successful grasps... proceeding with next shape')
+            continue
 
+        print('showing up to 100 random successful grasps')
         burg.visualization.show_grasp_set([mesh], gs[scores > 0.5], n=100, with_plane=True,
                                           gripper=burg.gripper.ParallelJawGripper(finger_thickness=0.003,
                                                                                   opening_width=0.085))
@@ -683,10 +694,10 @@ if __name__ == "__main__":
     # preprocess_shapes(cfg, arguments.ycb_path, arguments.shape)
     # browse_shapes(arguments.shape)
     # see_vhacd_in_sim(arguments.shape)
-    create_grasp_samples()
-    simulate_grasp_samples()
-    generate_depth_images()
-    create_aabb_file()
+    # create_grasp_samples(arguments.shape)
+    simulate_grasp_samples(arguments.shape)
+    # generate_depth_images(arguments.shape)
+    # create_aabb_file()
     # visualize_data()
     # show_meshes()
 
