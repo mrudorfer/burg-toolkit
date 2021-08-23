@@ -425,3 +425,55 @@ class AntipodalGraspSampler:
 
         return collision_array
 
+
+def grasp_perturbations(g, radii=None, include_original_grasp=True):
+    """
+    Given a grasp g, it will compile a grasp set with perturbed grasp poses.
+    Poses will be sampled on 6d spheres (1mm translation = 1deg rotation), where each dimension will be set to
+    positive and negative radius, i.e. for each sphere we get 12 perturbed grasp poses.
+
+    :param g: a grasp.Grasp
+    :param radii: a list with radii of the spheres. if None, defaults to [5, 10, 15]
+    :param include_original_grasp: whether or not to include the given grasp g in the return set
+
+    :return: grasp.GraspSet with perturbed grasps (including the original grasp at pos 0)
+    """
+    if radii is None:
+        radii = [5, 10, 15]
+    elif not isinstance(radii, list):
+        raise ValueError('radii must be a list (or None)')
+
+    if not isinstance(g, grasp.Grasp):
+        raise ValueError('g must be a grasp.Grasp')
+
+    n_grasps = int(len(radii) * 12 + include_original_grasp)
+    gs = grasp.GraspSet(n=n_grasps)
+    i = 0
+    if include_original_grasp:
+        gs[i] = g
+        i += 1
+
+    for radius in radii:
+        shift_mm = radius / 1000  # convert to mm
+        for translation_idx in range(3):
+            for sign in [1, -1]:
+                pose = copy.deepcopy(g.pose)
+                translation_axis = pose[0:3, translation_idx]
+                pose[0:3, 3] = pose[0:3, 3] + sign * shift_mm * translation_axis
+                gs[i].pose = pose
+                i += 1
+
+        rot_rad = np.deg2rad(radius)
+        for rotation_idx in range(3):
+            for sign in [1, -1]:
+                pose = copy.deepcopy(g.pose)
+                rotation_axis = pose[0:3, rotation_idx]
+                tf = np.eye(4)
+                tf[0:3, 0:3] = R.from_rotvec(sign * rot_rad * rotation_axis).as_matrix()
+                gs[i].pose = tf @ pose
+                i += 1
+
+    print(f'finished at idx {i} of len {len(gs)}')
+    return gs
+
+
