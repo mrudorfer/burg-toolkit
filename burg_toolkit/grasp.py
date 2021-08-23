@@ -15,13 +15,8 @@ class Grasp:
     """
     ARRAY_LEN = 14
 
-    def __init__(self, np_array=None):
-        if np_array is None:
-            np_array = np.zeros(self.ARRAY_LEN)
-
-        assert(len(np_array) == self.ARRAY_LEN), 'provided np_array has wrong length.'
-
-        self._grasp_array = np_array.astype(np.float32)
+    def __init__(self):
+        self._grasp_array = np.zeros(self.ARRAY_LEN, dtype=np.float32)
 
     def __str__(self):
         s = f"Grasp with score {self.score} at pose:\n{self.pose}."
@@ -121,7 +116,9 @@ class Grasp:
 
         :return: grasp.GraspSet object containing only this grasp.
         """
-        return GraspSet(self._grasp_array.reshape(1, self.ARRAY_LEN))
+        gs = GraspSet(n=1)
+        gs._gs_array = self._grasp_array.reshape(1, self.ARRAY_LEN)
+        return gs
 
     def transform(self, tf):
         """
@@ -135,18 +132,12 @@ class Grasp:
 
 class GraspSet:
     """
-    A GraspSet is a collection of [0 ... N] grasps.
+    A GraspSet is a collection of [0 ... n-1] grasps.
 
-    :param np_array: optional, the internal numpy array, which is of shape (n, Grasp.ARRAY_LEN) and each row is a Grasp
+    :param n: optional, the number of grasps to store in this set (all will be initialised with meaningless values)
     """
-
-    def __init__(self, np_array=None):
-        if np_array is None:
-            np_array = np.zeros((0, Grasp.ARRAY_LEN), dtype=np.float32)
-
-        assert(np_array.shape[1] == Grasp.ARRAY_LEN), 'provided np_array has wrong shape.'
-
-        self._gs_array = np_array.astype(np.float32)
+    def __init__(self, n=0):
+        self._gs_array = np.zeros((n, Grasp.ARRAY_LEN), dtype=np.float32)
 
     def __str__(self):
         return f"GraspSet with {len(self)} grasps."
@@ -166,8 +157,7 @@ class GraspSet:
             raise ValueError(f'provided translations ({len(translations)}) and quaternions ({len(quaternions)})' +
                              f' arrays must be of same length.')
 
-        gs = cls(np.zeros((translations.shape[0], Grasp.ARRAY_LEN), dtype=np.float32))
-        # get translations
+        gs = cls(len(translations))
         gs.translations = translations
 
         # get rotation matrices (using the numpy-quaternion package, which offers vectorized implementations)
@@ -185,15 +175,10 @@ class GraspSet:
         :return: grasp set with corresponding grasping points with default orientation (i.e. np.eye(3) as rotation
          matrix), other fields are zero-initialised
         """
-        np_array = np.zeros((translations.shape[0], Grasp.ARRAY_LEN), dtype=np.float32)
-        np_array[:, 0:3] = translations
-
         # set canonical orientations (= np.eye(3) for each grasp)
-        np_array[:, 3] = 1.0
-        np_array[:, 7] = 1.0
-        np_array[:, 11] = 1.0
-
-        return cls(np_array)
+        quaternions = np.zeros((len(translations), 4), dtype=np.float32)
+        quaternions[:, 0] = 1
+        return cls.from_translations_and_quaternions(translations, quaternions)
 
     @classmethod
     def from_poses(cls, poses):
@@ -203,8 +188,7 @@ class GraspSet:
 
         :return: grasp set with corresponding grasps, other fields are zero-initialised
         """
-        np_array = np.zeros((poses.shape[0], Grasp.ARRAY_LEN), dtype=np.float32)
-        gs = cls(np_array)
+        gs = cls(n=poses.shape[0])
         gs.poses = poses
         return gs
 
@@ -217,9 +201,13 @@ class GraspSet:
         :return: if single index, then grasp object, else grasp set object - note that these will be shallow copies
         """
         if type(item) == int:
-            return Grasp(self._gs_array[item])
+            g = Grasp()
+            g._grasp_array = self._gs_array[item]
+            return g
         elif (type(item) == slice) or (type(item) == list) or (type(item) == np.ndarray):
-            return GraspSet(self._gs_array[item])
+            gs = GraspSet(len(self._gs_array[item]))
+            gs._gs_array = self._gs_array[item]
+            return gs
         else:
             raise TypeError('unknown index type calling GraspSet.__getitem__')
 
