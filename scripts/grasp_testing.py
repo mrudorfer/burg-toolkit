@@ -3,6 +3,8 @@ from timeit import default_timer as timer
 import numpy as np
 import configparser
 
+import open3d as o3d
+
 import burg_toolkit as burg
 
 SAVE_FILE = os.path.join('..', 'sampled_grasps.npy')
@@ -63,45 +65,6 @@ def test_distance_and_coverage():
     print('in total, this took:', timer() - t1, 'seconds')
 
 
-def test_antipodal_grasp_sampling():
-    # read config file
-    cfg_fn = '../config/config.cfg'
-    cfg_fn = os.path.abspath(cfg_fn)
-    print('using config file in:', cfg_fn)
-
-    cfg = configparser.ConfigParser()
-    cfg.read(cfg_fn)
-    reader = burg.io.BaseviMatlabScenesReader(cfg['General'])
-
-    # object lib
-    print('read object library')
-    object_library, index2name = reader.read_object_library()
-    [print(f'\t{idx}: {name}') for idx, name in index2name.items()]
-
-    # determine target object
-    target_obj_name = 'cheezeIt'
-    target_obj = object_library[target_obj_name]
-    print('using', target_obj_name, 'object')
-
-    # convert mesh to point cloud
-    target_obj.point_cloud = burg.mesh_processing.poisson_disk_sampling(target_obj.mesh)
-    gripper = burg.gripper.ParallelJawGripper()
-    grasp_set = burg.sampling.sample_antipodal_grasps(
-        target_obj.point_cloud,
-        gripper,
-        n=5,
-        max_sum_of_angles=30,
-        visualize=True
-    )
-    print('grasp_set', grasp_set)
-
-    # print('saving grasp set to', SAVE_FILE)
-    # with open(SAVE_FILE, 'wb') as f:
-    #    np.save(f, grasp_set.internal_array)
-
-    burg.visualization.show_grasp_set([target_obj.mesh], grasp_set, gripper=gripper)
-
-
 def test_new_antipodal_grasp_sampling():
     gripper_model = burg.gripper.ParallelJawGripper(finger_length=0.03,
                                                     finger_thickness=0.003)
@@ -137,6 +100,13 @@ def test_rotation_to_align_vectors():
     print('R*vec_a', np.dot(r, vec_a.reshape(3, 1)))
 
 
+def show_grasp_pose_definition():
+    gs = burg.grasp.GraspSet.from_translations(np.asarray([0, 0, 0]).reshape(-1, 3))
+    gripper = burg.gripper.ParallelJawGripper(finger_length=0.03, finger_thickness=0.003, opening_width=0.05)
+    burg.visualization.show_grasp_set([o3d.geometry.TriangleMesh.create_coordinate_frame(0.02)],
+                                      gs, gripper=gripper)
+
+
 def test_angles():
     vec_a = np.array([1, 0, 0])
     vec_b = np.array([-1, 0, 0])
@@ -158,9 +128,9 @@ def test_cone_sampling():
 if __name__ == "__main__":
     print('hi')
     # test_distance_and_coverage()
-    # test_antipodal_grasp_sampling()
     # test_rotation_to_align_vectors()
     # test_angles()
     # test_cone_sampling()
-    test_new_antipodal_grasp_sampling()
+    # test_new_antipodal_grasp_sampling()
+    show_grasp_pose_definition()
     print('bye')
