@@ -30,7 +30,7 @@ class ParallelJawGripper:
     :param path_to_urdf: path to the URDF file of the gripper which can be used in simulation.
     """
 
-    def __init__(self, finger_length=0.05, opening_width=0.08, finger_thickness=0.01, mesh=None, tf_base_to_TCP=None,
+    def __init__(self, finger_length=0.04, opening_width=0.08, finger_thickness=0.003, mesh=None, tf_base_to_TCP=None,
                  path_to_urdf=None):
         self._finger_length = finger_length
         self._opening_width = opening_width
