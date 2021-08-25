@@ -23,6 +23,8 @@ def parse_args():
                         help='name of shape to process')
     parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp_tmp/',
                         help='where to put generated dataset files')
+    parser.add_argument('-n', '--num_grasps', type=int, default=None,
+                        help='number of grasps to process. up to first n successful grasps used. None processes all.')
     return parser.parse_args()
 
 
@@ -33,7 +35,6 @@ def load_successful_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir):
     center_fn = os.path.join(gpnet_data_path, 'annotations/candidate/', gpnet_object_id + '_c.npy')
     quat_fn = os.path.join(gpnet_data_path, 'annotations/candidate/', gpnet_object_id + '_q.npy')
     success_fn = os.path.join(gpnet_data_path, 'annotations/simulateResult/', gpnet_object_id + '.npy')
-    model_fn = os.path.join(gpnet_model_dir, gpnet_object_id + '.obj')
 
     centers = np.load(center_fn)
     quats = np.load(quat_fn)
@@ -46,8 +47,9 @@ def load_successful_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir):
     centers = centers[np.nonzero(success)]
     quats = quats[np.nonzero(success)]
     gs = burg.grasp.GraspSet.from_translations_and_quaternions(centers, quats)
-    mesh = burg.io.load_mesh(model_fn)
 
+    # model_fn = os.path.join(gpnet_model_dir, gpnet_object_id + '.obj')
+    # mesh = burg.io.load_mesh(model_fn)
     # burg.visualization.show_grasp_set([mesh], gs, gripper=burg.gripper.ParallelJawGripper(), with_plane=True)
 
     return gs
@@ -56,9 +58,11 @@ def load_successful_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir):
 def perturb_and_simulate(grasps, gpnet_object_id):
     print(f'going through {len(grasps)} grasps to perturb and simulate.')
 
+    n_perturbations = 37
+
     scores = np.zeros(len(grasps))
     overall_outcomes = Counter()
-    overall_success = np.zeros(37)  # so we can reason about certain perturbations
+    overall_success = np.zeros(n_perturbations)  # so we can reason about certain perturbations
 
     for i, grasp in enumerate(grasps):
         perturbations = burg.sampling.grasp_perturbations(grasp, radii=[5, 10, 15])
@@ -71,23 +75,32 @@ def perturb_and_simulate(grasps, gpnet_object_id):
         overall_success += success
         overall_outcomes += Counter(outcomes)
 
-        if i == 10:
-            break
-
     grasps.scores = scores
     print('***** SUMMARY *****')
-    print('average robustness score:', np.mean(scores[:10]))
-    print('overall outcomes (avg per grasp):')
+    print('average robustness score:', np.mean(scores))
+    print(f'max/min robustness score: {np.max(scores)}/{np.min(scores)}')
+    print('overall outcomes,\tavg per grasp,\tavg per perturbation:')
     for outcome, count in overall_outcomes.items():
-        print(f'\t{outcome}: {count} ({count/len(grasps[:10])})')
-    print('overall success per perturbation:')
+        print(f'\t{outcome}\t{count}\t{count/len(grasps)}\t{count/len(grasps)/n_perturbations} ')
+    print('overall success per perturbation (abs vs rel):')
     for i, success in enumerate(overall_success):
-        print(f'\t{i}: {success} ({success/len(grasps[:10])})')
+        print(f'\t{i}\t{success}\t{success/len(grasps)}')
+
+    return scores, overall_success, overall_outcomes
 
 
 if __name__ == "__main__":
     print('hi')
     args = parse_args()
     grasps = load_successful_grasps(args.shape, args.gpnet_data, args.model_dir)
-    perturb_and_simulate(grasps, args.shape)
+    if args.num_grasps is not None:
+        grasps = grasps[:args.num_grasps]
+    robustness_scores, perturbation_success, outcomes = perturb_and_simulate(grasps, args.shape)
+
+    burg.io.make_sure_directory_exists(args.output_dir)
+
+    np.save(os.path.join(args.output_dir, args.shape + '_scores.npy'), robustness_scores)
+    np.save(os.path.join(args.output_dir, args.shape + '_success_p.npy'), perturbation_success)
+    np.save(os.path.join(args.output_dir, args.shape + '_outcomes.npy'), outcomes)
+
     print('bye')
