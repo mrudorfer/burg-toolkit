@@ -3,12 +3,10 @@ import copy
 import numpy as np
 import trimesh
 import open3d as o3d
-from timeit import default_timer as timer
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
 
 from . import grasp
-from . import gripper
 from . import util
 from . import visualization
 from . import mesh_processing
@@ -426,54 +424,60 @@ class AntipodalGraspSampler:
         return collision_array
 
 
-def grasp_perturbations(g, radii=None, include_original_grasp=True):
+def grasp_perturbations(grasps, radii=None, include_original_grasp=True):
     """
-    Given a grasp g, it will compile a grasp set with perturbed grasp poses.
+    Given a grasp g (or set of grasps), it will compile a grasp set with perturbed grasp poses.
     Poses will be sampled on 6d spheres (1mm translation = 1deg rotation), where each dimension will be set to
     positive and negative radius, i.e. for each sphere we get 12 perturbed grasp poses.
 
-    :param g: a grasp.Grasp
+    :param grasps: a grasp.Grasp, or a grasp.GraspSet
     :param radii: a list with radii of the spheres. if None, defaults to [5, 10, 15]
-    :param include_original_grasp: whether or not to include the given grasp g in the return set
+    :param include_original_grasp: whether or not to include the original grasps in the return set
 
-    :return: grasp.GraspSet with perturbed grasps (including the original grasp at pos 0)
+    :return: grasp.GraspSet with perturbed grasps. if a graspset has been provided, the returned set will have all
+             perturbations in order, ie first all perturbations of the first grasp, then all perturbations of the
+             second grasp, and so on.
     """
     if radii is None:
         radii = [5, 10, 15]
     elif not isinstance(radii, list):
         raise ValueError('radii must be a list (or None)')
 
-    if not isinstance(g, grasp.Grasp):
-        raise ValueError('g must be a grasp.Grasp')
+    if not isinstance(grasps, grasp.GraspSet):
+        if isinstance(grasps, grasp.Grasp):
+            grasps = grasps.as_grasp_set()
+        else:
+            raise ValueError('g must be a grasp.Grasp or a grasp.GraspSet')
 
-    n_grasps = int(len(radii) * 12 + include_original_grasp)
+    n_grasps = len(grasps) * (len(radii) * 12 + int(include_original_grasp))
     gs = grasp.GraspSet(n=n_grasps)
     i = 0
-    if include_original_grasp:
-        gs[i] = g
-        i += 1
 
-    for radius in radii:
-        shift_mm = radius / 1000  # convert to mm
-        for translation_idx in range(3):
-            for sign in [1, -1]:
-                pose = copy.deepcopy(g.pose)
-                translation_axis = pose[0:3, translation_idx]
-                pose[0:3, 3] = pose[0:3, 3] + sign * shift_mm * translation_axis
-                gs[i].pose = pose
-                i += 1
+    print(f'given {len(grasps)} grasps, we construct {n_grasps} perturbations in total.')
+    for g in tqdm(grasps):
+        if include_original_grasp:
+            gs[i] = g
+            i += 1
 
-        rot_rad = np.deg2rad(radius)
-        for rotation_idx in range(3):
-            for sign in [1, -1]:
-                pose = copy.deepcopy(g.pose)
-                rotation_axis = pose[0:3, rotation_idx]
-                tf = np.eye(4)
-                tf[0:3, 0:3] = R.from_rotvec(sign * rot_rad * rotation_axis).as_matrix()
-                gs[i].pose = tf @ pose
-                i += 1
+        for radius in radii:
+            shift_mm = radius / 1000  # convert to mm
+            for translation_idx in range(3):
+                for sign in [1, -1]:
+                    pose = copy.deepcopy(g.pose)
+                    translation_axis = pose[0:3, translation_idx]
+                    pose[0:3, 3] = pose[0:3, 3] + sign * shift_mm * translation_axis
+                    gs[i].pose = pose
+                    i += 1
 
-    print(f'finished at idx {i} of len {len(gs)}')
+            rot_rad = np.deg2rad(radius)
+            for rotation_idx in range(3):
+                for sign in [1, -1]:
+                    pose = copy.deepcopy(g.pose)
+                    rotation_axis = pose[0:3, rotation_idx]
+                    pose[:3, :3] = R.from_rotvec(sign * rot_rad * rotation_axis).as_matrix() @ pose[:3, :3]
+                    gs[i].pose = pose
+                    i += 1
+
     return gs
 
 

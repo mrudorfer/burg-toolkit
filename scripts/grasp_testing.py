@@ -126,8 +126,12 @@ def test_cone_sampling():
 
 
 def visualise_perturbations():
-    gs = burg.grasp.GraspSet.from_translations(np.asarray([0, 0, 0]).reshape(-1, 3))
-    gs_perturbed = burg.sampling.grasp_perturbations(gs[0], radii=[5, 10, 15])
+    positions = np.zeros((3, 3))
+    positions[0] = [0.3, 0, 0]
+    positions[1] = [0, 0, 0.3]
+
+    gs = burg.grasp.GraspSet.from_translations(positions)
+    gs_perturbed = burg.sampling.grasp_perturbations(gs, radii=[5, 10, 15])
     gripper = burg.gripper.ParallelJawGripper(finger_length=0.03, finger_thickness=0.003, opening_width=0.05)
     burg.visualization.show_grasp_set([], gs_perturbed, gripper=gripper)
 
