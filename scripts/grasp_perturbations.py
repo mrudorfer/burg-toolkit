@@ -89,7 +89,7 @@ def perturb_and_simulate(grasps, gpnet_object_id):
     for i, success in enumerate(overall_success):
         print(f'\t{i}\t{success}')
 
-    return scores, overall_success, outcomes
+    return success, outcomes
 
 
 def analyse_perturbation_success(success):
@@ -115,7 +115,11 @@ def analyse_perturbation_success(success):
 
 
 def visualise_perturbation_success(success):
-    gs = burg.grasp.GraspSet.from_translations(np.asarray([0, 0, 0]).reshape(-1, 3))
+    pose = np.eye(4)
+    pose[0:3, 1] = [0, 0, -1]
+    pose[0:3, 2] = [0, 1, 0]
+    gs = burg.grasp.GraspSet(1)
+    gs[0].pose = pose
     gs_perturbed = burg.sampling.grasp_perturbations(gs[0], radii=[5, 10, 15])
     gs_perturbed.scores = success
     gripper = burg.gripper.ParallelJawGripper()
@@ -136,16 +140,27 @@ if __name__ == "__main__":
         grasps = grasps[:args.num_grasps]
 
     if args.simulate is True:
-        robustness_scores, perturbation_success, outcomes = perturb_and_simulate(grasps, args.shape)
+        success, outcomes = perturb_and_simulate(grasps, args.shape)
+        robustness_scores = np.mean(success, axis=-1)
+        perturbation_success = np.mean(success, axis=0)
 
         burg.io.make_sure_directory_exists(args.output_dir)
-        np.save(os.path.join(args.output_dir, args.shape + '_scores.npy'), robustness_scores)
-        np.save(os.path.join(args.output_dir, args.shape + '_success_p.npy'), perturbation_success)
+        np.save(os.path.join(args.output_dir, args.shape + '_success.npy'), success)
         np.save(os.path.join(args.output_dir, args.shape + '_outcomes.npy'), outcomes)
 
     if args.show is True:
-        robustness_scores = np.load(os.path.join(args.output_dir, args.shape + '_scores.npy'))
-        perturbation_success = np.load(os.path.join(args.output_dir, args.shape + '_success_p.npy'))
+        # we changed file output at some point, so first check if we have the newer version
+        success_fn = os.path.join(args.output_dir, args.shape + '_success.npy')
+        if os.path.isfile(success_fn):
+            success = np.load(success_fn)
+            robustness_scores = np.mean(success, axis=-1)
+            perturbation_success = np.mean(success, axis=0)
+        else:
+            # this is the legacy version which does not retain binary success values for all perturbations
+            success = None
+            robustness_scores = np.load(os.path.join(args.output_dir, args.shape + '_scores.npy'))
+            perturbation_success = np.load(os.path.join(args.output_dir, args.shape + '_success_p.npy'))
+
         analyse_perturbation_success(perturbation_success)
         visualise_perturbation_success(perturbation_success)
 
@@ -158,8 +173,8 @@ if __name__ == "__main__":
         print(f'\t>0.75: {np.mean(robustness_scores > 0.75)} ({np.count_nonzero(robustness_scores > 0.75)})')
         print(f'\t>0.9: {np.mean(robustness_scores > 0.9)} ({np.count_nonzero(robustness_scores > 0.9)})')
 
-        plt.hist(robustness_scores, bins='auto')
-        plt.title('histogram of robustness scores')
+        plt.hist(robustness_scores, bins=np.linspace(0, 1, 21))
+        plt.title(f'score distribution {args.shape}')
         plt.show()
 
         robustness_scores = robustness_scores[:len(grasps)]
@@ -168,7 +183,15 @@ if __name__ == "__main__":
 
         model_fn = os.path.join(args.model_dir, args.shape + '.obj')
         mesh = burg.io.load_mesh(model_fn)
-        burg.visualization.show_grasp_set([mesh], grasps, gripper=burg.gripper.ParallelJawGripper(), with_plane=True,
-                                          score_color_func=lambda s: [1-s, s, 0])
+        # first just visualise the best 10 and worst 10 grasps
+        top_n = 15
+        best_indices = np.argpartition(robustness_scores, -top_n)[-top_n:]
+        worst_indices = np.argpartition(robustness_scores, top_n)[:top_n]
+        indices = np.concatenate([worst_indices, best_indices])
+        burg.visualization.show_grasp_set([mesh], grasps[indices], gripper=burg.gripper.ParallelJawGripper(),
+                                          with_plane=True, score_color_func=lambda s: [1-s, s, 0])
+
+        #burg.visualization.show_grasp_set([mesh], grasps, gripper=burg.gripper.ParallelJawGripper(),
+        #                                  with_plane=True, score_color_func=lambda s: [1-s, s, 0], n=3000)
 
     print('bye')
