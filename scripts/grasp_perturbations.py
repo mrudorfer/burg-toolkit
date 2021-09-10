@@ -22,7 +22,8 @@ def parse_args():
                         help='path to the GPNet models (obj files)')
     parser.add_argument('-s', '--shape', type=str, default='c34718bd10e378186c6c61abcbd83e5a',
                         help='name of shape to process')
-    parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp_tmp/',
+    parser.add_argument('-o', '--output_dir', type=str,
+                        default='/home/rudorfem/datasets/GPNet_release_data_fixed/perturbations/',
                         help='where to put generated dataset files')
     parser.add_argument('-n', '--num_grasps', type=int, default=None,
                         help='number of grasps to process. up to first n successful grasps used. None processes all.')
@@ -101,17 +102,51 @@ def analyse_perturbation_success(success):
     # - radius (5, 10, 15)
     #   - axis (trans xyz then rot xyz)
     #       - plus, then minus
-    for i, label in enumerate(['x_trans', 'y_trans', 'z_trans', 'x_rot', 'y_rot', 'z_rot']):
+    rads = ['5', '10', '15']
+    for i, label in enumerate(['x_{trans}', 'y_{trans}', 'z_{trans}', 'x_{rot}', 'y_{rot}', 'z_{rot}']):
         sum = 0
-        for r, rad in enumerate(['5', '10', '15']):
+        for r, rad in enumerate(rads):
             idx_pos = 1 + 2*i + 12*r
             idx_neg = idx_pos + 1
             sum += success[idx_pos] + success[idx_neg]
             print(f'{label}_{rad}:\t{(success[idx_pos] + success[idx_neg])/2}')
-            if label == 'z_trans':
+            if label == 'z_{trans}':
                 print(f'\tfarther: \t{success[idx_pos]}')
                 print(f'\tcloser: \t{success[idx_neg]}')
         print(f'{label}_avg:\t{sum/6}')
+
+    print('** tex table **')
+    print('\\begin{tabular}{ |l||c|c|c||c| }')
+    print('\t\\hline')
+    print('\t& \\multicolumn{4}{c|}{success rate at radius}\\\\')
+    print('\tperturbation & 5 & 10 & 15 & avg \\\\ ')
+    print('\t\\hline')
+    print(f'\tnone & \\multicolumn{{3}}{{c||}}{{{success[0]:.2f}}} & \\\\')
+    print('\t\\hline')
+    avg = np.zeros(len(rads)+1)
+    labels = ['x_{trans}', 'y_{trans}', 'z_{trans}', 'x_{rot}', 'y_{rot}', 'z_{rot}']
+    for i, label in enumerate(labels):
+        sum = 0
+        line = f'\t$\\pm {label}$\t'
+        for r, rad in enumerate(rads):
+            idx_pos = 1 + 2 * i + 12 * r
+            idx_neg = idx_pos + 1
+            val = (success[idx_pos] + success[idx_neg]) / 2
+            sum += val
+            avg[r] += val
+            line += f'& {val:.2f}\t'
+        line += f'& {sum / len(rads):.2f} \\\\'
+        avg[-1] += sum / len(rads)
+        print(line)
+    print('\t\\hline')
+    line = '\taverage'
+    for i in range(len(rads)+1):
+        line += f'\t& {avg[i]/len(labels):.2f}'
+    line += ' \\\\'
+    print(line)
+    print('\t\\hline')
+    print('\\end{tabular}')
+    print('** end table **')
 
 
 def visualise_perturbation_success(success):
@@ -169,9 +204,9 @@ if __name__ == "__main__":
         print('\tmin:', np.min(robustness_scores))
         print('\tmax:', np.max(robustness_scores))
         print('\tmed:', np.median(robustness_scores))
-        print(f'\t>0.5: {np.mean(robustness_scores > 0.5)} ({np.count_nonzero(robustness_scores > 0.5)})')
-        print(f'\t>0.75: {np.mean(robustness_scores > 0.75)} ({np.count_nonzero(robustness_scores > 0.75)})')
-        print(f'\t>0.9: {np.mean(robustness_scores > 0.9)} ({np.count_nonzero(robustness_scores > 0.9)})')
+        score_thresholds = [0.5, 0.75, 0.9]
+        for th in score_thresholds:
+            print(f'\t>{th}: {np.mean(robustness_scores > th)} ({np.count_nonzero(robustness_scores > th)})')
 
         plt.hist(robustness_scores, bins=np.linspace(0, 1, 21))
         plt.title(f'score distribution {args.shape}')
@@ -191,7 +226,7 @@ if __name__ == "__main__":
         burg.visualization.show_grasp_set([mesh], grasps[indices], gripper=burg.gripper.ParallelJawGripper(),
                                           with_plane=True, score_color_func=lambda s: [1-s, s, 0])
 
-        #burg.visualization.show_grasp_set([mesh], grasps, gripper=burg.gripper.ParallelJawGripper(),
-        #                                  with_plane=True, score_color_func=lambda s: [1-s, s, 0], n=3000)
+        burg.visualization.show_grasp_set([mesh], grasps, gripper=burg.gripper.ParallelJawGripper(),
+                                          with_plane=True, score_color_func=lambda s: [1-s, s, 0], n=3000)
 
     print('bye')
