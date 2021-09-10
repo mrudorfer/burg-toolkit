@@ -31,11 +31,12 @@ def parse_args():
                         help='activate to perturb grasps and simulate all of them (takes time)')
     parser.add_argument('--show', action='store_true', default=False,
                         help='use this option to visualise perturbed grasps (taken from output_dir)')
+    parser.add_argument('--negatives', action='store_true', help='use negative instead of positive annotations')
     return parser.parse_args()
 
 
 # function to load data of a given GPNet object
-def load_successful_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir):
+def load_gt_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir, type='positives'):
     print(f'loading grasps for object {gpnet_object_id}')
 
     center_fn = os.path.join(gpnet_data_path, 'annotations/candidate/', gpnet_object_id + '_c.npy')
@@ -50,8 +51,15 @@ def load_successful_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir):
     print(f'successful:   {np.count_nonzero(success)}')
     print(f'ratio:        {np.mean(success)}')
 
-    centers = centers[np.nonzero(success)]
-    quats = quats[np.nonzero(success)]
+    if type == 'positives':
+        centers = centers[np.nonzero(success)]
+        quats = quats[np.nonzero(success)]
+    elif type == 'negatives':
+        centers = centers[np.nonzero(1 - success)]
+        quats = quats[np.nonzero(1 - success)]
+    elif type != 'all':
+        raise ValueError(f'provided type unrecognised, got {type} but expected one of [positives, negatives, all]')
+
     gs = burg.grasp.GraspSet.from_translations_and_quaternions(centers, quats)
 
     # model_fn = os.path.join(gpnet_model_dir, gpnet_object_id + '.obj')
@@ -87,8 +95,8 @@ def perturb_and_simulate(grasps, gpnet_object_id):
     for outcome, count in outcomes.items():
         print(f'\t{outcome}\t{count}\t{count/len(grasps)}\t{count/len(grasps)/n_perturbations} ')
     print('overall success per perturbation:')
-    for i, success in enumerate(overall_success):
-        print(f'\t{i}\t{success}')
+    for i, s in enumerate(overall_success):
+        print(f'\t{i}\t{s}')
 
     return success, outcomes
 
@@ -170,22 +178,31 @@ if __name__ == "__main__":
         print(f'\t{key}:\t{value}')
     print('****')
 
-    grasps = load_successful_grasps(args.shape, args.gpnet_data, args.model_dir)
+    grasps = None
+    neg_str = ''
+    if args.negatives:
+        grasps = load_gt_grasps(args.shape, args.gpnet_data, args.model_dir, type='negatives')
+        neg_str = '_neg'
+    else:
+        grasps = load_gt_grasps(args.shape, args.gpnet_data, args.model_dir, type='positives')
     if args.num_grasps is not None:
-        grasps = grasps[:args.num_grasps]
+        if args.num_grasps < len(grasps):
+            indices = np.random.choice(len(grasps), args.num_grasps, replace=False)
+            grasps = grasps[indices]
 
     if args.simulate is True:
         success, outcomes = perturb_and_simulate(grasps, args.shape)
+        print('success shape', success.shape)
         robustness_scores = np.mean(success, axis=-1)
         perturbation_success = np.mean(success, axis=0)
 
         burg.io.make_sure_directory_exists(args.output_dir)
-        np.save(os.path.join(args.output_dir, args.shape + '_success.npy'), success)
-        np.save(os.path.join(args.output_dir, args.shape + '_outcomes.npy'), outcomes)
+        np.save(os.path.join(args.output_dir, args.shape + neg_str + '_success.npy'), success)
+        np.save(os.path.join(args.output_dir, args.shape + neg_str + '_outcomes.npy'), outcomes)
 
     if args.show is True:
         # we changed file output at some point, so first check if we have the newer version
-        success_fn = os.path.join(args.output_dir, args.shape + '_success.npy')
+        success_fn = os.path.join(args.output_dir, args.shape + neg_str + '_success.npy')
         if os.path.isfile(success_fn):
             success = np.load(success_fn)
             robustness_scores = np.mean(success, axis=-1)
