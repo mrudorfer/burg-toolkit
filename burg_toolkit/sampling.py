@@ -481,3 +481,10 @@ def grasp_perturbations(grasps, radii=None, include_original_grasp=True):
     return gs
 
 
+def random_poses(n):
+    tfs = np.zeros((n, 4, 4))
+    tfs[:, 3, 3] = 1
+    tfs[:, 0:3, 0:3] = R.random(n).as_matrix().reshape(-1, 3, 3)
+    tfs[:, 0:3, 3] = np.random.random((n, 3))
+    return tfs
+
