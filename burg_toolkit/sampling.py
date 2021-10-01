@@ -482,6 +482,13 @@ def grasp_perturbations(grasps, radii=None, include_original_grasp=True):
 
 
 def random_poses(n):
+    """
+    Samples random poses, i.e. random orientations with random positions in [0, 1].
+
+    :param n: number of poses to return
+
+    :return: numpy array with shape (n, 4, 4)
+    """
     tfs = np.zeros((n, 4, 4))
     tfs[:, 3, 3] = 1
     tfs[:, 0:3, 0:3] = R.random(n).as_matrix().reshape(-1, 3, 3)
