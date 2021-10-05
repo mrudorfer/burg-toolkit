@@ -35,8 +35,33 @@ def parse_args():
     return parser.parse_args()
 
 
+def get_objects_and_grasp_numbers(gpnet_data_path):
+    img_dir = os.path.join(gpnet_data_path, 'images/')
+    shape_names = [x for x in os.listdir(img_dir) if os.path.isdir(os.path.join(img_dir, x))]
+
+    grasp_num_dict = {}
+
+    for shape_name in shape_names:
+        if shape_name == '4eefe941048189bdb8046e84ebdc62d2':  # no GT data for this shape
+            continue
+        grasps = load_gt_grasps(shape_name, gpnet_data_path)
+        grasp_num_dict[shape_name] = len(grasps)
+
+    for key, item in grasp_num_dict.items():
+        print(f'{key}: {item}')
+
+    print('total grasps:\t', sum(grasp_num_dict.values()))
+    values = np.fromiter(grasp_num_dict.values(), dtype=int)
+    print('values shape', values.shape)
+    print('max num', np.max(values))
+    print('min num', np.min(values))
+    plt.hist(values)
+    plt.title(f'distribution of number of GT grasps')
+    plt.show()
+
+
 # function to load data of a given GPNet object
-def load_gt_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir, type='positives'):
+def load_gt_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir=None, type='positives'):
     print(f'loading grasps for object {gpnet_object_id}')
 
     center_fn = os.path.join(gpnet_data_path, 'annotations/candidate/', gpnet_object_id + '_c.npy')
@@ -62,9 +87,10 @@ def load_gt_grasps(gpnet_object_id, gpnet_data_path, gpnet_model_dir, type='posi
 
     gs = burg.grasp.GraspSet.from_translations_and_quaternions(centers, quats)
 
-    # model_fn = os.path.join(gpnet_model_dir, gpnet_object_id + '.obj')
-    # mesh = burg.io.load_mesh(model_fn)
-    # burg.visualization.show_grasp_set([mesh], gs, gripper=burg.gripper.ParallelJawGripper(), with_plane=True)
+    # if gpnet_model_dir is not None:
+    #   model_fn = os.path.join(gpnet_model_dir, gpnet_object_id + '.obj')
+    #   mesh = burg.io.load_mesh(model_fn)
+    #   burg.visualization.show_grasp_set([mesh], gs, gripper=burg.gripper.ParallelJawGripper(), with_plane=True)
 
     return gs
 
@@ -177,6 +203,9 @@ if __name__ == "__main__":
     for key, value in vars(args).items():
         print(f'\t{key}:\t{value}')
     print('****')
+
+    # uncomment to see statistics about number of annotations
+    # get_objects_and_grasp_numbers(args.gpnet_data)
 
     grasps = None
     neg_str = ''
