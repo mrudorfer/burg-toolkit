@@ -2,7 +2,6 @@ import os
 import sys
 import argparse
 import copy
-import configparser
 import csv
 import shutil
 import time
@@ -26,10 +25,8 @@ except ImportError:
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='../config/linux-config.cfg', help='path to config file, ' +
-                        'only used for Hectors objects, ignored otherwise')
     parser.add_argument('-y', '--ycb_path', type=str, default=None,
-                        help='path to YCB objects in downloaded format, overrides -c option')
+                        help='path to YCB objects in downloaded format')
     parser.add_argument('-s', '--shape', type=str, default=None, help='name of shape to process, None processes all')
     parser.add_argument('-o', '--output_dir', type=str, default='/home/rudorfem/datasets/YCB_grasp_tmp/',
                         help='where to put generated dataset files')
@@ -105,59 +102,8 @@ def z_move(graspset, contacts, z_move_length=0.015):
     return graspset, contacts
 
 
-class YCBObjectReader:
-    """
-    Class to read the YCB objects from a directory into an object library.
-    Assumes directory structure:
-    - base_path
-        - shape_name_1
-            - model_type
-                - model_fn
-        - shape_name_2
-        - ...
-    """
-    def __init__(self, base_path, model_type='google_16k', model_fn='nontextured.ply'):
-        self.base_path = base_path
-        self.model_type = model_type
-        self.model_fn = model_fn
-
-    def read_object_library(self):
-        shape_names = [x for x in os.listdir(self.base_path) if os.path.isdir(os.path.join(self.base_path, x))]
-        object_library = burg.scene.ObjectLibrary()
-
-        for shape_name in shape_names:
-            # this assumes the directory structure
-            model_path = os.path.join(self.base_path, shape_name, self.model_type, self.model_fn)
-            mesh = burg.io.load_mesh(model_path)
-            obj_type = burg.scene.ObjectType(identifier=shape_name, mesh=mesh)
-
-            object_library[shape_name] = obj_type
-
-        # this is a bloody mass hack
-        object_library['003_cracker_box'].mass = 0.411
-        object_library['005_tomato_soup_can'].mass = 0.349
-        object_library['006_mustard_bottle'].mass = 0.603
-        object_library['010_potted_meat_can'].mass = 0.370
-        object_library['025_mug'].mass = 0.118
-        object_library['044_flat_screwdriver'].mass = 0.0984
-        object_library['051_large_clamp'].mass = 0.125
-        object_library['056_tennis_ball'].mass = 0.058
-
-        return object_library
-
-
-def preprocess_shapes(data_cfg, ycb_path, shapes):
-    if ycb_path is None:
-        if data_cfg is None:
-            raise ValueError('either data_cfg or ycb_path must be given')
-        reader = burg.io.BaseviMatlabScenesReader(data_cfg)
-        print('preprocessor...')
-        print('read object library')
-        object_library, index2name = reader.read_object_library()
-    else:
-        reader = YCBObjectReader(base_path=ycb_path)
-        object_library = reader.read_object_library()
-
+def preprocess_shapes(ycb_path, shapes):
+    object_library = burg.io.YCBObjectLibraryReader(base_path=ycb_path).read_object_library()
     object_library.yell()
 
     if shapes is None:
@@ -608,7 +554,7 @@ def generate_depth_images(shapes=None):
         mesh = burg.io.load_mesh(os.path.join(shape_dir_transformed, shape + '.obj'))
 
         # gpnet camera parameters (not that it matters much..)
-        camera = burg.scene.Camera()
+        camera = burg.render.Camera()
         camera.set_resolution(320, 240)
         camera.set_intrinsic_parameters(fx=350, fy=350, cx=160, cy=120)
         renderer = burg.render.MeshRenderer(images_dir, camera, fn_func=lambda i: f'render{i:d}Depth0001',
@@ -651,14 +597,6 @@ def browse_shapes(shapes=None):
 
 if __name__ == "__main__":
     arguments = parse_args()
-
-    if arguments.ycb_path is None:
-        cfg = configparser.ConfigParser()
-        cfg.read(arguments.config)
-        cfg = cfg['General']
-    else:
-        cfg = None
-
     base_dir = arguments.output_dir
     # redirect output to log file
     if arguments.log_file is not None:
@@ -691,7 +629,7 @@ if __name__ == "__main__":
     # inspect_meshes()
     if arguments.shape is not None:
         arguments.shape = [arguments.shape]
-    # preprocess_shapes(cfg, arguments.ycb_path, arguments.shape)
+    # preprocess_shapes(arguments.ycb_path, arguments.shape)
     # browse_shapes(arguments.shape)
     # see_vhacd_in_sim(arguments.shape)
     # create_grasp_samples(arguments.shape)

@@ -156,7 +156,7 @@ def save_mesh_and_urdf(mesh_obj, directory, name=None, default_inertia=None, mas
 
     if default_inertia is not None:
         inertia = default_inertia
-        com = mesh.get_center()
+        com = mesh.get_center()  # todo: this will not actually reflect the center of mass
     else:
         try:
             inertia, com = mesh_processing.compute_mesh_inertia(mesh, mass)
@@ -168,6 +168,47 @@ def save_mesh_and_urdf(mesh_obj, directory, name=None, default_inertia=None, mas
     origin = [0, 0, 0]
 
     save_urdf(urdf_fn, mesh_fn, name, origin, inertia, com, mass, overwrite_existing)
+
+
+class YCBObjectLibraryReader:
+    """
+    Class to read the YCB objects from a directory into an object library.
+    Assumes directory structure:
+    - base_path
+        - shape_name_1
+            - model_type
+                - model_fn
+        - shape_name_2
+        - ...
+    """
+    def __init__(self, base_path, model_type='google_16k', model_fn='nontextured.ply'):
+        self.base_path = base_path
+        self.model_type = model_type
+        self.model_fn = model_fn
+
+    def read_object_library(self):
+        shape_names = [x for x in os.listdir(self.base_path) if os.path.isdir(os.path.join(self.base_path, x))]
+        object_library = scene.ObjectLibrary()
+
+        for shape_name in shape_names:
+            # this assumes the directory structure
+            model_path = os.path.join(self.base_path, shape_name, self.model_type, self.model_fn)
+            mesh = load_mesh(model_path)
+            obj_type = scene.ObjectType(identifier=shape_name, mesh=mesh)
+
+            object_library[shape_name] = obj_type
+
+        # this is a bloody mass hack
+        object_library['003_cracker_box'].mass = 0.411
+        object_library['005_tomato_soup_can'].mass = 0.349
+        object_library['006_mustard_bottle'].mass = 0.603
+        object_library['010_potted_meat_can'].mass = 0.370
+        object_library['025_mug'].mass = 0.118
+        object_library['044_flat_screwdriver'].mass = 0.0984
+        object_library['051_large_clamp'].mass = 0.125
+        object_library['056_tennis_ball'].mass = 0.058
+
+        return object_library
 
 
 class BaseviMatlabScenesReader:
