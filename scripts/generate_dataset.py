@@ -42,9 +42,9 @@ def check_mesh_dimensions(mesh):
     # longest side < 150mm
     # shortest side > 60mm
     def _dims_ok(max_dim, min_dim):
-        if maxd > 0.15:
+        if max_dim > 0.15:
             return False
-        if mind < 0.06:
+        if min_dim < 0.06:
             return False
         return True
 
