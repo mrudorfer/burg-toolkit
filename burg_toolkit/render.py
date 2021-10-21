@@ -15,7 +15,6 @@ except ImportError:
     print('OpenEXR support: NONE')
 
 from . import util
-from . import scene
 from . import io
 
 
@@ -24,6 +23,64 @@ def _check_pyexr():
         raise ImportError('pyexr pacakge is missing. It depends on OpenEXR, for which some prerequisites must be ' +
                           'installed on the system. Please see https://stackoverflow.com/a/68102521/1264582 for ' +
                           'additional info on how to install this.')
+
+
+class Camera:
+    """
+    holds intrinsic and extrinsic parameters, initialises with some Kinect-like intrinsics.
+    """
+    def __init__(self):
+        self.resolution = [640, 480]  # w x h
+        self.intrinsic_parameters = {
+            'fx': 572.41140,
+            'fy': 573.57043,
+            'cx': 325.26110,
+            'cy': 242.04899
+        }
+        self.pose = np.eye(4)
+
+    def set_resolution(self, width: int, height: int):
+        self.resolution = [width, height]
+
+    def set_intrinsic_parameters(self, fx=None, fy=None, cx=None, cy=None):
+        """
+        overwrites only the given parameters, the others stay the same
+
+        :param fx: focal length x
+        :param fy: focal length y
+        :param cx: principal point x
+        :param cy: principal point y
+        """
+        if fx is not None:
+            self.intrinsic_parameters['fx'] = fx
+        if fy is not None:
+            self.intrinsic_parameters['fy'] = fy
+        if cx is not None:
+            self.intrinsic_parameters['cx'] = cx
+        if cy is not None:
+            self.intrinsic_parameters['cy'] = cy
+
+    def get_o3d_intrinsics(self):
+        """
+        :return: intrinsic parameters (incl. resolution) as instance of o3d.camera.PinholeCameraIntrinsic()
+        """
+        o3d_intrinsics = o3d.camera.PinholeCameraIntrinsic(
+            width=int(self.resolution[0]),
+            height=int(self.resolution[1]),
+            fx=self.intrinsic_parameters['fx'],
+            fy=self.intrinsic_parameters['fy'],
+            cx=self.intrinsic_parameters['cx'],
+            cy=self.intrinsic_parameters['cy']
+        )
+        return o3d_intrinsics
+
+    def set_extrinsic_parameters(self, camera_pose):
+        """
+        sets the pose of the camera
+
+        :param camera_pose: np 4x4 homogenous tf matrix
+        """
+        self.pose = camera_pose
 
 
 class CameraPoseGenerator:
@@ -182,7 +239,7 @@ class MeshRenderer:
     `set_camera_parameters()` function.
 
     :param output_dir: directory where to put files
-    :param camera: burg.scene.Camera that holds relevant intrinsic parameters
+    :param camera: burg.render.Camera that holds relevant intrinsic parameters
     :param fn_func: function to generate filenames (string) from integer, if None some default will be used
     :param fn_type: file format to store rendered images, defaults to 'tum' (png), 'exr' also possible
     """
@@ -191,7 +248,7 @@ class MeshRenderer:
         io.make_sure_directory_exists(self.output_dir)
 
         if camera is None:
-            self.camera = scene.Camera()
+            self.camera = Camera()
         else:
             self.camera = camera
 
