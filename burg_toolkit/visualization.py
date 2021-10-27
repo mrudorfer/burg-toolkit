@@ -4,7 +4,7 @@ import open3d as o3d
 import numpy as np
 from matplotlib import pyplot as plt
 
-from . import scene
+from . import core
 from . import util
 from . import grasp
 
@@ -69,7 +69,7 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
     return point_clouds
 
 
-def _get_scene_geometries(scene: scene.Scene, with_bg_objs=True):
+def _get_scene_geometries(scene: core.Scene, with_bg_objs=True):
     """
     gathers list of o3d meshes or point clouds for the given scene
 
@@ -101,7 +101,7 @@ def _get_scene_geometries(scene: scene.Scene, with_bg_objs=True):
     return o3d_pcs
 
 
-def show_scene(scene: scene.Scene, with_bg_objs=True, add_plane=False):
+def show_scene(scene: core.Scene, with_bg_objs=True, add_plane=False):
     """
     shows the objects of a scene
 
@@ -119,12 +119,12 @@ def show_scene(scene: scene.Scene, with_bg_objs=True, add_plane=False):
     show_o3d_point_clouds(o3d_pcs)
 
 
-def show_aligned_scene_point_clouds(scene: scene.Scene, views):
+def show_aligned_scene_point_clouds(scene: core.Scene, views):
     """
     shows the full point cloud and overlays the partial point cloud from a view (or a list of views)
 
     :param scene: the scene
-    :param views: instance of scene.CameraView, or list thereof
+    :param views: instance of core.CameraView, or list thereof
 
     :return: returns when the user closes the viewer
     """
@@ -198,7 +198,7 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
     o3d.visualization.draw(objects)  #, lookat=lookat, up=up, front=front, zoom=zoom)
 
 
-def show_grasp_set_in_scene(scene: scene.Scene, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
+def show_grasp_set_in_scene(scene: core.Scene, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
     """
     visualizes a given grasp set with the specified gripper within a scene environment.
 

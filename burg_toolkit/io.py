@@ -9,8 +9,8 @@ import scipy.io as spio
 import h5py
 import open3d as o3d
 
+from . import core
 from . import util
-from . import scene
 from . import grasp
 from . import mesh_processing
 
@@ -30,7 +30,7 @@ def save_mesh(fn, mesh_obj, overwrite_existing=True):
     Saves a mesh to file.
 
     :param fn: string, filename
-    :param mesh_obj: one of o3d.geometry.TriangleMesh, burg.scene.ObjectType, burg.scene.ObjectInstance, in case of the
+    :param mesh_obj: one of o3d.geometry.TriangleMesh, burg.core.ObjectType, burg.core.ObjectInstance, in case of the
                      latter, the mesh will be saved in the transformed pose
     :param overwrite_existing: bool, indicating whether to overwrite an existing file (defaults to True)
     """
@@ -39,14 +39,14 @@ def save_mesh(fn, mesh_obj, overwrite_existing=True):
 
     if isinstance(mesh_obj, o3d.geometry.TriangleMesh):
         mesh = mesh_obj
-    elif isinstance(mesh_obj, scene.ObjectType):
+    elif isinstance(mesh_obj, core.ObjectType):
         mesh = mesh_obj.mesh
-    elif isinstance(mesh_obj, scene.ObjectInstance):
+    elif isinstance(mesh_obj, core.ObjectInstance):
         mesh = copy.deepcopy(mesh_obj.object_type.mesh)
         mesh.transform(mesh_obj.pose)
     else:
         return ValueError('unrecognised mesh_obj type, must be one of:' +
-                          'o3d.geometry.TriangleMesh, burg.scene.ObjectType, burg.scene.ObjectInstance')
+                          'o3d.geometry.TriangleMesh, burg.core.ObjectType, burg.core.ObjectInstance')
 
     # this does produce warnings that it can't write triangle normals to obj file. don't know how to suppress.
     o3d.io.write_triangle_mesh(fn, mesh, write_vertex_normals=False)
@@ -115,7 +115,7 @@ def save_mesh_and_urdf(mesh_obj, directory, name=None, default_inertia=None, mas
     The directory will then contain an `name.obj` and an `name.urdf` file.
     All physics properties are populated as best as possible with the given data.
 
-    :param mesh_obj: can be o3d.geometry.TriangleMesh, burg.scene.ObjectType or burg.scene.ObjectInstance, in the case
+    :param mesh_obj: can be o3d.geometry.TriangleMesh, burg.core.ObjectType or burg.core.ObjectInstance, in the case
                      of the former, some physical properties cannot be determined, in case of the latter two, the
                      properties are taken from the ObjectType info
     :param directory: string with directory in which the files shall be stored.
@@ -132,12 +132,12 @@ def save_mesh_and_urdf(mesh_obj, directory, name=None, default_inertia=None, mas
         mass = 0
         if name is None:
             raise ValueError('name is a mandatory parameter if providing an o3d.geometry.TriangleMesh')
-    elif isinstance(mesh_obj, scene.ObjectType):
+    elif isinstance(mesh_obj, core.ObjectType):
         mesh = mesh_obj.mesh
         mass = mesh_obj.mass * mass_factor
         if name is None:
             name = mesh_obj.identifier
-    elif isinstance(mesh_obj, scene.ObjectInstance):
+    elif isinstance(mesh_obj, core.ObjectInstance):
         mesh = copy.deepcopy(mesh_obj.object_type.mesh)
         mesh.transform(mesh_obj.pose)
         mass = mesh_obj.object_type.mass * mass_factor
@@ -145,7 +145,7 @@ def save_mesh_and_urdf(mesh_obj, directory, name=None, default_inertia=None, mas
             name = mesh_obj.object_type.identifier
     else:
         return ValueError('unrecognised mesh_obj type, must be one of:' +
-                          'o3d.geometry.TriangleMesh, burg.scene.ObjectType, burg.scene.ObjectInstance')
+                          'o3d.geometry.TriangleMesh, burg.core.ObjectType, burg.core.ObjectInstance')
 
     make_sure_directory_exists(directory)
     mesh_fn = name + '.obj'
@@ -188,13 +188,13 @@ class YCBObjectLibraryReader:
 
     def read_object_library(self):
         shape_names = [x for x in os.listdir(self.base_path) if os.path.isdir(os.path.join(self.base_path, x))]
-        object_library = scene.ObjectLibrary()
+        object_library = core.ObjectLibrary()
 
         for shape_name in shape_names:
             # this assumes the directory structure
             model_path = os.path.join(self.base_path, shape_name, self.model_type, self.model_fn)
             mesh = load_mesh(model_path)
-            obj_type = scene.ObjectType(identifier=shape_name, mesh=mesh)
+            obj_type = core.ObjectType(identifier=shape_name, mesh=mesh)
 
             object_library[shape_name] = obj_type
 
@@ -227,7 +227,7 @@ class BaseviMatlabScenesReader:
         self.table_id = 'table'
         self.table_scale_factor = float(path_config['table_scale_factor'])
         self.library_index_to_name = {}
-        self.object_library = scene.ObjectLibrary()
+        self.object_library = core.ObjectLibrary()
 
     def get_scene_filenames(self, directory=None):
         """finds heap and image data files in the given directory
@@ -258,11 +258,11 @@ class BaseviMatlabScenesReader:
 
     @staticmethod
     def read_view(view_dict):
-        """converts a view into a scene.CameraView object
+        """converts a view into a core.CameraView object
 
         :param view_dict: an element in image_data_mat['imageData']
 
-        :return: scene.CameraView"""
+        :return: core.CameraView"""
         # get camera info
         o3d_intrinsics = o3d.camera.PinholeCameraIntrinsic(
             width=int(view_dict['cameraResolution'][0]),
@@ -285,7 +285,7 @@ class BaseviMatlabScenesReader:
         class_label_image = util.o3d_image_from_numpy(view_dict['heapClassLabelImage'])
         instance_label_image = util.o3d_image_from_numpy(view_dict['heapInstanceLabelImage'])
 
-        view = scene.CameraView(camera_intrinsics=o3d_intrinsics, camera_pose=tf, depth_image=depth_image,
+        view = core.CameraView(camera_intrinsics=o3d_intrinsics, camera_pose=tf, depth_image=depth_image,
                                 rgb_image=rgb_image, class_label_image=class_label_image,
                                 instance_label_image=instance_label_image)
         return view
@@ -296,7 +296,7 @@ class BaseviMatlabScenesReader:
         :param filenames: dict with 'heap_fn' and 'image_data_fn' (which include full path). E.g. an element of the list
                           that has been output by `get_scene_filenames()`
 
-        :return: scene.Scene object
+        :return: core.Scene object
         """
         heap_mat = spio.loadmat(filenames['heap_fn'], simplify_cells=True)
         # image_data is a v7.3 mat stored in hdf5 format, thus needs different reader
@@ -312,18 +312,18 @@ class BaseviMatlabScenesReader:
             tf = np.eye(4)
             tf[0:3, 0:3] = obj['rotationMatrix']
             tf[0:3, 3] = obj['translationVector']
-            object_instance = scene.ObjectInstance(self.object_library[identifier], tf)
+            object_instance = core.ObjectInstance(self.object_library[identifier], tf)
             object_instances.append(object_instance)
 
         table_pose = np.eye(4)
         table_pose[0:3, 0:3] = heap_mat['backgroundInformation']['tableBasis']
         table_pose[0:3, 3] = heap_mat['backgroundInformation']['tableCentre']
-        table_instance = scene.ObjectInstance(self.object_library[self.table_id], table_pose)
+        table_instance = core.ObjectInstance(self.object_library[self.table_id], table_pose)
         bg_objects = [table_instance]
 
         views = [self.read_view(v) for v in image_data_mat['imageData']]
 
-        return scene.Scene(object_instances, bg_objects, views)
+        return core.Scene(object_instances, bg_objects, views)
 
     def read_object_library(self):
         """
@@ -332,13 +332,13 @@ class BaseviMatlabScenesReader:
         It already reads the provided meshes as well, but does not create point clouds from those.
 
         :return: (object_library, library_index_to_name)
-                 object_library is a dictionary with object identifiers as keys and scene.ObjectType as values.
+                 object_library is a dictionary with object identifiers as keys and core.ObjectType as values.
                  library_index_to_name maps the numeric library index to the object identifier.
 
         """
 
         input_dict = spio.loadmat(self.object_library_fn, simplify_cells=True)
-        self.object_library = scene.ObjectLibrary()
+        self.object_library = core.ObjectLibrary()
         self.library_index_to_name = {}
 
         for i, (displacement, obj_dict) in enumerate(zip(input_dict['objectCentres'], input_dict['objectInformation'])):
@@ -351,7 +351,7 @@ class BaseviMatlabScenesReader:
             mesh = load_mesh(mesh_fn)  # todo: could also load textures here
             mesh.translate(-np.asarray(displacement))
 
-            obj = scene.ObjectType(identifier=name, mesh=mesh, mass=mass, friction_coeff=friction_coeff,
+            obj = core.ObjectType(identifier=name, mesh=mesh, mass=mass, friction_coeff=friction_coeff,
                                    restitution_coeff=resitution_coeff)
             self.object_library[name] = obj
 
@@ -360,7 +360,7 @@ class BaseviMatlabScenesReader:
         # also add the table to the object library
         table_mesh = load_mesh(self.table_fn)
         table_mesh.scale(self.table_scale_factor, np.array([0, 0, 0]))
-        self.object_library[self.table_id] = scene.ObjectType(identifier=self.table_id, mesh=table_mesh, mass=None)
+        self.object_library[self.table_id] = core.ObjectType(identifier=self.table_id, mesh=table_mesh, mass=None)
 
         return self.object_library, self.library_index_to_name
 
