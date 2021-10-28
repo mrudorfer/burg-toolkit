@@ -16,7 +16,7 @@ from . import mesh_processing
 
 
 def load_mesh(mesh_fn, texture_fn=None):
-    mesh = o3d.io.read_triangle_mesh(mesh_fn)
+    mesh = o3d.io.read_triangle_mesh(mesh_fn, enable_post_processing=True)
     if texture_fn is not None:
         mesh.textures = [o3d.io.read_image(texture_fn)]
 
@@ -52,7 +52,7 @@ def save_mesh(fn, mesh_obj, overwrite_existing=True):
     o3d.io.write_triangle_mesh(fn, mesh, write_vertex_normals=False)
 
 
-def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, overwrite_existing=True):
+def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, friction=0.24, overwrite_existing=True):
     """
     Creates a urdf file with given parameters.
 
@@ -63,6 +63,7 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, ov
     :param inertia: (3, 3) ndarray, an inertia matrix of the object, defaults to np.eye(3)*0.001
     :param com: [x,y,z] center of mass of mesh, if None then [0, 0, 0] will be used
     :param mass: float, mass of object (default 0, which means object is fixed in space)
+    :param friction: float, friction coefficient (defaults to 0.24)
     :param overwrite_existing: bool, indicating whether to overwrite existing file (defaults to True)
     """
     if not overwrite_existing and os.path.exists(fn):
@@ -86,6 +87,7 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, ov
         urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}"/>\n')
         urdf.write(f'\t\t\t</geometry>\n')
         urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
+        urdf.write(f'\t\t\t<contact_coefficients mu="{friction}" />\n')
         urdf.write(f'\t\t</collision>\n')
 
         # visual
@@ -106,68 +108,6 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, ov
 
         urdf.write(f'\t</link>\n')
         urdf.write(f'</robot>')
-
-
-def save_mesh_and_urdf(mesh_obj, directory, name=None, default_inertia=None, mass_factor=1.0, overwrite_existing=True):
-    """
-    This method will produce an .obj file which stores the current status of the mesh. It will create a urdf file
-    in the same directory, which references the .obj file.
-    The directory will then contain an `name.obj` and an `name.urdf` file.
-    All physics properties are populated as best as possible with the given data.
-
-    :param mesh_obj: can be o3d.geometry.TriangleMesh, burg.core.ObjectType or burg.core.ObjectInstance, in the case
-                     of the former, some physical properties cannot be determined, in case of the latter two, the
-                     properties are taken from the ObjectType info
-    :param directory: string with directory in which the files shall be stored.
-    :param name: string, name of the object, is required if a pure mesh is provided, optional if burg ObjectType or
-                 ObjectInstance, in that case it defaults to the ObjectType.identifier
-    :param default_inertia: (3, 3) ndarray, provide an inertia matrix to override the mesh's actual properties
-    :param mass_factor: actual mass of object will be multiplied by this factor (note that original mass will be
-                        used to compute the inertia)
-    :param overwrite_existing: bool that indicates whether to overwrite existing files, defaults to True.
-    """
-    # check the different types and populate some info about mass and name
-    if isinstance(mesh_obj, o3d.geometry.TriangleMesh):
-        mesh = mesh_obj
-        mass = 0
-        if name is None:
-            raise ValueError('name is a mandatory parameter if providing an o3d.geometry.TriangleMesh')
-    elif isinstance(mesh_obj, core.ObjectType):
-        mesh = mesh_obj.mesh
-        mass = mesh_obj.mass * mass_factor
-        if name is None:
-            name = mesh_obj.identifier
-    elif isinstance(mesh_obj, core.ObjectInstance):
-        mesh = copy.deepcopy(mesh_obj.object_type.mesh)
-        mesh.transform(mesh_obj.pose)
-        mass = mesh_obj.object_type.mass * mass_factor
-        if name is None:
-            name = mesh_obj.object_type.identifier
-    else:
-        return ValueError('unrecognised mesh_obj type, must be one of:' +
-                          'o3d.geometry.TriangleMesh, burg.core.ObjectType, burg.core.ObjectInstance')
-
-    make_sure_directory_exists(directory)
-    mesh_fn = name + '.obj'
-    mesh_path = os.path.join(directory, mesh_fn)
-    urdf_fn = os.path.join(directory, name + '.urdf')
-
-    save_mesh(mesh_path, mesh, overwrite_existing)
-
-    if default_inertia is not None:
-        inertia = default_inertia
-        com = mesh.get_center()  # todo: this will not actually reflect the center of mass
-    else:
-        try:
-            inertia, com = mesh_processing.compute_mesh_inertia(mesh, mass)
-        except ValueError:
-            # if mesh is not watertight we cannot compute inertia
-            inertia = None
-            com = mesh.get_center()
-
-    origin = [0, 0, 0]
-
-    save_urdf(urdf_fn, mesh_fn, name, origin, inertia, com, mass, overwrite_existing)
 
 
 class YCBObjectLibraryReader:

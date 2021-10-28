@@ -11,10 +11,9 @@ requirements_default = [
     'scipy',       # kdtrees (might check out those from open3d instead)
     'matplotlib',  # vis
     'h5py',        # dataset io
-    'mat73',       # interface to matlab scene generation tool
+    'pyyaml',      # object library io
     'numba',       # speedup for numpy-quaternion
     'numpy-quaternion',  # numpy integration for quaternions
-    'configparser',  # parsing configuration files
     'tqdm',         # progress bars
     'open3d==0.12.0',      # point clouds and processing
     'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
