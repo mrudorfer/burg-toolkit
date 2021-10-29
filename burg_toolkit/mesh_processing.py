@@ -102,3 +102,22 @@ def compute_mesh_inertia(o3d_mesh, mass):
     # trimesh meshes are density-based, so let's set density based on given mass and mesh volume
     mesh.density = mass / mesh.volume
     return mesh.moment_inertia, mesh.center_mass
+
+
+def centroid(mesh):
+    """
+    Computes an approximate center of the mesh.
+    This is not the center of mass.
+    Meshes do not need to be watertight.
+    Open3d probably just uses the average of the vertices, Trimesh uses the average of the triangle centroids.
+
+    :param mesh: Can be either open3d.geometry.TriangleMesh or Trimesh, depending on type the corresponding lib call
+                 is made
+
+    :return: ndarray(3) with coordinates of an approximate centroid
+    """
+    if isinstance(mesh, o3d.geometry.TriangleMesh):
+        return np.asarray(mesh.get_center())
+    if isinstance(mesh, trimesh.Trimesh):
+        return np.asarray(mesh.centroid)
+    raise ValueError(f'mesh type unrecognised {type(mesh)}')
