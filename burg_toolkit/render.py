@@ -1,4 +1,5 @@
 import os
+import logging
 
 import numpy as np
 import quaternion
@@ -7,15 +8,17 @@ import pyrender
 import open3d as o3d
 from tqdm import tqdm
 import imageio
+from PIL import Image
 try:
     import pyexr
-    print('OpenEXR support: ACTIVE')
+    logging.debug('OpenEXR support: ACTIVE')
 except ImportError:
     pyexr = None
-    print('OpenEXR support: NONE')
+    logging.debug('OpenEXR support: NONE')
 
 from . import util
 from . import io
+from . import mesh_processing
 
 
 def _check_pyexr():
@@ -240,8 +243,6 @@ class MeshRenderer:
 
     :param output_dir: directory where to put files
     :param camera: burg.render.Camera that holds relevant intrinsic parameters
-    :param fn_func: function to generate filenames (string) from integer, if None some default will be used
-    :param fn_type: file format to store rendered images, defaults to 'tum' (png), 'exr' also possible
     """
     def __init__(self, output_dir='../data/output/', camera=None, fn_func=None, fn_type='tum'):
         self.output_dir = output_dir
@@ -252,40 +253,30 @@ class MeshRenderer:
         else:
             self.camera = camera
 
-        if fn_func is None:
-            self.fn_func = self._default_fn_func
-        else:
-            self.fn_func = fn_func
-
-        if fn_type == 'exr':
-            _check_pyexr()  # check that module is loaded (is an optional dependency)
-
-        supported_fn_types = ['exr', 'tum']
-        if fn_type not in supported_fn_types:
-            raise NotImplementedError(f'file type {fn_type} not supported. available types are: {supported_fn_types}.')
-
-        self.fn_type = fn_type
         self.cam_info_fn = 'CameraInfo'
 
     @staticmethod
-    def _default_fn_func(i):
+    def _default_depth_fn_func(i):
         return f'depth{i:04d}'
 
-    def render_depth(self, mesh, camera_poses, sub_dir=''):
-        """
-        Renders depth images of the given mesh, from the given camera poses.
-        Uses the configuration of the MeshRenderer object.
+    @staticmethod
+    def _default_color_fn_func(i):
+        return f'image{i:04d}'
 
-        :param mesh: o3d.geometry.TriangleMesh or trimesh.Trimesh - the mesh which shall be rendered
-        :param camera_poses: (4, 4) or (n, 4, 4) ndarray with poses
-        :param sub_dir: directory where to produce output files (will be relative to the object's `output_dir`)
-        """
-        output_dir = os.path.join(self.output_dir, sub_dir)
-        io.make_sure_directory_exists(output_dir)
+    @staticmethod
+    def _check_fn_types_are_supported(color_fn_type, depth_fn_type):
+        supported_color_fn_types = ['png']
+        supported_depth_fn_types = ['tum', 'exr']
 
-        # make sure shape fits if only one pose provided
-        camera_poses = camera_poses.reshape(-1, 4, 4)
+        if color_fn_type is not None and color_fn_type not in supported_color_fn_types:
+            raise ValueError(f'color file type must be one of {supported_color_fn_types} or None')
+        if depth_fn_type is not None and depth_fn_type not in supported_depth_fn_types:
+            raise ValueError(f'depth file type must be one of {supported_depth_fn_types} or None')
+        if depth_fn_type == 'exr':
+            _check_pyexr()  # automatically raises Exception if not satisfied
+        return True
 
+    def _setup_scene(self, mesh, camera_poses, ambient_light):
         # convert o3d meshes but else assume trimesh.Trimesh
         if isinstance(mesh, o3d.geometry.TriangleMesh):
             mesh = util.o3d_mesh_to_trimesh(mesh)
@@ -309,9 +300,49 @@ class MeshRenderer:
                 znear=lower_bound, zfar=upper_bound))
 
         # setup the pyrender scene
-        render_scene = pyrender.Scene()
+        render_scene = pyrender.Scene(ambient_light=ambient_light)
         render_scene.add(pyrender.Mesh.from_trimesh(mesh))
         render_scene.add_node(cam_node)
+        return render_scene, cam_node
+
+    def render_depth(self, mesh, camera_poses, sub_dir='', depth_fn_type='tum', depth_fn_func=None):
+        """shorthand for MeshRenderer.render(), but renders depth images only"""
+        self.render(mesh, camera_poses, sub_dir=sub_dir, depth_fn_type=depth_fn_type, depth_fn_func=depth_fn_func,
+                    color_fn_type=None)
+
+    def render_color(self, mesh, camera_poses, sub_dir='', color_fn_type='png', color_fn_func=None):
+        """shorthand for MeshRenderer.render(), but renders color images only"""
+        self.render(mesh, camera_poses, sub_dir=sub_dir, color_fn_type=color_fn_type, color_fn_func=color_fn_func,
+                    depth_fn_type=None)
+
+    def render(self, mesh, camera_poses, sub_dir='', depth_fn_type='tum', depth_fn_func=None,
+               color_fn_type='png', color_fn_func=None):
+        """
+        Renders depth images of the given mesh, from the given camera poses.
+        Uses the configuration of the MeshRenderer object.
+
+        :param mesh: o3d.geometry.TriangleMesh or trimesh.Trimesh - the mesh which shall be rendered
+        :param camera_poses: (4, 4) or (n, 4, 4) ndarray with poses
+        :param sub_dir: directory where to produce output files (will be relative to the object's `output_dir`)
+        :param depth_fn_type: file format to store rendered depth, defaults to 'tum' (png), 'exr' also possible,
+                              if None, no depth images will be saved
+        :param depth_fn_func: function to generate filenames (string) from integer, default function when None
+        :param color_fn_type: file format to store rendered color images, defaults to 'png', if None, no color images
+                              will be rendered
+        :param color_fn_func: function to generate filenames (string) from integer, default function when None
+        """
+        self._check_fn_types_are_supported(color_fn_type, depth_fn_type)
+        if depth_fn_func is None:
+            depth_fn_func = self._default_depth_fn_func
+        if color_fn_func is None:
+            color_fn_func = self._default_color_fn_func
+
+        output_dir = os.path.join(self.output_dir, sub_dir)
+        io.make_sure_directory_exists(output_dir)
+
+        # make sure shape fits if only one pose provided
+        camera_poses = camera_poses.reshape(-1, 4, 4)
+        render_scene, cam_node = self._setup_scene(mesh, camera_poses, ambient_light=[0.3, 0.3, 0.3])
 
         # set up rendering settings
         resolution = self.camera.resolution
@@ -323,23 +354,30 @@ class MeshRenderer:
         for i in tqdm(range(len(camera_poses))):
             render_scene.set_pose(cam_node, pose=camera_poses[i])
             # color is rgb, depth is mono float in [m]
-            _, depth = r.render(render_scene)
-            n_points[i] = np.count_nonzero(depth)
+            color, depth = r.render(render_scene)
 
-            depth_fn = os.path.join(output_dir, self.fn_func(i) + '.' + self.fn_type)
-            if self.fn_type == 'tum':
-                # use tum file format (which is actually a scaled 16bit png)
-                # https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-                imageio.imwrite(depth_fn[:-3] + 'png', (depth * 5000).astype(np.uint16))
-            elif self.fn_type == 'exr':
-                # store images to file (extend to three channels and store in exr)
-                # this is for compatibility with GPNet, although it bloats the file size
-                img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
-                pyexr.write(depth_fn, img, channel_names=['R', 'G', 'B'], precision=pyexr.FLOAT)
+            if depth_fn_type is not None:
+                n_points[i] = np.count_nonzero(depth)
+                if depth_fn_type == 'tum':
+                    # use tum file format (which is actually a scaled 16bit png)
+                    # https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
+                    depth_fn = os.path.join(output_dir, depth_fn_func(i) + '.png')
+                    imageio.imwrite(depth_fn, (depth * 5000).astype(np.uint16))
+                elif depth_fn_type == 'exr':
+                    # store images to file (extend to three channels and store in exr)
+                    # this is for compatibility with GPNet dataset, although it bloats the file size
+                    img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
+                    depth_fn = os.path.join(output_dir, depth_fn_func(i) + '.exr')
+                    pyexr.write(depth_fn, img, channel_names=['R', 'G', 'B'], precision=pyexr.FLOAT)
 
-        print(f'nonzero pixels (n points): avg {np.mean(n_points)}, min {np.min(n_points)}, max {np.max(n_points)}')
+            if color_fn_type is not None:
+                if color_fn_type == 'png':
+                    imageio.imwrite(os.path.join(output_dir, color_fn_func(i) + '.png'), color)
 
-        # save camera info to npy file
+        logging.debug(f'nonzero pixels in depth images (n points): avg {np.mean(n_points)}, min {np.min(n_points)}, ' +
+                      f'max {np.max(n_points)}')
+
+        # save camera info to npy file // format based on GPNet dataset
         cam_info = np.empty(len(camera_poses), dtype=([
             ('id', 'S16'),
             ('position', '<f4', (3,)),
@@ -350,11 +388,71 @@ class MeshRenderer:
         cam_info['id'] = [f'view{i}'.encode('UTF-8') for i in range(len(camera_poses))]
         cam_info['position'] = camera_poses[:, 0:3, 3]
         cam_info['orientation'] = quaternion.as_float_array(quaternion.from_rotation_matrix(camera_poses[:, 0:3, 0:3]))
+
+        intrinsics = self.camera.intrinsic_parameters
         cam_info['calibration_matrix'] = np.array([intrinsics['fx'], 0, intrinsics['cx'],
                                                    0, intrinsics['fy'], intrinsics['cy'],
                                                    0, 0, 1])
-        # not really sure what to put here
+        # not really sure what to put in the distance field
         # alternative would be to find some actual distance to object (e.g. depth value at center point), but
         # this seems arbitrary as well. i don't think it's used by gpnet anyways.
         cam_info['distance'] = np.linalg.norm(cam_info['position'], axis=-1)
         np.save(os.path.join(output_dir, self.cam_info_fn), cam_info)
+
+    @staticmethod
+    def _clip_and_scale(image, bg_color=255, size=128):
+        # assumes rgb image (w, h, c) and bg color = 255 ?
+        intensity_img = np.mean(image, axis=2)
+
+        # identify indices of non-background rows and columns, then look for min/max indices
+        non_bg_rows = np.nonzero(np.mean(intensity_img, axis=1) != bg_color)
+        non_bg_cols = np.nonzero(np.mean(intensity_img, axis=0) != bg_color)
+        r1, r2 = np.min(non_bg_rows), np.max(non_bg_rows)
+        c1, c2 = np.min(non_bg_cols), np.max(non_bg_cols)
+
+        # create square white image with some margin, fit in the crop
+        h, w = r2+1-r1, c2+1-c1
+        new_width = max(h, w)
+        thumbnail = np.full((new_width, new_width, image.shape[2]), bg_color)
+        start_h = int((new_width-h)/2)
+        start_w = int((new_width-w)/2)
+        thumbnail[start_h:start_h+h, start_w:start_w+w, :] = image[r1:r2+1, c1:c2+1, :]
+
+        # use PIL Image to resize and convert back to numpy
+        thumbnail = np.array(Image.fromarray(np.uint8(thumbnail)).resize((size, size)))
+        return thumbnail
+
+    def render_thumbnail(self, mesh, camera_position=None, thumbnail_fn=None, size=128):
+        """
+        Creates a square thumbnail of the given mesh object.
+
+        :param mesh: Can be open3d.geometry.TriangleMesh or Trimesh
+        :param camera_position: 3d-vector with desired position of camera, some reasonable default is preset. From that
+                                position, the camera will be oriented towards the centroid of the mesh.
+        :param thumbnail_fn: filepath where to save the thumbnail. If None provided, it will not be saved.
+        :param size: The desired width/height of the thumbnail.
+
+        :return: (size, size, 3) ndarray with thumbnail of the object.
+        """
+        # aim camera at mesh centroid
+        centroid = mesh_processing.centroid(mesh)
+        if camera_position is None:
+            camera_position = [0.3, 0.3, 0.2 + centroid[2]]
+
+        camera_pose = util.look_at(position=camera_position, target=centroid, flip=True)
+        render_scene, cam_node = self._setup_scene(mesh, camera_pose[None, :, :], ambient_light=[1., 1., 1.])
+
+        resolution = self.camera.resolution
+        r = pyrender.OffscreenRenderer(resolution[0], resolution[1])
+
+        render_scene.set_pose(cam_node, pose=camera_pose)
+        color, _ = r.render(render_scene)
+
+        # do clipping / resizing
+        color = self._clip_and_scale(color, size=size)
+
+        if thumbnail_fn is not None:
+            io.make_sure_directory_exists(os.path.dirname(thumbnail_fn))
+            imageio.imwrite(color, thumbnail_fn)
+
+        return color
