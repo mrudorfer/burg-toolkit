@@ -10,6 +10,7 @@ import pybullet as p
 
 from . import io
 from . import mesh_processing
+from .render import MeshRenderer
 
 
 class ObjectType:
@@ -124,6 +125,16 @@ class ObjectType:
 
         io.save_urdf(urdf_fn, rel_mesh_fn, name, origin, inertia, com, mass)
         self.urdf_fn = urdf_fn
+
+    def generate_thumbnail(self, thumbnail_fn):
+        """
+        Method generates a thumbnail picture in the specific file.
+
+        :param thumbnail_fn: Path for the thumbnail to be generated
+        """
+        logging.debug(f'generating thumbnail for {self.identifier}')
+        MeshRenderer().render_thumbnail(self.mesh, thumbnail_fn=thumbnail_fn)
+        self.thumbnail_fn = thumbnail_fn
 
     def __str__(self):
         # todo: add other properties
@@ -252,17 +263,49 @@ class ObjectLibrary(UserDict):
             return None
         return os.path.relpath(fn, base_dir)
 
-    def generate_urdf_files(self, directory, use_vhacd=True):
+    def generate_vhacd_files(self, directory, override=False):
         """
-        Calls the ObjectType's method to generate a urdf file for all object types in this library.
+        Calls the ObjectType's method to generate approximate convex decompositions for the object types in this lib.
 
-        :param directory: where to put the urdf files.
-        :param use_vhacd: whether to link to vhacd meshes (True, default) or original meshes (False).
+        :param directory: where to put the vhacd files.
+        :param override: If set to true, will create new vhacd files for all object types. If false, will create only
+                         for those whose vhacd files are missing.
         """
         io.make_sure_directory_exists(directory)
         for name, obj in self.data.items():
-            urdf_fn = os.path.join(directory, f'{obj.identifier}.urdf')
-            obj.generate_urdf(urdf_fn=urdf_fn, use_vhacd=use_vhacd)
+            if override or obj.vhacd_fn is None:
+                vhacd_fn = os.path.join(directory, f'{obj.identifier}_vhacd.obj')
+                obj.generate_vhacd(vhacd_fn=vhacd_fn)
+
+    def generate_urdf_files(self, directory, use_vhacd=True, override=False):
+        """
+        Calls the ObjectType's method to generate a urdf file for all object types in this library.
+        If VHACD is used, but no VHACD available, VHACD will be created and stored in the same directory.
+
+        :param directory: where to put the urdf files.
+        :param use_vhacd: whether to link to vhacd meshes (True, default) or original meshes (False).
+        :param override: If set to true, will create new urdf files for all object types. If false, will create only
+                         for those whose urdf files are missing.
+        """
+        io.make_sure_directory_exists(directory)
+        for name, obj in self.data.items():
+            if override or obj.urdf_fn is None:
+                urdf_fn = os.path.join(directory, f'{obj.identifier}.urdf')
+                obj.generate_urdf(urdf_fn=urdf_fn, use_vhacd=use_vhacd)
+
+    def generate_thumbnails(self, directory, override=False):
+        """
+        Calls the ObjectType's method to generate thumbnail for the object types in this library.
+
+        :param directory: where to put the thumbnails.
+        :param override: If set to true, will create new vhacd files for all object types. If false, will create only
+                         for those whose vhacd files are missing.
+        """
+        io.make_sure_directory_exists(directory)
+        for name, obj in self.data.items():
+            if override or obj.thumbnail_fn is None:
+                thumbnail_fn = os.path.join(directory, f'{obj.identifier}.png')
+                obj.generate_thumbnail(thumbnail_fn)
 
     def __len__(self):
         return len(self.data.keys())
