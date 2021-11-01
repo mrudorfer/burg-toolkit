@@ -241,10 +241,10 @@ class MeshRenderer:
     Default intrinsic parameters will be set which resemble a Kinect and can be overridden using
     `set_camera_parameters()` function.
 
-    :param output_dir: directory where to put files
+    :param output_dir: directory where to put files (ignored for thumbnail-rendering)
     :param camera: burg.render.Camera that holds relevant intrinsic parameters
     """
-    def __init__(self, output_dir='../data/output/', camera=None, fn_func=None, fn_type='tum'):
+    def __init__(self, output_dir='../data/output/', camera=None):
         self.output_dir = output_dir
         io.make_sure_directory_exists(self.output_dir)
 
@@ -453,6 +453,6 @@ class MeshRenderer:
 
         if thumbnail_fn is not None:
             io.make_sure_directory_exists(os.path.dirname(thumbnail_fn))
-            imageio.imwrite(color, thumbnail_fn)
+            imageio.imwrite(thumbnail_fn, color)
 
         return color
