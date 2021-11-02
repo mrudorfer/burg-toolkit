@@ -277,12 +277,7 @@ class MeshRenderer:
         return True
 
     def _setup_scene(self, mesh, camera_poses, ambient_light):
-        # convert o3d meshes but else assume trimesh.Trimesh
-        if isinstance(mesh, o3d.geometry.TriangleMesh):
-            mesh = util.o3d_mesh_to_trimesh(mesh)
-        if not isinstance(mesh, trimesh.Trimesh):
-            raise ValueError(f'provided mesh must be either o3d.geometry.TriangleMesh or trimesh.Trimesh, but ' +
-                             f'is {type(mesh)} instead.')
+        mesh = mesh_processing.as_trimesh(mesh)
 
         # let's determine camera's znear and zfar as limits for rendering, with some safety margin (factor 2)
         # assuming we look onto origin

@@ -215,7 +215,7 @@ class AntipodalGraspSampler:
             print('preparing to sample grasps...')
         # we need collision operations which are not available in o3d yet
         # hence convert the mesh to trimesh
-        self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
+        self._trimesh = mesh_processing.as_trimesh(self.mesh)
         intersector = trimesh.ray.ray_triangle.RayMeshIntersector(self._trimesh)
 
         # we need to sample reference points from the mesh
@@ -398,18 +398,18 @@ class AntipodalGraspSampler:
         # hence use trimesh
         manager = trimesh.collision.CollisionManager()
         if not exclude_shape:
-            self._trimesh = util.o3d_mesh_to_trimesh(self.mesh)
+            self._trimesh = mesh_processing.as_trimesh(self.mesh)
             manager.add_object('shape', self._trimesh)
 
         # additional objects
         if additional_objects:
             for i, obj in enumerate(additional_objects):
-                manager.add_object(f'add_obj_{i}', util.o3d_mesh_to_trimesh(obj))
+                manager.add_object(f'add_obj_{i}', mesh_processing.as_trimesh(obj))
 
         gripper_mesh = copy.deepcopy(self.gripper.mesh)
         tf = self.gripper.tf_base_to_TCP
         gripper_mesh.transform(tf)
-        gripper_mesh = util.o3d_mesh_to_trimesh(gripper_mesh)
+        gripper_mesh = mesh_processing.as_trimesh(gripper_mesh)
 
         collision_array = np.empty(len(graspset), dtype=np.bool)
 

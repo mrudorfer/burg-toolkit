@@ -386,17 +386,3 @@ def tf_from_pos_quat(pos=None, quat=None, convention='wxyz'):
     tf[0:3, 3] = pos
     return tf
 
-
-def o3d_mesh_to_trimesh(o3d_mesh):
-    """
-    Create a trimesh object from open3d.geometry.TriangleMesh.
-
-    :param o3d_mesh: open3d.geometry.TriangleMesh
-
-    :return: trimesh object
-    """
-    # todo: what happens if mesh does not have normals?
-    t_mesh = trimesh.Trimesh(np.asarray(o3d_mesh.vertices), np.asarray(o3d_mesh.triangles),
-                             vertex_normals=np.asarray(o3d_mesh.vertex_normals),
-                             triangle_normals=np.asarray(o3d_mesh.triangle_normals))
-    return t_mesh
