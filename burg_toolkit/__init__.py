@@ -9,7 +9,7 @@ from .core import *
 from .grasp import *
 
 # import all other modules
-from . import gripper, io, mesh_processing, metrics, render, sampling, sim, util, visualization
+from . import gripper, io, mesh_processing, metrics, render, sampling, sim, scene_sim, util, visualization
 
 import logging
 # todo: setting debug level for now, will have to change this so applications can override it

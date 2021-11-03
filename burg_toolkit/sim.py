@@ -12,6 +12,252 @@ from . import util
 from . import grasp
 
 
+class SimulatorBase(ABC):
+    """
+    This is an abstract base class for all simulators.
+    It ensures that settings are consistent across different simulator use cases and provides some convenience
+    methods.
+
+    :param verbose: If set to True, it will show the simulation in GUI mode.
+    """
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+        self.dt = 1. / 240.  # this is the default and should not be changed light-heartedly
+        self.SOLVER_STEPS = 100  # a bit more than default helps in contact-rich tasks
+        self.TIME_SLEEP = self.dt * 3  # for visualization
+        self.SPINNING_FRICTION = 0.1
+        self.ROLLING_FRICTION = 0.0001
+        self.MIN_OBJ_MASS = 0.05  # small masses will be replaced by this (could tune a bit more, in combo with solver)
+        self.JOINT_TYPES = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
+
+        self._color_idx = 0
+        self.color_map = plt.get_cmap('tab20')
+        self._body_ids = {}  # use dictionary for body id's.. will be cleaned automatically after reset
+        self._coms = {}  # dictionary to store center of mass belonging to the body id's
+        self._simulated_steps = 0
+
+        self._p = None
+        self._reset()
+
+    @property
+    def _simulated_seconds(self):
+        """Gives the simulated time in seconds."""
+        return self._simulated_steps * self.dt
+
+    def _reset(self, plane_and_gravity=False):
+        """
+        This method resets the simulation to the starting point. Shall be used to clean up after a simulation run.
+
+        :param plane_and_gravity: If yes, will call _load_plane_and_gravity() with default arguments after resetting.
+        """
+        if self._p is None:
+            # connect using bullet client makes sure we can connect to multiple servers in parallel
+            # options="--mp4=moviename.mp4" (records movie, requires ffmpeg)
+            self._p = bullet_client.BulletClient(connection_mode=p.GUI if self.verbose else p.DIRECT)
+        else:
+            self._p.resetSimulation()
+            self._body_ids = {}
+            self._coms = {}
+            self._color_idx = 0
+            self._simulated_steps = 0
+
+        self._p.setPhysicsEngineParameter(fixedTimeStep=self.dt, numSolverIterations=self.SOLVER_STEPS)
+        if self.verbose:
+            self._p.resetDebugVisualizerCamera(cameraDistance=0.4, cameraYaw=0, cameraPitch=-30,
+                                               cameraTargetPosition=[0, 0, 0])
+        if plane_and_gravity:
+            self._load_plane_and_gravity()
+
+    def _load_plane_and_gravity(self, plane_id='plane'):
+        """
+        Loads a plane and sets gravity.
+
+        :param plane_id: string, the body ID to be used for the plane (in self._body_ids dict)
+        """
+        self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        self._body_ids[plane_id] = self._p.loadURDF("plane.urdf")
+        self._p.setGravity(0, 0, -9.81)
+
+    def _step(self, n=1, seconds=None):
+        """
+        Steps the simulation for n steps if seconds is None.
+        If seconds provided, will simulate the equivalent number of steps.
+        """
+        if seconds is not None:
+            n = int(seconds / self.dt)
+        for i in range(n):
+            self._p.stepSimulation()
+            self._simulated_steps += 1
+            if self.verbose:
+                time.sleep(self.TIME_SLEEP)
+
+    def dismiss(self):
+        """
+        This method shall be called when the simulation is not needed anymore as it cleans up the object.
+        """
+        self._p.disconnect()
+
+    def _get_next_color(self):
+        """
+        Returns a new color from the colormap and moves the index forward.
+        Color is used to "paint" objects so they are distinguishable in visual mode.
+        """
+        color = self.color_map(self._color_idx)
+        self._color_idx = (self._color_idx + 1) % self.color_map.N
+        return color
+
+    def _add_object(self, object_instance, fixed_base=False):
+        """
+        Adds an object to the simulator.
+
+        :param object_instance: core.ObjectInstance (with type and pose)
+        :param fixed_base: if True, the object is immovable (defaults to False)
+
+        :return: object id if object could be added, else raises an Error
+        """
+        if object_instance.object_type.urdf_fn is None:
+            raise ValueError(f'object instance of type {object_instance.object_type.identifier} has no urdf_fn.')
+        if not os.path.exists(object_instance.object_type.urdf_fn):
+            raise ValueError(f'could not find urdf file for object type {object_instance.object_type.identifier}.' +
+                             f'expected it at {object_instance.object_type.urdf_fn}.')
+
+        # pybullet uses center of mass as reference for the transforms in BasePositionAndOrientation
+        # except in loadURDF - i couldn't figure out which reference system is used in loadURDF
+        # because just putting the pose of the instance (i.e. the mesh's frame) is not (always) working
+        # workaround:
+        #   all our visual/collision models have the same orientation, i.e. it is only the offset to COM
+        #   add obj w/o pose, get COM, compute the transform burg2py manually and resetBasePositionAndOrientation
+        object_id = self._p.loadURDF(object_instance.object_type.urdf_fn, useFixedBase=int(fixed_base))
+        if object_id < 0:
+            raise ValueError(f'could not add object {object_instance.object_type.identifier}. returned id is negative.')
+
+        self._coms[object_id] = np.array(self._p.getDynamicsInfo(object_id, -1)[3])
+        tf_burg2py = np.eye(4)
+        tf_burg2py[0:3, 3] = self._coms[object_id]
+        start_pose = tf_burg2py @ object_instance.pose
+        pos, quat = util.position_and_quaternion_from_tf(start_pose, convention='pybullet')
+        self._p.resetBasePositionAndOrientation(object_id, pos, quat)
+
+        # dynamics don't work for very small masses, so let's increase mass if necessary
+        mass = np.max([object_instance.object_type.mass, self.MIN_OBJ_MASS])
+        self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff,
+                               spinningFriction=self.SPINNING_FRICTION, rollingFriction=self.ROLLING_FRICTION,
+                               mass=mass)
+
+        if self.verbose:
+            self._p.changeVisualShape(object_id, -1, rgbaColor=self._get_next_color())
+            print(f'added object {object_instance.object_type.identifier}')
+
+            print(f'object properties: \n'
+                  f'mass, lateral_friction, local inertia diagonal, local inertia pos, '
+                  f'local inertia orn, restitution, rolling friction, spinning friction, contact damping,'
+                  f'contact stiffness, body type (1 rigid, 2 multi-body, 3 soft), collision margin\n'
+                  f'{self._p.getDynamicsInfo(object_id, -1)}')
+
+        return object_id
+
+    def _get_body_pose(self, body_id, convert2burg=False):
+        """
+        Returns the base position and orientation of the body with respect to center of mass frame as used by
+        pybullet. If `convert2burg` is True, it will be transformed back to normal frame of reference.
+
+        :param body_id: either the pybullet body id as int, or a string used in the self._body_ids dict.
+        :param convert2burg: If set to True, frame of reference is world instead of center of mass.
+
+        :return: (4, 4) transformation matrix describing the pose of the object
+        """
+        if isinstance(body_id, str):
+            body_id = self._body_ids[body_id]
+        pos, quat = self._p.getBasePositionAndOrientation(body_id)
+        pose = util.tf_from_pos_quat(pos, quat, convention="pybullet")
+        if convert2burg:
+            if body_id not in self._coms.keys():
+                self._coms[body_id] = np.array(self._p.getDynamicsInfo(body_id, -1)[3])
+            tf_py2burg = np.eye(4)
+            tf_py2burg[0:3, 3] = -self._coms[body_id]
+            pose = tf_py2burg @ pose
+        return pose
+
+    def _get_joint_info(self, body_id, joint_id):
+        """returns a dict with some joint info"""
+        # todo: make joint_info a class so we don't have to memorise the keys
+        info = self._p.getJointInfo(body_id, joint_id)
+        joint_info = {
+            'id': info[0],
+            'link_name': info[12].decode("utf-8"),
+            'joint_name': info[1].decode("utf-8"),
+            'type': self.JOINT_TYPES[info[2]],
+            'friction': info[7],
+            'lower_limit': info[8],
+            'upper limit': info[9],
+            'max_force': info[10],
+            'max_velocity': info[11],
+            'joint_axis': info[13],
+            'parent_pos': info[14],
+            'parent_orn': info[15]
+        }
+        return joint_info
+
+    def _inspect_body(self, body_id):
+        """
+        prints out some debug info for the given object
+        """
+        print('****')
+        print(f'inspecting body id {body_id}')
+        print(f'body info: {self._p.getBodyInfo(body_id)}')
+        num_joints = self._p.getNumJoints(body_id)
+        print(f'num joints: {num_joints}')
+        for i in range(num_joints):
+            print(f'joint {i}:')
+            [print(f'\t{key}: {val}') for key, val in self._get_joint_info(body_id, i).items()]
+
+    def _print_joint_positions(self, body_id):
+        """
+        prints out the positions of all joints of the body
+
+        :param body_id: id of the body
+        """
+        num_joints = self._p.getNumJoints(body_id)
+        print(f'getting {num_joints} joint positions of body {body_id}, {self._p.getBodyInfo(body_id)}')
+        joint_states = self._p.getJointStates(body_id, list(range(num_joints)))
+        for joint_state in joint_states:
+            print(f'\t{joint_state[0]}')
+
+    def _are_in_collision(self, body_id_1, body_id_2):
+        """
+        checks if two bodies are in collision with each other.
+
+        :return: bool, True if the two bodies are in collision
+        """
+        max_distance = 0.01  # 1cm for now, might want to choose a more reasonable value
+        points = self._p.getClosestPoints(body_id_1, body_id_2, max_distance)
+
+        if self.verbose:
+            print(f'checking collision between {self._p.getBodyInfo(body_id_1)} and {self._p.getBodyInfo(body_id_2)}')
+            print(f'found {len(points)} points')
+
+        n_colliding_points = 0
+        distances = []
+        for point in points:
+            distance = point[8]
+            distances.append(distance)
+            if distance < 0:
+                n_colliding_points += 1
+
+        if self.verbose:
+            print(f'of which {n_colliding_points} have a negative distance (i.e. are in collision)')
+            print(f'distances are: {distances}')
+
+        return n_colliding_points > 0
+
+    def _are_in_contact(self, body_id_1, link_id_1, body_id_2, link_id_2):
+        """
+        checks if the links of two bodies are in contact.
+        """
+        contacts = self._p.getContactPoints(body_id_1, body_id_2, link_id_1, link_id_2)
+        return len(contacts) > 0
+
+
 class GraspScores:
     COLLISION_WITH_GROUND = 0
     COLLISION_WITH_TARGET = 1
@@ -62,7 +308,7 @@ class GraspScores:
         return cls._retrieve(score, 2)
 
 
-class GraspSimulatorBase(ABC):
+class GraspSimulatorBase(SimulatorBase):
     """
     Base class for all grasp simulators, offers some common methods for convenience.
 
@@ -72,42 +318,15 @@ class GraspSimulatorBase(ABC):
     :param verbose: optional, indicates whether to show GUI and output debug info, defaults to False
     """
     def __init__(self, target_object, gripper, object_urdf_dir=None, verbose=False):
+        super().__init__(verbose=verbose)
         self.target_object = target_object
         self.gripper = gripper
-        self.verbose = verbose
         if object_urdf_dir is None:
             object_urdf_dir = os.path.join(os.path.dirname(__file__), '../data/tmp/')
         self.object_urdf_dir = object_urdf_dir
-        self.dt = 1./240.  # this is the default and should not be changed light-heartedly
-        self.SOLVER_STEPS = 100  # a bit more than default helps in contact-rich tasks
-        self.TIME_SLEEP = self.dt * 3  # for visualization
-        self.SPINNING_FRICTION = 0.1
-        self.ROLLING_FRICTION = 0.0001
-        self.MIN_OBJ_MASS = 0.05  # small masses will be replaced by this (could tune a bit more, in combo with solver)
-        self.JOINT_TYPES = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
 
         self.DUMMY_ROBOT_URDF = os.path.join(os.path.dirname(__file__), '../data/gripper/dummy_robot.urdf')
         self.DUMMY_XYZ_ROBOT_URDF = os.path.join(os.path.dirname(__file__), '../data/gripper/dummy_xyz_robot.urdf')
-
-        self._color_idx = 0
-        self.color_map = plt.get_cmap('tab20')
-        self._body_ids = {}  # use dictionary for body id's.. will be cleaned automatically after reset
-
-        # connect using bullet client makes sure we can connect to multiple servers in parallel
-        # options="--mp4=moviename.mp4" (records movie, requires ffmpeg)
-        self._p = bullet_client.BulletClient(connection_mode=p.GUI if verbose else p.DIRECT)
-        self._p.setPhysicsEngineParameter(fixedTimeStep=self.dt, numSolverIterations=self.SOLVER_STEPS)
-        if self.verbose:
-            self._p.resetDebugVisualizerCamera(cameraDistance=0.4, cameraYaw=0, cameraPitch=-30,
-                                               cameraTargetPosition=[0, 0, 0])
-
-    def _reset(self):
-        """
-        This method resets the simulation to the starting point. Shall be used to clean up after a simulation run.
-        """
-        self._p.resetSimulation()
-        self._body_ids = {}
-        self._color_idx = 0
 
     @abstractmethod
     def _prepare(self):
@@ -151,12 +370,6 @@ class GraspSimulatorBase(ABC):
                 input()
             self._reset()
         return scores
-
-    def dismiss(self):
-        """
-        This method shall be called when the simulation is not needed anymore as it cleans up the object.
-        """
-        self._p.disconnect()
 
     def _add_object(self, object_instance, fixed_base=False):
         """
@@ -238,85 +451,6 @@ class GraspSimulatorBase(ABC):
             joint_infos[joint_info['link_name']] = joint_info
 
         return body_id, joint_infos
-
-    def _get_joint_info(self, body_id, joint_id):
-        """returns a dict with some joint info"""
-        # todo: make joint_info a class so we don't have to memorise the keys
-        info = self._p.getJointInfo(body_id, joint_id)
-        joint_info = {
-            'id': info[0],
-            'link_name': info[12].decode("utf-8"),
-            'joint_name': info[1].decode("utf-8"),
-            'type': self.JOINT_TYPES[info[2]],
-            'friction': info[7],
-            'lower_limit': info[8],
-            'upper limit': info[9],
-            'max_force': info[10],
-            'max_velocity': info[11],
-            'joint_axis': info[13],
-            'parent_pos': info[14],
-            'parent_orn': info[15]
-        }
-        return joint_info
-
-    def _inspect_body(self, body_id):
-        """
-        prints out some debug info for the given object
-        """
-        print('****')
-        print(f'inspecting body id {body_id}')
-        print(f'body info: {self._p.getBodyInfo(body_id)}')
-        num_joints = self._p.getNumJoints(body_id)
-        print(f'num joints: {num_joints}')
-        for i in range(num_joints):
-            print(f'joint {i}:')
-            [print(f'\t{key}: {val}') for key, val in self._get_joint_info(body_id, i).items()]
-
-    def _print_joint_positions(self, body_id):
-        """
-        prints out the positions of all joints of the body
-
-        :param body_id: id of the body
-        """
-        num_joints = self._p.getNumJoints(body_id)
-        print(f'getting {num_joints} joint positions of body {body_id}, {self._p.getBodyInfo(body_id)}')
-        joint_states = self._p.getJointStates(body_id, list(range(num_joints)))
-        for joint_state in joint_states:
-            print(f'\t{joint_state[0]}')
-
-    def _are_in_collision(self, body_id_1, body_id_2):
-        """
-        checks if two bodies are in collision with each other.
-
-        :return: bool, True if the two bodies are in collision
-        """
-        max_distance = 0.01  # 1cm for now, might want to choose a more reasonable value
-        points = self._p.getClosestPoints(body_id_1, body_id_2, max_distance)
-
-        if self.verbose:
-            print(f'checking collision between {self._p.getBodyInfo(body_id_1)} and {self._p.getBodyInfo(body_id_2)}')
-            print(f'found {len(points)} points')
-
-        n_colliding_points = 0
-        distances = []
-        for point in points:
-            distance = point[8]
-            distances.append(distance)
-            if distance < 0:
-                n_colliding_points += 1
-
-        if self.verbose:
-            print(f'of which {n_colliding_points} have a negative distance (i.e. are in collision)')
-            print(f'distances are: {distances}')
-
-        return n_colliding_points > 0
-
-    def _are_in_contact(self, body_id_1, link_id_1, body_id_2, link_id_2):
-        """
-        checks if the links of two bodies are in contact.
-        """
-        contacts = self._p.getContactPoints(body_id_1, body_id_2, link_id_1, link_id_2)
-        return len(contacts) > 0
 
 
 class SingleObjectGraspSimulator(GraspSimulatorBase):
