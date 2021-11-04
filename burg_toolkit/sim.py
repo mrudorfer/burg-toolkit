@@ -123,11 +123,11 @@ class SimulatorBase(ABC):
 
         # pybullet uses center of mass as reference for the transforms in BasePositionAndOrientation
         # except in loadURDF - i couldn't figure out which reference system is used in loadURDF
-        # because just putting the pose of the instance (i.e. the mesh's frame) is not (always) working
+        # because just putting the pose of the instance (i.e. the mesh's frame?) is not (always) working
         # workaround:
         #   all our visual/collision models have the same orientation, i.e. it is only the offset to COM
         #   add obj w/o pose, get COM, compute the transform burg2py manually and resetBasePositionAndOrientation
-        object_id = self._p.loadURDF(object_instance.object_type.urdf_fn, useFixedBase=int(fixed_base))
+        object_id = self._p.loadURDF(object_instance.object_type.urdf_fn)
         if object_id < 0:
             raise ValueError(f'could not add object {object_instance.object_type.identifier}. returned id is negative.')
 
@@ -140,6 +140,8 @@ class SimulatorBase(ABC):
 
         # dynamics don't work for very small masses, so let's increase mass if necessary
         mass = np.max([object_instance.object_type.mass, self.MIN_OBJ_MASS])
+        if fixed_base:
+            mass = 0
         self._p.changeDynamics(object_id, -1, lateralFriction=object_instance.object_type.friction_coeff,
                                spinningFriction=self.SPINNING_FRICTION, rollingFriction=self.ROLLING_FRICTION,
                                mass=mass)
