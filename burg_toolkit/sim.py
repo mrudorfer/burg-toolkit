@@ -134,7 +134,7 @@ class SimulatorBase(ABC):
         self._coms[object_id] = np.array(self._p.getDynamicsInfo(object_id, -1)[3])
         tf_burg2py = np.eye(4)
         tf_burg2py[0:3, 3] = self._coms[object_id]
-        start_pose = tf_burg2py @ object_instance.pose
+        start_pose = object_instance.pose @ tf_burg2py
         pos, quat = util.position_and_quaternion_from_tf(start_pose, convention='pybullet')
         self._p.resetBasePositionAndOrientation(object_id, pos, quat)
 
@@ -177,7 +177,7 @@ class SimulatorBase(ABC):
                 self._coms[body_id] = np.array(self._p.getDynamicsInfo(body_id, -1)[3])
             tf_py2burg = np.eye(4)
             tf_py2burg[0:3, 3] = -self._coms[body_id]
-            pose = tf_py2burg @ pose
+            pose = pose @ tf_py2burg
         return pose
 
     def _get_joint_info(self, body_id, joint_id):
