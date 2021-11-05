@@ -3,7 +3,6 @@ import logging
 import numpy as np
 import trimesh
 import open3d as o3d
-from open3d import visualization
 
 from . import core
 from . import scene_sim
