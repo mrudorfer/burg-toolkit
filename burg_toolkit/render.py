@@ -266,7 +266,7 @@ class MeshRenderer:
     @staticmethod
     def _check_fn_types_are_supported(color_fn_type, depth_fn_type):
         supported_color_fn_types = ['png']
-        supported_depth_fn_types = ['tum', 'exr']
+        supported_depth_fn_types = ['tum', 'exr', 'npy-pc']
 
         if color_fn_type is not None and color_fn_type not in supported_color_fn_types:
             raise ValueError(f'color file type must be one of {supported_color_fn_types} or None')
@@ -319,8 +319,9 @@ class MeshRenderer:
         :param mesh: o3d.geometry.TriangleMesh or trimesh.Trimesh - the mesh which shall be rendered
         :param camera_poses: (4, 4) or (n, 4, 4) ndarray with poses
         :param sub_dir: directory where to produce output files (will be relative to the object's `output_dir`)
-        :param depth_fn_type: file format to store rendered depth, defaults to 'tum' (png), 'exr' also possible,
-                              if None, no depth images will be saved
+        :param depth_fn_type: file format to store rendered depth, defaults to 'tum' (png), 'exr' also possible, or
+                              save directly as point cloud in 'npy-pc' numpy files.
+                              If None, no depth data will be saved
         :param depth_fn_func: function to generate filenames (string) from integer, default function when None
         :param color_fn_type: file format to store rendered color images, defaults to 'png', if None, no color images
                               will be rendered
@@ -364,6 +365,12 @@ class MeshRenderer:
                     img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
                     depth_fn = os.path.join(output_dir, depth_fn_func(i) + '.exr')
                     pyexr.write(depth_fn, img, channel_names=['R', 'G', 'B'], precision=pyexr.FLOAT)
+                elif depth_fn_type == 'npy-pc':
+                    # convert to point cloud data and store that in npy file
+                    self.camera.pose = camera_poses[i]
+                    pc = point_cloud_from_depth(depth, self.camera)
+                    pc_fn = os.path.join(output_dir, depth_fn_func(i) + '.npy')
+                    np.save(pc_fn, pc)
 
             if color_fn_type is not None:
                 if color_fn_type == 'png':
