@@ -3,8 +3,10 @@ import logging
 import numpy as np
 import trimesh
 import open3d as o3d
+from open3d import visualization
 
-from . import util
+from . import core
+from . import scene_sim
 
 
 def check_properties(mesh):
@@ -151,145 +153,65 @@ def centroid(mesh):
 def _get_prob_indices(probs, min_prob, max_num, min_num):
     min_prob = min_prob or 0  # catch None
     min_num = min_num or 0
-    above_min_prob = probs >= min_prob
+    if len(probs) < min_num:
+        logging.warning(f'Requested to give at least {min_num} probs from an array of {len(probs)} probs. ' +
+                        f'Could not meet the condition, returning only {len(probs)} elements.')
+        return np.arange(len(probs))
 
-    # assert sorted list of probabilities (descending)
-    if np.count_nonzero(above_min_prob) < min_num:
-        indices = np.nonzero(probs[:min_num])
-    else:
-        indices = probs[above_min_prob][:max_num]
+    above_min_prob = probs >= min_prob
+    n_above = np.count_nonzero(above_min_prob)
+    n_choose = min(max(n_above, min_num), max_num)
+    indices = np.argpartition(probs, -n_choose)[-n_choose:]
     return indices
 
 
-def compute_stable_poses(mesh, verify_in_sim=False, urdf_fn=None, min_prob=0.02, max_num=10, min_num=1):
+def compute_stable_poses(object_type, verify_in_sim=False, min_prob=0.02, max_num=10, min_num=1):
     """
-    Computes stable resting poses for this object. Uses the trimesh function stable_poses based on the provided mesh.
+    Computes stable resting poses for this object. Uses the trimesh function stable_poses based on the object's mesh.
     Produces at least `min_num` poses and max `max_num` poses, except when these values are set to `None`.
     Returns only poses with computed probability of at least `min_prob`, unless needs to return less likely poses to
     reach `min_num`.
+    If `verify_in_sim` is set, the poses will also be simulated in pybullet until a rest pose is found. Note that to
+    use this feature, the object_type needs to have a urdf_fn.
 
-    :param mesh: open3d or trimesh mesh object.
+    :param object_type: core.ObjectType
     :param verify_in_sim: If True, the poses will be verified in simulation, i.e. simulation is run until object rests.
-                          This option requires `urdf_fn` to be set.
-    :param urdf_fn: Path to the urdf file that represents this mesh object in simulation.
+                          This option requires `urdf_fn` of the given `object_type` to be set.
     :param min_prob: Will only return poses with likelihood above this value. Set to 0 or None to disregard.
     :param max_num: Maximum number of poses to return. Set to None for no limit.
     :param min_num: Minimum number of poses to return, even if likelihood below `min_prob`. Set to 0/None to disregard.
 
     :return: ndarray of poses (n, 4, 4), ndarray of probabilities (n)
     """
-    if verify_in_sim and urdf_fn is None:
+    if verify_in_sim and object_type.urdf_fn is None:
         raise ValueError('If verify_in_sim set to True, you also need to provide urdf_fn')
 
-    mesh = as_trimesh(mesh)
+    mesh = as_trimesh(object_type.mesh)
     transforms, probs = trimesh.poses.compute_stable_poses(mesh)
     used_tf_indices = _get_prob_indices(probs, min_prob, max_num, min_num)
+    print('probs and indices')
+    print(probs)
+    print(used_tf_indices)
     transforms = transforms[used_tf_indices]
     probs = probs[used_tf_indices]
     logging.debug(f'\tfound {len(probs)} stable poses with probs between {np.min(probs)} and {np.max(probs)}')
 
-    if not verify_in_sim:
-        return transforms, probs
+    if verify_in_sim:
+        simulator = scene_sim.SceneSimulator()
+        for i in range(len(transforms)):
+            instance = core.ObjectInstance(object_type, pose=transforms[i])
+            simulator.simulate_object_instance(instance)  # pose of the instance is automatically updated
+            transforms[i] = instance.pose
 
-    return NotImplementedError('verify_in_sim is not implemented yet')
-
-    # verify poses in simulation and adjust
+    # roughly center object at xy=0, because trimesh and simulation put it *somewhere* on a plane
     for i in range(len(transforms)):
-        # compute the transform required to adjust the pose of the object
-        # create pybullet scene with plane and object based on urdf
-        print('**********************')
-        print(f'{shape} pose {i} with probability:', probs[i])
+        instance = core.ObjectInstance(object_type, pose=transforms[i])
+        c = centroid(instance.get_mesh())
+        instance.pose[0, 3] = instance.pose[0, 3] - c[0]
+        instance.pose[1, 3] = instance.pose[1, 3] - c[1]
 
-        # change object to store it in correct pose
-        orig_mesh = copy.deepcopy(shape.mesh)
-        shape.mesh.transform(transforms[i])
+    # check for near-duplicate poses?
+    # could just use some pose-based distance measure to filter, potentially adding up probabilities
 
-        name = shape_name + f'_pose_{i}'
-        burg.io.save_mesh(os.path.join(shape_dir_transformed, name + '.obj'), shape.mesh)
-
-        # create vhacd and store it as well
-        p.connect(p.DIRECT)
-        transformed_fn = os.path.join(shape_dir_transformed, name + '.obj')
-        vhacd_fn = os.path.join(shape_dir_vhacd, name + '.obj')
-        log_fn = os.path.join(shape_dir_vhacd, name + '_log.txt')
-        p.vhacd(transformed_fn, vhacd_fn, log_fn)
-        p.disconnect()
-
-        # get vhacd mesh
-        vhacd_mesh = burg.io.load_mesh(vhacd_fn)
-
-        # create urdf file
-        # we use COM of vhacd mesh
-        urdf_fn = os.path.join(shape_dir_transformed, name + '.urdf')
-        burg.io.save_urdf(urdf_fn, name + '.obj', name, inertia=default_inertia, com=vhacd_mesh.get_center(),
-                          mass=shape.mass * mass_factor)
-        shutil.copy2(urdf_fn, shape_dir_vhacd)  # associate with vhacd obj files as well
-
-        # ** DOUBLE_CHECK SIM
-        # we could be done here, however, at the start of the sim the object may move slightly, mainly because
-        # we comute resting poses for complete meshes and use vhacd meshes for simulation
-        # therefore we use found pose to initialise a simulation with vhacd and retrieve final resting pose
-        p.connect(p.DIRECT)
-        p.setGravity(0, 0, -9.81)
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        p.loadURDF("plane.urdf")
-        oid = p.loadURDF(os.path.join(shape_dir_vhacd, name + '.urdf'))
-        pos1, quat1 = p.getBasePositionAndOrientation(oid)
-        print('*********************')
-        print(f'shape center {shape.mesh.get_center()}')
-        print(f'vhacd center {vhacd_mesh.get_center()}')
-        print(f'pos {pos1}, quat {quat1}, before simulation')
-        dt = 1 / 240
-        seconds = 5
-        for _ in range(int(seconds / dt)):
-            p.stepSimulation()
-            # time.sleep(2*dt)
-        pos2, quat2 = p.getBasePositionAndOrientation(oid)
-        p.disconnect()
-
-        # ** APPLY POSE ADJUSTMENTS FOUND IN SIM
-
-        print(f'pos {pos2}, quat {quat2}, after simulation')
-        print('*********************')
-        diff_pos = np.asarray(pos2) - np.asarray(pos1)
-
-        print('min bounds before adjustments')
-        print('shape', shape.mesh.get_min_bound())
-        print('vhacd', vhacd_mesh.get_min_bound())
-
-        # apply orientation
-        rot_mat = burg.util.tf_from_pos_quat(quat=quat2, convention='pybullet')[:3, :3]
-        rot_center = vhacd_mesh.get_center()
-        shape.mesh.rotate(rot_mat, center=rot_center)
-        vhacd_mesh.rotate(rot_mat, center=rot_center)
-
-        # apply translation
-        shape.mesh.translate(diff_pos, relative=True)
-        vhacd_mesh.translate(diff_pos, relative=True)
-
-        print('min bounds after adjustments')
-        print('shape', shape.mesh.get_min_bound())
-        print('vhacd', vhacd_mesh.get_min_bound())
-
-        # finally put center of mass onto the z-axis
-        target_pos = np.zeros(3)
-        target_pos[2] = shape.mesh.get_center()[2]
-        shape.mesh.translate(target_pos, relative=False)
-        target_pos[2] = vhacd_mesh.get_center()[2]
-        vhacd_mesh.translate(target_pos, relative=False)
-
-        # ** STORE FINAL FILES
-        # since the mesh got transformed, we save it again (and recreate urdf files)
-        burg.io.save_mesh(os.path.join(shape_dir_transformed, name + '.obj'), shape.mesh)
-        burg.io.save_mesh(vhacd_fn, vhacd_mesh)
-        burg.io.save_urdf(urdf_fn, name + '.obj', name, inertia=default_inertia, com=vhacd_mesh.get_center(),
-                          mass=shape.mass * mass_factor)
-        shutil.copy2(urdf_fn, shape_dir_vhacd)  # associate with vhacd obj files as well
-
-        # finally add to list of shapes
-        with open(shapes_fn, 'a') as f:
-            f.write(name + '\n')
-
-        # revert changes to get clean state for next pose
-        shape.mesh = orig_mesh
+    return transforms, probs
 
