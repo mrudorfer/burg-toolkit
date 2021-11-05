@@ -451,3 +451,32 @@ class MeshRenderer:
             imageio.imwrite(thumbnail_fn, color)
 
         return color
+
+
+def point_cloud_from_depth(depth_image, camera):
+    """
+    Takes a depth_image as well as a Camera object and computes the partial point cloud.
+
+    :param depth_image: numpy array with distance values in [m] representing the depth image.
+    :param camera: Camera object describing the camera parameters applying to the depth image.
+
+    :return: (n, 3) array with xyz values of points.
+    """
+    w, h = camera.resolution
+    if not (w == depth_image.shape[1] and h == depth_image.shape[0]):
+        raise ValueError(f'shape of depth image {depth_image.shape} does not fit camera resolution {camera.resolution}')
+
+    mask = np.where(depth_image > 0)
+    x, y = mask[1], mask[0]
+
+    fx, fy = camera.intrinsic_parameters['fx'], camera.intrinsic_parameters['fy']
+    cx, cy = camera.intrinsic_parameters['cx'], camera.intrinsic_parameters['cy']
+
+    world_x = (x - cx) * depth_image[y, x] / fx
+    world_y = -(y - cy) * depth_image[y, x] / fy
+    world_z = -depth_image[y, x]
+    ones = np.ones(world_z.shape[0])
+
+    points = np.vstack((world_x, world_y, world_z, ones))
+    points = camera.pose @ points
+    return points[:3, :].T
