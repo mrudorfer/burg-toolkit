@@ -10,7 +10,7 @@ import pybullet as p
 
 from . import io
 from . import mesh_processing
-from .render import MeshRenderer
+from . import render
 
 
 class ObjectType:
@@ -133,7 +133,7 @@ class ObjectType:
         :param thumbnail_fn: Path for the thumbnail to be generated
         """
         logging.debug(f'generating thumbnail for {self.identifier}')
-        MeshRenderer().render_thumbnail(self.mesh, thumbnail_fn=thumbnail_fn)
+        render.MeshRenderer().render_thumbnail(self.mesh, thumbnail_fn=thumbnail_fn)
         self.thumbnail_fn = thumbnail_fn
 
     def __str__(self):
