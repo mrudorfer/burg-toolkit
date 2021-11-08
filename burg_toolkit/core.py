@@ -422,3 +422,21 @@ class Scene:
         self.ground_area = ground_area
         self.objects = objects or []
         self.bg_objects = bg_objects or []
+
+    def get_mesh_list(self, with_bg_objects=True):
+        """
+        provides the scene objects as meshes
+
+        :param with_bg_objects: Whether or not to include the background objects.
+
+        :return: list of o3d.geometry.TriangleMesh of the object instances in this scene
+        """
+        instances = self.objects
+        if with_bg_objects:
+            instances.extend(self.bg_objects)
+
+        meshes = []
+        for instance in instances:
+            meshes.append(instance.get_mesh())
+
+        return meshes
