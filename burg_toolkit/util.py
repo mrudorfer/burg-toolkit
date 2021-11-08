@@ -153,8 +153,7 @@ def numpy_pc_to_o3d(point_clouds):
 
         # check if point cloud has normals
         if len(pc.shape) != 2:
-            print('ERROR: input point cloud has strange number of dimensions:', pc.shape)
-            return
+            raise ValueError(f'input point cloud has strange number of dimensions: {pc.shape}')
 
         if pc.shape[1] == 3:
             cloud.points = o3d.utility.Vector3dVector(pc)
@@ -162,8 +161,7 @@ def numpy_pc_to_o3d(point_clouds):
             cloud.points = o3d.utility.Vector3dVector(pc[:, 0:3])
             cloud.normals = o3d.utility.Vector3dVector(pc[:, 3:6])
         else:
-            print('ERROR: input point cloud has strange shape:', pc.shape)
-            return
+            raise ValueError(f'input point cloud has strange shape:{pc.shape}')
         pc_objs.append(cloud)
 
     if single:
