@@ -13,6 +13,50 @@ from . import mesh_processing
 from . import render
 
 
+class StablePoses:
+    """
+    Contains the stable poses of an ObjectType, i.e. poses and estimated probabilities of these poses.
+    StablePoses object can be indexed and iterated. It holds the poses ordered from highest to lowest probability.
+
+    :param probabilities: (n,) ndarray or list with probabilities as float values
+    :param poses: (n, 4, 4) ndarray or nested list with corresponding poses
+    """
+    def __init__(self, probabilities, poses):
+        self.probabilities = np.array(probabilities)
+        self.poses = np.array(poses).reshape((-1, 4, 4))
+        if len(self.probabilities) != len(self.poses):
+            raise ValueError(f'probabilities and poses need to be same length. got {len(self.probabilities)} ' +
+                             f'probabilities and {len(self.poses)} poses.')
+
+        # sort in descending order, so that highest probability is first element
+        sorted_indices = np.argsort(-self.probabilities)
+        self.probabilities = self.probabilities[sorted_indices]
+        self.poses = self.poses[sorted_indices]
+
+    def __len__(self):
+        assert len(self.probabilities) == len(self.poses), "probs and poses need to be same length"
+        return len(self.probabilities)
+
+    def __getitem__(self, item):
+        if type(item) == int:
+            return self.probabilities[item], self.poses[item]
+        elif (type(item) == slice) or (type(item) == list) or (type(item) == np.ndarray):
+            return StablePoses(self.probabilities[item], self.poses[item])
+        else:
+            raise TypeError('unknown index type calling StablePoses.__getitem__')
+
+    def __iter__(self):
+        assert len(self.probabilities) == len(self.poses), "probs and poses need to be same length"
+        for i in range(len(self.probabilities)):
+            yield self.probabilities[i], self.poses[i]
+
+    def __str__(self):
+        elems = [f'{len(self)} stable poses:']
+        for prob, pose in self:
+            elems.append(f'probability: {prob}, pose:\n{pose}')
+        return '\n'.join(elems)
+
+
 class ObjectType:
     """
     Describes an Object Type.
@@ -28,9 +72,10 @@ class ObjectType:
     :param urdf_fn: filename of the urdf file of the object
     :param mass: mass of object in kg (defaults to 0, which means fixed in space in simulations)
     :param friction_coeff: friction coefficient, defaults to 0.24
+    :param stable_poses: either dataclass StablePoses or dict with probabilities and poses (or None)
     """
     def __init__(self, identifier, name=None, mesh=None, mesh_fn=None, thumbnail_fn=None, vhacd_fn=None, urdf_fn=None,
-                 mass=None, friction_coeff=None):
+                 mass=None, friction_coeff=None, stable_poses=None):
         self.identifier = identifier
         self.name = name
         if mesh is not None and mesh_fn is not None:
@@ -44,8 +89,14 @@ class ObjectType:
         self.urdf_fn = urdf_fn
         self.mass = mass or 0
         self.friction_coeff = friction_coeff or 0.24
-
-        # todo: stable poses, stable poses probs
+        if isinstance(stable_poses, StablePoses):
+            self.stable_poses = stable_poses
+        elif isinstance(stable_poses, dict):
+            self.stable_poses = StablePoses(probabilities=stable_poses['probabilities'], poses=stable_poses['poses'])
+        elif stable_poses is None:
+            self.stable_poses = None
+        else:
+            raise ValueError(f'unrecognised type of stable_poses: {type(stable_poses)}')
 
     @property
     def mesh(self):
@@ -137,9 +188,17 @@ class ObjectType:
         self.thumbnail_fn = thumbnail_fn
 
     def __str__(self):
-        # todo: add other properties
-        return f'ObjectType: {self.identifier}\n\thas mesh: {self.mesh is not None}\n\tmass: {self.mass}\n\t' + \
-            f'friction: {self.friction_coeff}'
+        elems = [
+            f'ObjectType: {self.identifier} ({self.name})',
+            f'\tmass:\t\t{self.mass} kg',
+            f'\tfriction:\t{self.friction_coeff}',
+            f'\tmesh_fn:\t{self.mesh_fn}',
+            f'\tvhacd_fn:\t{self.vhacd_fn}',
+            f'\turdf_fn:\t{self.urdf_fn}',
+            f'\tthumbnail_fn:\t{self.thumbnail_fn}',
+            f'\tstable poses:\t{"none" if self.stable_poses is None else len(self.stable_poses)}'
+        ]
+        return '\n'.join(elems)
 
 
 class ObjectInstance:
@@ -236,6 +295,12 @@ class ObjectLibrary(UserDict):
 
         lib_dir = os.path.dirname(yaml_fn)
         for _, item in self.data.items():
+            stable_poses = None
+            if item.stable_poses is not None:
+                stable_poses = {
+                    'probabilities': item.stable_poses.probabilities.tolist(),
+                    'poses': item.stable_poses.poses.tolist()
+                }
             obj_dict = {
                 'identifier': item.identifier,
                 'name': item.name,
@@ -244,7 +309,8 @@ class ObjectLibrary(UserDict):
                 'vhacd_fn': self._get_rel_path(item.vhacd_fn, lib_dir),
                 'urdf_fn': self._get_rel_path(item.urdf_fn, lib_dir),
                 'mass': item.mass,
-                'friction_coeff': item.friction_coeff
+                'friction_coeff': item.friction_coeff,
+                'stable_poses': stable_poses
             }
             lib_dict['objects'].append(obj_dict)
 
@@ -306,6 +372,19 @@ class ObjectLibrary(UserDict):
             if override or obj.thumbnail_fn is None:
                 thumbnail_fn = os.path.join(directory, f'{obj.identifier}.png')
                 obj.generate_thumbnail(thumbnail_fn)
+
+    def compute_stable_poses(self, verify_in_sim=True, override=False):
+        """
+        Computes stable poses for all contained ObjectTypes.
+        Requires the object's `mesh` (or `mesh_fn`). If verifying in simulation, requires the `urdf_fn` as well.
+
+        :param verify_in_sim: Whether or not to verify the computed stable poses in simulation.
+        :param override: If set to true, will override existing stable poses. If false, will keep stable poses for
+                         object types that have some.
+        """
+        for name, obj in self.data.items():
+            if override or obj.stable_poses is None:
+                mesh_processing.compute_stable_poses(obj, verify_in_sim=verify_in_sim)
 
     def __len__(self):
         return len(self.data.keys())

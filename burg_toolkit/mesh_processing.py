@@ -164,7 +164,7 @@ def _get_prob_indices(probs, min_prob, max_num, min_num):
     return indices
 
 
-def compute_stable_poses(object_type, verify_in_sim=False, min_prob=0.02, max_num=10, min_num=1):
+def compute_stable_poses(object_type, verify_in_sim=True, min_prob=0.02, max_num=10, min_num=1):
     """
     Computes stable resting poses for this object. Uses the trimesh function stable_poses based on the object's mesh.
     Produces at least `min_num` poses and max `max_num` poses, except when these values are set to `None`.
@@ -172,6 +172,7 @@ def compute_stable_poses(object_type, verify_in_sim=False, min_prob=0.02, max_nu
     reach `min_num`.
     If `verify_in_sim` is set, the poses will also be simulated in pybullet until a rest pose is found. Note that to
     use this feature, the object_type needs to have a urdf_fn.
+    The computed poses will be set as attribute of the given object_type.
 
     :param object_type: core.ObjectType
     :param verify_in_sim: If True, the poses will be verified in simulation, i.e. simulation is run until object rests.
@@ -180,7 +181,8 @@ def compute_stable_poses(object_type, verify_in_sim=False, min_prob=0.02, max_nu
     :param max_num: Maximum number of poses to return. Set to None for no limit.
     :param min_num: Minimum number of poses to return, even if likelihood below `min_prob`. Set to 0/None to disregard.
 
-    :return: ndarray of poses (n, 4, 4), ndarray of probabilities (n)
+    :return: core.StablePoses, consisting of ndarray of poses (n, 4, 4), ndarray of probabilities (n) - however, they
+             will also be set as attribute of the given object_type.
     """
     if verify_in_sim and object_type.urdf_fn is None:
         raise ValueError('If verify_in_sim set to True, you also need to provide urdf_fn')
@@ -188,9 +190,6 @@ def compute_stable_poses(object_type, verify_in_sim=False, min_prob=0.02, max_nu
     mesh = as_trimesh(object_type.mesh)
     transforms, probs = trimesh.poses.compute_stable_poses(mesh)
     used_tf_indices = _get_prob_indices(probs, min_prob, max_num, min_num)
-    print('probs and indices')
-    print(probs)
-    print(used_tf_indices)
     transforms = transforms[used_tf_indices]
     probs = probs[used_tf_indices]
     logging.debug(f'\tfound {len(probs)} stable poses with probs between {np.min(probs)} and {np.max(probs)}')
@@ -209,8 +208,9 @@ def compute_stable_poses(object_type, verify_in_sim=False, min_prob=0.02, max_nu
         instance.pose[0, 3] = instance.pose[0, 3] - c[0]
         instance.pose[1, 3] = instance.pose[1, 3] - c[1]
 
-    # check for near-duplicate poses?
+    # todo: check for near-duplicate poses?
     # could just use some pose-based distance measure to filter, potentially adding up probabilities
 
-    return transforms, probs
+    object_type.stable_poses = core.StablePoses(probs, transforms)
+    return object_type.stable_poses
 
