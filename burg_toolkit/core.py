@@ -8,7 +8,7 @@ import numpy as np
 import yaml
 import pybullet as p
 
-from . import io
+from . import io, visualization
 from . import mesh_processing
 from . import render
 
@@ -423,11 +423,12 @@ class Scene:
         self.objects = objects or []
         self.bg_objects = bg_objects or []
 
-    def get_mesh_list(self, with_bg_objects=True):
+    def get_mesh_list(self, with_bg_objects=True, with_plane=True):
         """
         provides the scene objects as meshes
 
         :param with_bg_objects: Whether or not to include the background objects.
+        :param with_plane: If True, will also create a mesh to visualise the ground area.
 
         :return: list of o3d.geometry.TriangleMesh of the object instances in this scene
         """
@@ -438,5 +439,8 @@ class Scene:
         meshes = []
         for instance in instances:
             meshes.append(instance.get_mesh())
+
+        if with_plane:
+            meshes.append(visualization.create_plane(size=self.ground_area, centered=False))
 
         return meshes
