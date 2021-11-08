@@ -2,6 +2,7 @@ import copy
 
 import open3d as o3d
 import numpy as np
+import trimesh
 from matplotlib import pyplot as plt
 
 from . import core
@@ -9,53 +10,71 @@ from . import util
 from . import grasp
 
 
-def show_o3d_point_clouds(point_clouds, colorize=True):
+def _convert_geometries_to_o3d_objects(geometry_list):
     """
-    receives a list of point clouds and visualizes them interactively
+    Receives a list of geometries and displays them. Geometries can be of various types:
+    o3d.geometry.TriangleMesh, o3d.geometry.PointCloud, numpy-array (point cloud), trimesh.Trimesh, also the data
+    types from burg toolkit are supported: core.ObjectType, core.ObjectInstance, core.Scene.
+    For core.Scene objects, the `get_mesh_list` will be called with default arguments. If you want to have more control
+    over this, just provide the mesh list directly instead of the scene.
 
-    :param point_clouds: list of point clouds as o3d objects
-    :param colorize: if True, point clouds will be shown in different colors (this is the default)
+    :param geometry_list: geometries to be displayed, of various types.
 
-    :return: returns when the user closed the window
+    :return: list of geometries that can be visualised with open3d
     """
+    o3d_objs = []
+    for geometry in geometry_list:
+        if isinstance(geometry, o3d.geometry.TriangleMesh) or isinstance(geometry, o3d.geometry.PointCloud):
+            o3d_objs.append(geometry)
+        elif isinstance(geometry, trimesh.Trimesh):
+            o3d_objs.append(geometry.as_open3d)
+        elif isinstance(geometry, np.ndarray):
+            o3d_objs.append(util.numpy_pc_to_o3d(geometry))
+        elif isinstance(geometry, core.ObjectType):
+            o3d_objs.append(geometry.mesh)
+        elif isinstance(geometry, core.ObjectInstance):
+            o3d_objs.append(geometry.get_mesh())
+        elif isinstance(geometry, core.Scene):
+            o3d_objs.extend(geometry.get_mesh_list())
+        else:
+            raise TypeError(f'geometry in list is of unsupported type {type(geometry)}')
+
+    return o3d_objs
+
+
+def show_geometries(geometry_list, colorize=True):
+    """
+    Receives a list of geometries and displays them. Geometries can be of various types:
+    o3d.geometry.TriangleMesh, o3d.geometry.PointCloud, numpy-array (point cloud), trimesh.Trimesh, also the data
+    types from burg toolkit are supported: core.ObjectType, core.ObjectInstance, core.Scene.
+    For core.Scene objects, the `get_mesh_list` will be called with default arguments. If you want to have more control
+    over this, just provide the mesh list directly instead of the scene.
+
+    :param geometry_list: geometries to be displayed, of various types.
+    :param colorize: whether or not to paint objects in some distinguished color.
+    """
+    o3d_objs = _convert_geometries_to_o3d_objects(geometry_list)
+
     if colorize:
-        colorize_point_clouds(point_clouds)
-    o3d.visualization.draw(point_clouds)
+        _colorize_o3d_objects(o3d_objs)
+    o3d.visualization.draw(o3d_objs)
 
 
-def show_np_point_clouds(point_clouds, colorize=True):
+def _colorize_o3d_objects(o3d_objects, colormap_name='tab20'):
     """
-    receives a list of point clouds and visualizes them interactively
+    gets a list of o3d point clouds and adds unique colors to them (in-place)
 
-    :param point_clouds: list of point clouds as numpy arrays Nx3 (or 6?)
-    :param colorize: if True, point clouds will be shown in different colors (this is the default)
-
-    :return: returns when the user closed the window
-    """
-
-    # first convert from numpy to o3d
-    pc_objs = util.numpy_pc_to_o3d(point_clouds)
-    if colorize:
-        colorize_point_clouds(pc_objs)
-
-    show_o3d_point_clouds(pc_objs)
-
-
-def colorize_point_clouds(point_clouds, colormap_name='tab20'):
-    """
-    gets a list of o3d point clouds and adds unique colors to them
-
-    :param point_clouds: list of o3d point clouds
+    :param o3d_objects: list of o3d point clouds
     :param colormap_name: name of the matplotlib colormap to use, defaults to 'tab20'
 
-    :return: the same list of o3d point clouds (but they are also adjusted in-place)
+    :return: the same list of o3d point clouds (they are adjusted in-place, so this return value should be rarely used)
     """
 
     # this colormap offers 20 different qualitative colors
     colormap = plt.get_cmap(colormap_name)
     color_idx = 0
 
-    for o3d_pc in point_clouds:
+    for o3d_pc in o3d_objects:
         if type(o3d_pc) is o3d.geometry.TriangleMesh:
             if o3d_pc.has_vertex_colors():
                 continue
@@ -66,83 +85,14 @@ def colorize_point_clouds(point_clouds, colormap_name='tab20'):
         o3d_pc.paint_uniform_color(color)
         color_idx = (color_idx + 1) % colormap.N
 
-    return point_clouds
-
-
-def _get_scene_geometries(scene: core.Scene, with_bg_objs=True):
-    """
-    gathers list of o3d meshes or point clouds for the given scene
-
-    :param scene: the scene
-    :param with_bg_objs: if True, list includes point clouds of background objects as well
-
-    :return: list of o3d point clouds
-    """
-
-    object_list = scene.objects
-    if with_bg_objs:
-        object_list.extend(scene.bg_objects)
-
-    o3d_pcs = []
-    for obj in object_list:
-        obj_type = obj.object_type
-
-        if obj_type.mesh is not None:
-            o3d_obj = o3d.geometry.TriangleMesh(obj_type.mesh)
-        elif obj_type.point_cloud is not None:
-            o3d_obj = o3d.geometry.PointCloud(obj_type.point_cloud)
-        else:
-            raise ValueError('no mesh or point cloud available for object in object library')
-
-        # apply transformation according to scene and append to list
-        o3d_obj.transform(obj.pose)
-        o3d_pcs.append(o3d_obj)
-
-    return o3d_pcs
-
-
-def show_scene(scene: core.Scene, with_bg_objs=True, add_plane=True):
-    """
-    shows the objects of a scene
-
-    :param scene: a core_types.Scene object
-    :param with_bg_objs: whether to show background objects as well
-    :param add_plane: whether to add a plane to the scene
-
-    :return: returns when viewer is closed by user
-    """
-    o3d_pcs = _get_scene_geometries(scene, with_bg_objs=with_bg_objs)
-    if add_plane:
-        o3d_pcs.append(create_plane(size=scene.ground_area, centered=False))
-
-    # and visualize
-    show_o3d_point_clouds(o3d_pcs)
-
-
-def create_plane(size=(0.5, 0.5), centered=True, h=0.001):
-    """
-    Create a plane for visualisation purposes.
-
-    :param size: (x, y) tuple with width and length in x/y directions
-    :param centered: If True, the plane will be centered around origin. Otherwise in positive xy with corner at origin.
-    :param h: The thickness of the visual plane.
-
-    :return: o3d.geometry.TriangleMesh with the plane
-    """
-    x, y = size
-    ground_plane = o3d.geometry.TriangleMesh.create_box(x, y, h)
-    ground_plane.compute_triangle_normals()
-    ground_plane.translate(np.array([0, 0, -h]))
-    if centered:
-        ground_plane.translate(np.array([-x / 2, -y / 2, 0]))
-    return ground_plane
+    return o3d_objects
 
 
 def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=None, with_plane=False, use_width=False):
     """
     visualizes a given grasp set with the specified gripper.
 
-    :param objects: list of objects to show in the scene, must be o3d geometries (mesh, point cloud, etc.)
+    :param objects: list of objects to show in the scene, see `show_geometries()` for type info
     :param gs: the GraspSet to visualize (can also be a single Grasp)
     :param gripper: the gripper to use, if none provided just coordinate frames will be displayed
     :param n: int number of grasps from set to display, if None, all grasps will be shown
@@ -164,7 +114,7 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
 
     for g in gs:
         if gripper is None:
-            gripper_vis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.01)
+            gripper_vis = create_frame()
             tf = np.eye(4)
         else:
             gripper_vis = copy.deepcopy(gripper.mesh)
@@ -181,24 +131,27 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
 
         objects.append(gripper_vis)
 
-    colorize_point_clouds(objects)
-    lookat = np.asarray([0.0, 0.0, 0.0])
-    up = np.asarray([0.0, 0.0, 1.0])
-    front = np.asarray([0.0, 1.0, 0.0])
-    zoom = 0.9
-    o3d.visualization.draw(objects)  #, lookat=lookat, up=up, front=front, zoom=zoom)
+    show_geometries(objects)
 
 
-def show_grasp_set_in_scene(scene: core.Scene, gs: grasp.GraspSet, gripper=None, n=None, score_color_func=None):
+def create_plane(size=(0.5, 0.5), centered=True, h=0.001):
     """
-    visualizes a given grasp set with the specified gripper within a scene environment.
+    Create a plane for visualisation purposes.
 
-    :param scene: a scene containing object instances
-    :param gs: the GraspSet to visualize (can also be a single Grasp)
-    :param gripper: the gripper to use, if none provided just coordinate frames will be displayed
-    :param n: int number of grasps from set to display, if None, all grasps will be shown
-    :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
-                             if None, some coloring scheme will be used irrespective of score
+    :param size: (x, y) tuple with width and length in x/y directions
+    :param centered: If True, the plane will be centered around origin. Otherwise in positive xy with corner at origin.
+    :param h: The thickness of the visual plane.
+
+    :return: o3d.geometry.TriangleMesh with the plane
     """
-    scene_objects = _get_scene_geometries(scene, with_bg_objs=True)
-    show_grasp_set(scene_objects, gs=gs, gripper=gripper, n=n, score_color_func=score_color_func)
+    x, y = size
+    ground_plane = o3d.geometry.TriangleMesh.create_box(x, y, h)
+    ground_plane.compute_triangle_normals()
+    ground_plane.translate(np.array([0, 0, -h]))
+    if centered:
+        ground_plane.translate(np.array([-x / 2, -y / 2, 0]))
+    return ground_plane
+
+
+def create_frame(size=0.01):
+    return o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)

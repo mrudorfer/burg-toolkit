@@ -311,7 +311,7 @@ class AntipodalGraspSampler:
                         my_arrow.translate(point)
                         obj_list.append(my_arrow)
 
-                    visualization.show_o3d_point_clouds(obj_list)
+                    visualization.show_geometries(obj_list)
                     # o3d.visualization.draw_geometries(obj_list, point_show_normal=True)
 
                 # compute angles to check antipodal constraints
