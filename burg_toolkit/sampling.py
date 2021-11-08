@@ -1,4 +1,5 @@
 import copy
+import logging
 
 import numpy as np
 import trimesh
@@ -6,6 +7,7 @@ import open3d as o3d
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
 
+from . import core
 from . import grasp
 from . import util
 from . import visualization
@@ -494,4 +496,74 @@ def random_poses(n):
     tfs[:, 0:3, 0:3] = R.random(n).as_matrix().reshape(-1, 3, 3)
     tfs[:, 0:3, 3] = np.random.random((n, 3))
     return tfs
+
+
+def sample_scene(object_library, ground_area, instances_per_scene, instances_per_object=1, max_tries=20):
+    """
+    Samples a physically plausible scene using the objects in the given object_library.
+
+    :param object_library: core.ObjectLibrary, which objects to sample from
+    :param ground_area: (l, w) length (x-axis) and width (y-axis) of the ground area
+    :param instances_per_scene: number of desired object instances in the scene
+    :param instances_per_object: number of allowed instances of each object type
+    :param max_tries: tries to add an object at most `max_tries` times, if that fails it will return
+                      a scene with fewer instances than have been asked for.
+
+    :return: core.Scene
+    """
+    scene = core.Scene(ground_area=ground_area)
+    rng = np.random.default_rng()
+
+    # pick objects from object_library:
+    population = [obj_type for obj_type in object_library.values() for _ in range(instances_per_object)]
+    obj_types = rng.choice(population, instances_per_scene, replace=False)
+
+    manager = trimesh.collision.CollisionManager()
+
+    # try to add each object to the scene
+    for i, object_type in enumerate(obj_types):
+        success = False
+        for n_tries in range(max_tries):
+            n_tries += 1
+
+            # choose random rotation around z-axis and random stable pose of the object
+            angle = rng.random() * np.pi * 2
+            tf_rot = np.eye(4)
+            tf_rot[:3, :3] = R.from_rotvec(angle * np.array([0, 0, 1])).as_matrix()
+            pose = tf_rot @ object_type.stable_poses.sample_pose(uniformly=True)
+
+            # now sample some xy displacement on ground plane
+            # to find the correct range for the offset, we need to account for the mesh bounds
+            instance = core.ObjectInstance(object_type, pose)
+            mesh = instance.get_mesh()
+            min_x, min_y, _ = mesh.get_min_bound()
+            max_x, max_y, _ = mesh.get_max_bound()
+            range_x, range_y = ground_area[0] - (max_x - min_x), ground_area[1] - (max_y - min_y)
+            x, y = rng.random() * range_x - min_x, rng.random() * range_y - min_y
+
+            instance.pose[0, 3] = x + pose[0, 3]
+            instance.pose[1, 3] = y + pose[1, 3]
+
+            # check collision
+            # note: trimesh docs say by using the same name for an object, the manager replaces the object if it has
+            # been previously added, however, this does not seem to work properly, so we explicitly remove the object
+            manager.add_object(f'obj{i}', mesh_processing.as_trimesh(instance.get_mesh()))
+            if manager.in_collision_internal():
+                manager.remove_object(f'obj{i}')
+            else:
+                # can add to scene and do next object
+                scene.objects.append(instance)
+                success = True
+                break
+
+        if not success:
+            logging.warning(f'Could not add object to scene, exceeded number of max_tries ({max_tries}). Returning ' +
+                            f'scene with fewer object instances than requested.')
+
+    # todo: simulate scene to make sure it's stable
+    # since objects are not touching, this should actually not be necessary.
+    # however, just to be sure...
+    # question is, do we do this in this function? it is actually separate from sampling, so potentially we should
+    # do this somewhere else (the caller shall decide)
+    return scene
 
