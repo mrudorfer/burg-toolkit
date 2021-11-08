@@ -23,6 +23,7 @@ class StablePoses:
     """
     def __init__(self, probabilities, poses):
         self.probabilities = np.array(probabilities)
+        self._p_norm = self.probabilities / self.probabilities.sum()
         self.poses = np.array(poses).reshape((-1, 4, 4))
         if len(self.probabilities) != len(self.poses):
             raise ValueError(f'probabilities and poses need to be same length. got {len(self.probabilities)} ' +
@@ -32,6 +33,21 @@ class StablePoses:
         sorted_indices = np.argsort(-self.probabilities)
         self.probabilities = self.probabilities[sorted_indices]
         self.poses = self.poses[sorted_indices]
+
+    def sample_pose(self, uniformly=False):
+        """
+        Sample a pose from the set of poses, according to the probability of each individual pose.
+
+        :param uniformly: If set to True, the pose probabilities will be ignored and we sample uniformly instead.
+
+        :return: (4, 4) ndarray with one pose
+        """
+        rng = np.random.default_rng()
+        if uniformly:
+            index = rng.choice(len(self))
+        else:
+            index = rng.choice(len(self), p=self._p_norm)
+        return self.poses[index]
 
     def __len__(self):
         assert len(self.probabilities) == len(self.poses), "probs and poses need to be same length"
@@ -402,8 +418,7 @@ class Scene:
     """
     contains all information about a scene
     """
-
-    def __init__(self, objects=None, bg_objects=None, views=None):
+    def __init__(self, ground_area=(1, 1), objects=None, bg_objects=None):
+        self.ground_area = ground_area
         self.objects = objects or []
         self.bg_objects = bg_objects or []
-        self.views = views or []
