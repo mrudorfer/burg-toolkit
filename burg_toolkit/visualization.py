@@ -101,49 +101,40 @@ def _get_scene_geometries(scene: core.Scene, with_bg_objs=True):
     return o3d_pcs
 
 
-def show_scene(scene: core.Scene, with_bg_objs=True, add_plane=False):
+def show_scene(scene: core.Scene, with_bg_objs=True, add_plane=True):
     """
     shows the objects of a scene
 
     :param scene: a core_types.Scene object
-    :param with_bg_objs: whether to show background objects as well, defaults to True
-    :param add_plane: whether to add a plane to the scene, defaults to False
+    :param with_bg_objs: whether to show background objects as well
+    :param add_plane: whether to add a plane to the scene
 
     :return: returns when viewer is closed by user
     """
     o3d_pcs = _get_scene_geometries(scene, with_bg_objs=with_bg_objs)
     if add_plane:
-        o3d_pcs.append(create_plane())
+        o3d_pcs.append(create_plane(size=scene.ground_area, centered=False))
 
     # and visualize
     show_o3d_point_clouds(o3d_pcs)
 
 
-def show_aligned_scene_point_clouds(scene: core.Scene, views):
+def create_plane(size=(0.5, 0.5), centered=True, h=0.001):
     """
-    shows the full point cloud and overlays the partial point cloud from a view (or a list of views)
+    Create a plane for visualisation purposes.
 
-    :param scene: the scene
-    :param views: instance of core.CameraView, or list thereof
+    :param size: (x, y) tuple with width and length in x/y directions
+    :param centered: If True, the plane will be centered around origin. Otherwise in positive xy with corner at origin.
+    :param h: The thickness of the visual plane.
 
-    :return: returns when the user closes the viewer
+    :return: o3d.geometry.TriangleMesh with the plane
     """
-
-    o3d_pcs = _get_scene_geometries(scene, with_bg_objs=True)
-
-    if not type(views) is list:
-        views = [views]
-
-    for view in views:
-        o3d_pcs.append(view.to_point_cloud())
-
-    show_o3d_point_clouds(o3d_pcs)
-
-
-def create_plane(l=0.3, w=0.3, h=0.001):
-    ground_plane = o3d.geometry.TriangleMesh.create_box(l, w, h)
+    x, y = size
+    ground_plane = o3d.geometry.TriangleMesh.create_box(x, y, h)
     ground_plane.compute_triangle_normals()
-    ground_plane.translate(np.array([-l / 2, -w / 2, -h]))
+    ground_plane.translate(np.array([0, 0, -h]))
+    if centered:
+        ground_plane.translate(np.array([-x / 2, -y / 2, 0]))
     return ground_plane
 
 
