@@ -363,6 +363,8 @@ class ObjectLibrary(UserDict):
         """
         Calls the ObjectType's method to generate a urdf file for all object types in this library.
         If VHACD is used, but no VHACD available, VHACD will be created and stored in the same directory.
+        Override parameter does not propagate through to VHACD creation - if VHACD exists it will be used.
+        If you want to override VHACD files, generate them directly.
 
         :param directory: where to put the urdf files.
         :param use_vhacd: whether to link to vhacd meshes (True, default) or original meshes (False).
