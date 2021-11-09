@@ -83,6 +83,7 @@ def main(object_library_fn, skip, override):
 
     print('*************************')
     print('next action: sampling scenes with object instances in stable poses, and visualise.')
+    print('note: you need to close the open3d window to continue. (not the simulation window later on, though!)')
     dim = (1, 0.5)
     n_instances = 5
     print(f'{n_instances} instances will be placed in ground area of {dim}')
@@ -100,6 +101,7 @@ def main(object_library_fn, skip, override):
     wait_for_user(skip)
     sim = burg.scene_sim.SceneSimulator(verbose=True)  # verbose shows the simulator GUI, slower than real-time
     sim.simulate_scene(scene)  # the poses of all instances in the scene are automatically updated by the simulator
+    sim.dismiss()  # can also reuse, then the window stays open
     burg.visualization.show_geometries([scene])
 
     print('*************************')
@@ -109,8 +111,10 @@ def main(object_library_fn, skip, override):
     # we lift it up a bit to avoid any collisions with other objects
     instance.pose[2, 3] = instance.pose[2, 3] + 0.2
     burg.visualization.show_geometries([scene])
+    sim = burg.scene_sim.SceneSimulator(verbose=True)
     sim.simulate_scene(scene)
     burg.visualization.show_geometries([scene])
+    sim.dismiss()
 
     print('*************************')
     print('that was all, thank you and good bye.')
