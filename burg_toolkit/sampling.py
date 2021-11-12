@@ -469,6 +469,32 @@ def random_poses(n):
     return tfs
 
 
+def farthest_point_sampling(point_cloud, k):
+    """
+    Performs an approximate farthest point sampling to choose n points from point_cloud.
+
+    :param point_cloud: (n, c) ndarray, where c is at least 3 and the first three elements are xyz coordinates
+    :param k: number of points to sample
+
+    :return: (k,) ndarray with indices of sampled points
+    """
+    if len(point_cloud) < k:
+        raise ValueError(f'given point cloud has only {len(point_cloud)} elements, cannot sample {k} points')
+
+    point_cloud = point_cloud[:, :3]  # make sure to only use xyz values
+    farthest_pts_indices = np.zeros(k, dtype=int)  # first chosen point is idx 0 - could also choose randomly
+    distances = np.full(len(point_cloud), fill_value=np.inf)
+
+    for i in range(1, k):
+        # compute the distance of latest chosen point to all others
+        current_point_distances = ((point_cloud[farthest_pts_indices[i-1]] - point_cloud)**2).sum(axis=1)
+        # use element-wise minimum, make sure we choose the point that is farthest from _all_ chosen points
+        distances = np.minimum(distances, current_point_distances)
+        farthest_pts_indices[i] = np.argmax(distances)  # choose farthest point
+
+    return farthest_pts_indices
+
+
 def sample_scene(object_library, ground_area, instances_per_scene, instances_per_object=1, max_tries=20):
     """
     Samples a physically plausible scene using the objects in the given object_library.
