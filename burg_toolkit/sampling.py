@@ -69,35 +69,6 @@ class AntipodalGraspSampler:
         self.mesh = None
         self._trimesh = None
 
-    def _interpolated_vertex_normals(self, points, triangle_indices):
-        """
-        computes the interpolated vertex normals for the given points in the associated triangles, corresponding
-        to the mesh in self._trimesh.
-
-        :param points: (n, 3)
-        :param triangle_indices: (n,)
-
-        :return: normals (n, 3)
-        """
-
-        normals = np.empty((len(points), 3))
-
-        for idx, (point, triangle_idx) in enumerate(zip(points, triangle_indices)):
-            faces = self._trimesh.faces[triangle_idx]  # contains idx of the three vertices
-            vertices = self._trimesh.vertices[faces]
-            vertex_normals = self._trimesh.vertex_normals[faces]
-
-            # compute distance into some weighting factor
-            distances = np.linalg.norm(vertices - point, axis=-1)
-            # print('distances', distances)
-            weights = 1/(distances**(1/2))  # gives a bit smoother result
-            weights /= weights.sum()
-            # print('weights:', weights, ' sum is ', weights.sum())
-            normal = np.average(weights * vertex_normals, axis=0)
-            normals[idx] = normal / np.linalg.norm(normal)
-
-        return normals
-
     @staticmethod
     def construct_halfspace_grasp_set(reference_point, target_points, n_orientations):
         """
@@ -285,7 +256,7 @@ class AntipodalGraspSampler:
                 if len(locations) == 0:
                     continue
 
-                normals = self._interpolated_vertex_normals(locations, index_tri)
+                normals = mesh_processing.compute_interpolated_vertex_normals(self._trimesh, locations, index_tri)
 
                 if self.verbose_debug:
                     # visualize candidate points and normals

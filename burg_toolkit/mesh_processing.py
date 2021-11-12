@@ -105,6 +105,52 @@ def as_trimesh(mesh):
     raise TypeError(f'Given mesh must be trimesh or o3d mesh. Got {type(mesh)} instead.')
 
 
+def compute_interpolated_vertex_normals(mesh, points, triangle_indices=None):
+    """
+    Computes the interpolated vertex normals for the given points. I.e., for each point we will average the normals of
+    the vertices of the triangle the point lies in, weighted based on the point's distance to the vertices.
+    Specifically, weight = 1/sqrt(distance).
+    If known, please provide the triangle_indices corresponding to the points, otherwise we will try to identify
+    them based on the mesh, but this takes quite long. We assume that all points are sampled from the mesh surface.
+    This method will happily produce garbage results if you put in random points.
+
+    :param mesh: Can be open3d.geometry.TriangleMesh or trimesh.Trimesh
+    :param points: (n, 3) the points for which we want to compute interpolated vertex normals.
+    :param triangle_indices: (n,)
+
+    :return: (n, 3) surface normals (normalised)
+    """
+    mesh = as_trimesh(mesh)
+
+    # find the triangles if not provided
+    if triangle_indices is None:
+        closest_points, distances, triangle_indices = trimesh.proximity.closest_point(mesh, points)
+    else:
+        closest_points = points
+
+    # get the vertex_normals of each triangle
+    faces = mesh.faces[triangle_indices]
+    vertices = mesh.vertices[faces]
+    vertex_normals = mesh.vertex_normals[faces]
+
+    # compute weight based on distance of the point to the vertices of its triangle
+    dist = np.linalg.norm(vertices - closest_points[:, None, :], axis=-1)
+    weights = 1 / (dist ** (1 / 2))  # division by zero could happen if dist == 0 (point exactly on vertex)
+    # to avoid nan values in normals, let's correct corresponding weights explicitly
+    nan_indices = np.nonzero(dist == 0)
+    for i in range(len(nan_indices[0])):
+        point_idx, dim_idx = nan_indices[0][i], nan_indices[1][i]
+        w = np.zeros(3)
+        w[dim_idx] = 1.
+        weights[point_idx] = w
+
+    normals = np.average(weights[:, :, None] * vertex_normals, axis=1)
+    normals = normals / np.linalg.norm(normals, axis=-1)[:, None]
+
+    assert not np.isnan(normals).any(), 'normal computation has produced nans for some reason!!'
+    return normals
+
+
 def compute_mesh_inertia(mesh, mass):
     """
     Computes the inertia of the given mesh, but may not work if mesh is not watertight.
