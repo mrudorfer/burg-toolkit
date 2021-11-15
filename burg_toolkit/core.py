@@ -446,3 +446,22 @@ class Scene:
             meshes.append(visualization.create_plane(size=self.ground_area, centered=False))
 
         return meshes
+
+    def render_printout(self, px_per_m=2000):
+        """
+        Draft method to make a printout.
+        """
+        img1 = render.render_orthographic_projection(self, px_per_mm=2, z_min=None, z_max=None, transparent=True)
+        img2 = render.render_orthographic_projection(self, px_per_mm=2, z_min=None, z_max=0.02, transparent=True)
+        from PIL import Image, ImageEnhance
+
+        img1 = Image.fromarray(img1)
+        img2 = Image.fromarray(img2)
+        enhancer = ImageEnhance.Contrast(img2)
+        img2 = enhancer.enhance(2)
+        img1.paste(img2, (0, 0), img2)
+
+        return np.array(img1)
+
+
+
