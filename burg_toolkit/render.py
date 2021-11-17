@@ -16,6 +16,10 @@ except ImportError:
     pyexr = None
     logging.debug('OpenEXR support: NONE')
 
+# temporary
+import pybullet
+from . import sim
+
 from . import util
 from . import io
 from . import mesh_processing
@@ -505,7 +509,7 @@ def render_orthographic_projection(scene, px_per_mm=2, z_min=None, z_max=None, t
     """
     # set the objects into the pyrender scene
     render_scene = pyrender.Scene(ambient_light=[0.8, 0.8, 0.8])
-    meshes = scene.get_mesh_list(with_plane=False)
+    meshes = scene.get_mesh_list(with_plane=True)
     for mesh in meshes:
         mesh = mesh_processing.as_trimesh(mesh)
         vertices = mesh.vertices
@@ -521,17 +525,20 @@ def render_orthographic_projection(scene, px_per_mm=2, z_min=None, z_max=None, t
 
         render_scene.add(pyrender.Mesh.from_trimesh(mesh))
 
-    # create camera
-    camera = pyrender.OrthographicCamera(1.0, 1.0, znear=0.05, zfar=2)
+    # create orthographic camera
+    # magnitude in x is actually ignored, only magnitude in y is relevant
+    # mag =
+    camera = pyrender.OrthographicCamera(0.2, .15, znear=0.05, zfar=2)
     cam_pose = np.array([
         [1.0, 0.0, 0.0, scene.ground_area[0] / 2],
         [0.0, 1.0, 0.0, scene.ground_area[1] / 2],
-        [0.0, 0.0, 1.0, 1.0],
+        [0.0, 0.0, 1.0, 0.5],
         [0.0, 0.0, 0.0, 1.0]
     ])
     render_scene.add(camera, pose=cam_pose)
     res = tuple(int(px_per_mm * x * 1000) for x in scene.ground_area)  # 1000 to convert from [m] to [mm]
     r = pyrender.OffscreenRenderer(res[0], res[1])
+    print('offscreen renderer platform:', r._platform)
     color, depth = r.render(render_scene)
 
     if transparent:
@@ -546,3 +553,66 @@ def render_orthographic_projection(scene, px_per_mm=2, z_min=None, z_max=None, t
         color = np.array(color)
 
     return color
+
+
+class OrthographicProjectionRenderer(sim.SimulatorBase):
+    """
+    (temporary) class to check whether rendering with pybullet will work
+    """
+    def __init__(self, with_gui=False):
+        super().__init__(verbose=with_gui)
+
+    def render_scene(self, scene, px_per_mm=2, z_min=None, z_max=None):
+        self._reset()
+        for instance in scene.objects:
+            body_id = self._add_object(instance)
+            self._p.changeVisualShape(body_id, -1, rgbaColor=self._get_next_color())
+
+        # http://www.opengl-tutorial.org/beginners-tutorials/tutorial-3-matrices/
+        # view_matrix == pose of camera
+        # projection matrix == intrinsic parameters / projection properties
+        vm = self._p.computeViewMatrix(
+            cameraEyePosition=[scene.ground_area[0]/2, scene.ground_area[1]/2, 1.0],
+            cameraTargetPosition=[scene.ground_area[0]/2, scene.ground_area[1]/2, 0.0],
+            cameraUpVector=[0.0, 1.0, 0.0]
+        )
+        print('py view matrix\n', np.array(vm).reshape(4, 4).T)
+
+        # orthographic projection
+        # https://en.wikipedia.org/wiki/Orthographic_projection
+        # clipping plane defined by a box with corner at (left, bottom, -near) and at (right, top, -far).
+        # https://stackoverflow.com/questions/60430958/understanding-the-view-and-projection-matrix-from-pybullet
+        # pybullet matrices are column-major order, not row-major
+        pm = self._p.computeProjectionMatrix(
+            left=-scene.ground_area[0]/2, right=scene.ground_area[0]/2,
+            bottom=-scene.ground_area[1]/2, top=scene.ground_area[1]/2,
+            nearVal=0.05, farVal=2.0
+        )
+        cam = pyrender.OrthographicCamera(1.0, 1.0, znear=0.05, zfar=2.0)
+        res = [int(px_per_mm * 1000 * x) for x in scene.ground_area]
+
+        mat = cam.get_projection_matrix(width=res[0], height=res[1])
+
+        print('py proj matrix\n', np.array(pm).reshape(4, 4).T)
+        print('pyrender mat\n', mat)
+        pm = np.array(pm).reshape(4, 4)
+        # todo: okay the problem here is that we do not have a to-scale projection
+        # for some reason, the distance of the camera changes the size of the objects, so it seems to me that
+        # this is not actually an orthographic projection matrix.
+
+        # temporary hack: change magnitude/scale. this is very arbitrary
+        # if we leave it as is, the scene is extremely small
+        pm[0, 0] = pm[0, 0] * 10
+        pm[1, 1] = pm[1, 1] * 10
+        pm = pm.flatten().tolist()
+        print('py proj matrix\n', np.array(pm).reshape(4, 4).T)
+
+        res = [int(px_per_mm * 1000 * x) for x in scene.ground_area]
+        w, h, rgb, depth, seg_mask = self._p.getCameraImage(
+            res[0], res[1], viewMatrix=vm, projectionMatrix=pm
+        )
+        # see docs for how to interpret those values
+        print(f'w{w}, h{h}, rgb {rgb.shape}, depth {depth.shape}, seg_mask {seg_mask.shape}')
+
+        return rgb
+
