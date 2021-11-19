@@ -417,10 +417,13 @@ class ObjectLibrary(UserDict):
 
 
 class Scene:
+    size_A4 = (0.297, 0.210)
+    size_A3 = (0.420, 0.297)
+    size_A2 = (0.594, 0.420)
     """
     contains all information about a scene
     """
-    def __init__(self, ground_area=(1, 1), objects=None, bg_objects=None):
+    def __init__(self, ground_area=size_A3, objects=None, bg_objects=None):
         self.ground_area = ground_area
         self.objects = objects or []
         self.bg_objects = bg_objects or []
@@ -447,12 +450,61 @@ class Scene:
 
         return meshes
 
-    def render_printout(self, px_per_m=2000):
+    def out_of_bounds_instances(self, margin=None):
+        """
+        Gives a list of object instance indices in this scene that exceed the bounds of ground_area-margin.
+
+        :param margin: If provided, will subtract this margin from ground_area.
+
+        :return: List of indices of the object instances that are out of bounds. If none are, return an empty list.
+        """
+        meshes = self.get_mesh_list(with_bg_objects=False, with_plane=False)
+        x_min, y_min = 0, 0
+        x_max, y_max = self.ground_area
+        if margin is not None:
+            x_min += margin
+            y_min += margin
+            x_max -= margin
+            y_max -= margin
+
+        out_of_bounds = []
+        for i, mesh in enumerate(meshes):
+            x1, y1, _ = mesh.get_min_bound()
+            x2, y2, _ = mesh.get_max_bound()
+            if x1 <= x_min or y1 <= y_min or x2 >= x_max or y2 >= y_max:
+                out_of_bounds.append(i)
+
+        return out_of_bounds
+
+    def colliding_instances(self, with_bg_objects=True):
+        """
+        Gives a list of object instance indices in this scene that are in collision.
+        Note that collisions between bg_objects are not detected, but option `with_bg_objects` can be set to
+        detect collisions WITH the bg_objects.
+
+        :param with_bg_objects: If True, will also check for collisions with background objects.
+
+        :return: List of indices of the object instances that are in collision. If none are, return an empty list.
+        """
+        meshes = self.get_mesh_list(with_bg_objects=with_bg_objects, with_plane=False)
+        collisions = mesh_processing.collisions(meshes)  # pairs of indices (potentially including bg_objects)
+
+        max_idx = len(self.objects) - 1  # to exclude bg_object indices
+        colliding_object_indices = []
+        for i1, i2 in collisions:
+            if i1 <= max_idx and i1 not in colliding_object_indices:
+                colliding_object_indices.append(i1)
+            if i2 <= max_idx and i2 not in colliding_object_indices:
+                colliding_object_indices.append(i2)
+
+        return colliding_object_indices
+
+    def render_printout(self):
         """
         Draft method to make a printout.
         """
-        img1 = render.render_orthographic_projection(self, px_per_mm=2, z_min=None, z_max=None, transparent=True)
-        img2 = render.render_orthographic_projection(self, px_per_mm=2, z_min=None, z_max=0.02, transparent=True)
+        img1 = render.render_orthographic_projection(self, px_per_mm=2.5, z_min=None, z_max=None, transparent=True)
+        img2 = render.render_orthographic_projection(self, px_per_mm=2.5, z_min=None, z_max=0.02, transparent=True)
         from PIL import Image, ImageEnhance
 
         img1 = Image.fromarray(img1)

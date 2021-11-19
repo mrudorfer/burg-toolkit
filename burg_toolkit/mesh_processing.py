@@ -260,3 +260,22 @@ def compute_stable_poses(object_type, verify_in_sim=True, min_prob=0.02, max_num
     object_type.stable_poses = core.StablePoses(probs, transforms)
     return object_type.stable_poses
 
+
+def collisions(meshes):
+    """
+    Given a list of meshes, checks whether they collide with each other.
+
+    :param meshes: List of meshes, can be open3d.geometry.TriangleMesh or trimesh.Trimesh
+
+    :return: Set of colliding pairs with indices of the meshes as in the given list.
+    """
+    manager = trimesh.collision.CollisionManager()
+    for i, mesh in enumerate(meshes):
+        manager.add_object(f'{i}', as_trimesh(mesh))
+
+    collision, pairs = manager.in_collision_internal(return_names=True)
+    print(f'pairs (type={type(pairs)}): {pairs}')
+    # pairs are tuples in alphabetical order of the names, i.e. need to convert to indices of the given list
+    pairs = [(int(item[0]), int(item[1])) for item in pairs]
+    return pairs
+
