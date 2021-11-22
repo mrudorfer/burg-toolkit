@@ -7,6 +7,7 @@ from collections import UserDict
 import numpy as np
 import yaml
 import pybullet as p
+from PIL import Image, ImageDraw, ImageOps
 
 from . import io, visualization
 from . import mesh_processing
@@ -499,21 +500,117 @@ class Scene:
 
         return colliding_object_indices
 
-    def render_printout(self):
+    def create_projection_image(self, px_per_mm=2, transparent=True, max_z=0.01, color_upper=(100, 100, 100),
+                                color_lower=(0, 0, 0)):
         """
-        Draft method to make a printout.
+        Creates a projection image of the current scene.
+        The objects will be projected onto the xy plane, whereas different colors are used for the triangles that are
+        fully below `max_z` (`color_lower`), and all others (`color_upper`).
+        First the upper triangles are drawn, then the lower ones.
+
+        :param px_per_mm: resolution in pixels per mm
+        :param transparent: If True, returned image will have 4 channels (rgba), else 3 (rgb)
+        :param max_z: float, The boundary deciding whether triangles are in "upper" or "lower"
+        :param color_upper: 3-tuple of ints in [0, 255]
+        :param color_lower: 3-tuple of ints in [0, 255]
+
+        :return: ndarray of shape (w, h, c), where c is 3 or 4 depending on `transparent`, and (w, h) are determined
+                 based on the `ground_area` of the scene and the `px_per_mm` value.
         """
-        img1 = render.render_orthographic_projection(self, px_per_mm=2.5, z_min=None, z_max=None, transparent=True)
-        img2 = render.render_orthographic_projection(self, px_per_mm=2.5, z_min=None, z_max=0.02, transparent=True)
-        from PIL import Image, ImageEnhance
+        if self.out_of_bounds_instances():
+            raise ValueError('some instances are out of bounds, cannot create a projection on bounded canvas.')
 
-        img1 = Image.fromarray(img1)
-        img2 = Image.fromarray(img2)
-        enhancer = ImageEnhance.Contrast(img2)
-        img2 = enhancer.enhance(2)
-        img1.paste(img2, (0, 0), img2)
+        # parse colors and adjust depending on transparency
+        bg_color = (255, 255, 255)
+        img_mode = 'RGB'
+        if transparent:
+            color_upper = (*color_upper, 255)
+            color_lower = (*color_lower, 255)
+            bg_color = (*bg_color, 0)
+            img_mode = 'RGBA'
 
-        return np.array(img1)
+        # create empty canvas
+        px_per_m = px_per_mm * 1000.0
+        img_size = [int(px_per_m * dim) for dim in self.ground_area]
+        im = Image.new(img_mode, img_size, color=bg_color)
 
+        # create projection for each mesh
+        draw = ImageDraw.Draw(im)
+        meshes = self.get_mesh_list(with_bg_objects=False, with_plane=False)
+        for mesh in meshes:
+            mesh = mesh_processing.as_trimesh(mesh)
 
+            # find which triangles are close to ground (fully below max_z)
+            low_mask = (mesh.triangles[:, :, 2] < max_z).all(axis=1)
+            up_mask = (1 - low_mask).astype(bool)
 
+            # first draw all the upper triangles
+            for t in mesh.triangles[up_mask][:, :, :2]:  # (n, 3, 3), we only want projection, i.e. (n, 3, 2)
+                img_points = np.rint(t * px_per_m)  # round to int
+                # we actually need to convert it to list, otherwise pillow cannot draw it (awful)
+                draw.polygon(img_points.flatten().tolist(), fill=color_upper, outline=color_upper)
+
+            # now draw the lower triangles
+            for t in mesh.triangles[low_mask][:, :, :2]:  # (n, 3, 3), we only want projection, i.e. (n, 3, 2)
+                img_points = np.rint(t * px_per_m)  # round to int
+                draw.polygon(img_points.flatten().tolist(), fill=color_lower, outline=color_lower)
+
+        # flip the image, as y-axis is pointing into other direction
+        im = ImageOps.flip(im)
+        return np.array(im)
+
+    def create_projection_heatmap(self, px_per_mm=2, transparent=True):
+        """
+        Creates a projection image of the current scene.
+        The objects will be projected onto the xy plane, whereas the average of the triangles z-value is used to
+        determine its color. The closer to the ground, the darker the color gets.
+
+        :param px_per_mm: resolution in pixels per mm
+        :param transparent: If True, returned image will have 4 channels (rgba), else 3 (rgb)
+
+        :return: ndarray of shape (w, h, c), where c is 3 or 4 depending on `transparent`, and (w, h) are determined
+                 based on the `ground_area` of the scene and the `px_per_mm` value.
+        """
+        if self.out_of_bounds_instances():
+            raise ValueError('some instances are out of bounds, cannot create a projection on bounded canvas.')
+
+        # parse colors and adjust depending on transparency
+        bg_color = (255, 255, 255)
+        img_mode = 'RGB'
+        if transparent:
+            bg_color = (*bg_color, 0)
+            img_mode = 'RGBA'
+
+        # create empty canvas
+        px_per_m = px_per_mm * 1000.0
+        img_size = [int(px_per_m * dim) for dim in self.ground_area]
+        im = Image.new(img_mode, img_size, color=bg_color)
+
+        z_clip = 0.10  # z values are capped here, to make sure we stay within 255
+
+        # create projection for each mesh
+        draw = ImageDraw.Draw(im)
+        meshes = self.get_mesh_list(with_bg_objects=False, with_plane=False)
+        for mesh in meshes:
+            mesh = mesh_processing.as_trimesh(mesh)
+
+            # compute average z-value for triangles based on vertices
+            # sort triangles by z-value, draw from top to bottom
+            z_values = np.average(mesh.triangles[:, :, 2], axis=-1)
+            z_values = np.minimum(z_values, z_clip)
+            order = np.argsort(-z_values)
+
+            # first draw all the upper triangles
+            for triangle, z_val in zip(mesh.triangles[order][:, :, :2], z_values[order]):
+                img_points = np.rint(triangle * px_per_m)  # round to int
+                c = int(800 * z_val**(1/2))
+                if transparent:
+                    color = (c, c, c, 255)
+                else:
+                    color = (c, c, c)
+
+                draw.polygon(img_points.flatten().tolist(), fill=color, outline=color)
+
+        # flip the image, as y-axis is pointing into other direction
+        im = ImageOps.flip(im)
+        return np.array(im)
