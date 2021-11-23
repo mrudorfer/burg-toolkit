@@ -14,31 +14,24 @@ def check_properties(mesh):
 
     :param mesh: open3d.geometry.TriangleMesh
     """
-    has_triangle_normals = mesh.has_triangle_normals()
-    has_vertex_normals = mesh.has_vertex_normals()
-    has_texture = mesh.has_textures()
-    edge_manifold = mesh.is_edge_manifold(allow_boundary_edges=True)
-    edge_manifold_boundary = mesh.is_edge_manifold(allow_boundary_edges=False)
-    vertex_manifold = mesh.is_vertex_manifold()
-    self_intersecting = mesh.is_self_intersecting()
-    watertight = mesh.is_watertight()
-    orientable = mesh.is_orientable()
-    _trimesh = as_trimesh(mesh)
-    convex = trimesh.convex.is_convex(_trimesh)
-
     print(f"  no vertices:            {len(mesh.vertices)}")
     print(f"  no triangles:           {len(mesh.triangles)}")
+    print(f"  min bounds (x, y, z):   {mesh.get_min_bound()}")
+    print(f"  max bounds (x, y, z):   {mesh.get_max_bound()}")
     print(f"  dims (x, y, z):         {dimensions(mesh)}")
-    print(f"  has triangle normals:   {has_triangle_normals}")
-    print(f"  has vertex normals:     {has_vertex_normals}")
-    print(f"  has textures:           {has_texture}")
-    print(f"  edge_manifold:          {edge_manifold}")
-    print(f"  edge_manifold_boundary: {edge_manifold_boundary}")
-    print(f"  vertex_manifold:        {vertex_manifold}")
-    print(f"  self_intersecting:      {self_intersecting}")
-    print(f"  watertight:             {watertight}")
-    print(f"  orientable:             {orientable}")
-    print(f"  convex:                 {convex}")
+    print(f"  centroid:               {centroid(mesh)}")
+    print(f"  has triangle normals:   {mesh.has_triangle_normals()}")
+    print(f"  has vertex normals:     {mesh.has_vertex_normals()}")
+    print(f"  has textures:           {mesh.has_textures()}")
+    print(f"  edge_manifold:          {mesh.is_edge_manifold(allow_boundary_edges=True)}")
+    print(f"  edge_manifold_boundary: {mesh.is_edge_manifold(allow_boundary_edges=False)}")
+    print(f"  vertex_manifold:        {mesh.is_vertex_manifold()}")
+    # print(f"  self_intersecting:      {mesh.is_self_intersecting()}")  # this can take extremely long
+    print(f"  watertight:             {mesh.is_watertight()}")
+    print(f"  orientable:             {mesh.is_orientable()}")
+
+    _trimesh = as_trimesh(mesh)
+    print(f"  convex:                 {trimesh.convex.is_convex(_trimesh)}")
     print(f"  components:             {_trimesh.body_count}")
 
 
