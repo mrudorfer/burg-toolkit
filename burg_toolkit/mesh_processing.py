@@ -26,8 +26,11 @@ def check_properties(mesh):
     print(f"  edge_manifold:          {mesh.is_edge_manifold(allow_boundary_edges=True)}")
     print(f"  edge_manifold_boundary: {mesh.is_edge_manifold(allow_boundary_edges=False)}")
     print(f"  vertex_manifold:        {mesh.is_vertex_manifold()}")
-    # print(f"  self_intersecting:      {mesh.is_self_intersecting()}")  # this can take extremely long
-    print(f"  watertight:             {mesh.is_watertight()}")
+    if len(mesh.triangles) < 20000:
+        print(f"  self_intersecting:      {mesh.is_self_intersecting()}")
+    else:
+        print(f"  self_intersecting:      mesh is large, skipping this as it can take a lot of time")
+    print(f"  watertight:             = edge_manifold & vertex_manifold & not self_intersecting")
     print(f"  orientable:             {mesh.is_orientable()}")
 
     _trimesh = as_trimesh(mesh)
