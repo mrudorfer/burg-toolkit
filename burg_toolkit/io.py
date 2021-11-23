@@ -49,7 +49,7 @@ def save_mesh(fn, mesh_obj, overwrite_existing=True):
                           'o3d.geometry.TriangleMesh, burg.core.ObjectType, burg.core.ObjectInstance')
 
     # this does produce warnings that it can't write triangle normals to obj file. don't know how to suppress.
-    o3d.io.write_triangle_mesh(fn, mesh, write_vertex_normals=False)
+    o3d.io.write_triangle_mesh(fn, mesh, write_vertex_normals=False, write_vertex_colors=False)
 
 
 def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, friction=0.24, overwrite_existing=True):
