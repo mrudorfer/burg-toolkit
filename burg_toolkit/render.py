@@ -413,6 +413,8 @@ class MeshRenderer:
         # identify indices of non-background rows and columns, then look for min/max indices
         non_bg_rows = np.nonzero(np.mean(intensity_img, axis=1) != bg_color)
         non_bg_cols = np.nonzero(np.mean(intensity_img, axis=0) != bg_color)
+        if len(non_bg_rows[0]) == 0:
+            raise ValueError('cannot clip/scale image, as it is bg_color only')
         r1, r2 = np.min(non_bg_rows), np.max(non_bg_rows)
         c1, c2 = np.min(non_bg_cols), np.max(non_bg_cols)
 
