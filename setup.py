@@ -16,6 +16,7 @@ requirements_default = [
     'numba',       # speedup for numpy-quaternion
     'numpy-quaternion',  # numpy integration for quaternions
     'tqdm',         # progress bars
+    'opencv-contrib-python',  # image processing
     'open3d==0.12.0',      # point clouds and processing
     'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
     'pyrender',       # rendering

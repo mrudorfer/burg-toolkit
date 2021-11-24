@@ -8,10 +8,12 @@ import numpy as np
 import yaml
 import pybullet as p
 from PIL import Image, ImageDraw, ImageOps
+import cv2
 
 from . import io, visualization
 from . import mesh_processing
 from . import render
+from . import constants
 
 
 class StablePoses:
@@ -418,13 +420,10 @@ class ObjectLibrary(UserDict):
 
 
 class Scene:
-    size_A4 = (0.297, 0.210)
-    size_A3 = (0.420, 0.297)
-    size_A2 = (0.594, 0.420)
     """
     contains all information about a scene
     """
-    def __init__(self, ground_area=size_A3, objects=None, bg_objects=None):
+    def __init__(self, ground_area=constants.SIZE_A3, objects=None, bg_objects=None):
         self.ground_area = ground_area
         self.objects = objects or []
         self.bg_objects = bg_objects or []
@@ -614,3 +613,70 @@ class Scene:
         # flip the image, as y-axis is pointing into other direction
         im = ImageOps.flip(im)
         return np.array(im)
+
+
+class Printout:
+    def __init__(self, size=constants.SIZE_A2, px_per_mm=5):
+        self._size = size
+        self._px_per_mm = px_per_mm
+        self._img_size = (int(px_per_mm * 1000 * size[1]), int(px_per_mm * 1000 * size[0]))  # rows first
+        self._scenes = []
+        self._image = np.full(self._img_size, fill_value=255, dtype=np.uint8)
+        self.add_markers()
+
+    def _check_size(self, size):
+        if len(self._size) != len(size):
+            raise ValueError('given size has different number of dimensions than own size')
+        for i in range(len(size)):
+            if self._size[i] < size[i]:
+                raise ValueError('given size must not exceed the own size')
+
+    def add_scene(self, scene):
+        self._check_size(scene.ground_area)
+        self._scenes.append(scene)
+
+    def add_markers(self):
+        # temporary, only works with A2 size
+        # same marker style as GRASPA, code adapted from there
+        # see https://github.com/robotology/GRASPA-benchmark/blob/master/src/layout-printer/layout_printer.py
+        marker_size_mm = 57
+        marker_spacing_mm = 19  # 57/3
+
+        marker_size = marker_size_mm * self._px_per_mm
+        marker_spacing = marker_spacing_mm * self._px_per_mm
+
+        marker_count_x = self._img_size[1] // (marker_size + marker_spacing)
+        marker_count_y = self._img_size[0] // (marker_size + marker_spacing)
+
+        size_aruco_x = marker_count_x * marker_size + (marker_count_x - 1) * marker_spacing
+        size_aruco_y = marker_count_y * marker_size + (marker_count_y - 1) * marker_spacing
+
+        dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
+        aruco_board = cv2.aruco.GridBoard_create(marker_count_x, marker_count_y, marker_size, marker_spacing,
+                                                 dictionary)
+        aruco_img = aruco_board.draw((size_aruco_x, size_aruco_y), 0)
+        print(self._image.shape)
+
+        # they actually removed the "cross" in the center, to allow for printout as 4 A4 pages
+
+        # paste printout in center
+        border_x = np.int32((self._img_size[1] - size_aruco_x) / 2)
+        border_y = np.int32((self._img_size[0] - size_aruco_y) / 2)
+
+        # GRASPA: origin of ref frame is at the bottom right of the aruco board
+        # we have to decide whether we want to do this as well, then the actual scenes should be a smaller size
+        # than A2, as we have to take into account the margin
+        # it should be simple enough to define a transform between aruco origin and scene origin
+        self._image[border_y:border_y+size_aruco_y, border_x:border_x+size_aruco_x] = aruco_img
+
+    def generate(self):
+        # generate the scene projections and put them on top of the base image
+        pil_image = Image.fromarray(self._image, mode='P').convert(mode='RGBA')  # P: 8bit pixels
+        for scene in self._scenes:
+            scene_img = scene.create_projection_heatmap(px_per_mm=self._px_per_mm, transparent=True)
+            assert self._img_size == scene_img.shape[0:2], f'image sizes do not match {self._img_size}, {scene_img.shape}'
+            scene_img = Image.fromarray(scene_img, mode='RGBA')
+            pil_image = Image.alpha_composite(pil_image, scene_img)
+
+        return np.array(pil_image)[:, :, 0]  # convert to 1-channel gray scale image
+
