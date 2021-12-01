@@ -536,6 +536,10 @@ def sample_scene(object_library, ground_area, instances_per_scene, instances_per
             min_x, min_y, _ = mesh.get_min_bound()
             max_x, max_y, _ = mesh.get_max_bound()
             range_x, range_y = ground_area[0] - (max_x - min_x), ground_area[1] - (max_y - min_y)
+            if range_x < 0 or range_y < 0:
+                # ground plane is too small to place object within bounds
+                continue
+
             x, y = rng.random() * range_x - min_x, rng.random() * range_y - min_y
 
             instance.pose[0, 3] = x + pose[0, 3]
