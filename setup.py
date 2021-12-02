@@ -8,7 +8,7 @@ python_versions = '>=3.6, <3.9'  # restricted by availability of open3d 0.12.0
 
 requirements_default = [
     'numpy',       # for all datastructures
-    'scipy',       # kdtrees (might check out those from open3d instead)
+    'scipy',       # kdtrees (might check out those from open3d instead), rotations
     'matplotlib',  # vis
     'h5py',        # dataset io
     'mat73',       # matlab files io
@@ -20,7 +20,8 @@ requirements_default = [
     'open3d==0.12.0',      # point clouds and processing
     'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
     'pyrender',       # rendering
-    'pybullet'        # for the simulation module
+    'pybullet',       # for the simulation module
+    'fpdf',           # creating pdf files
 ]
 
 extras_require = {
