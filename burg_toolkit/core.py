@@ -9,6 +9,7 @@ import yaml
 import pybullet as p
 from PIL import Image, ImageDraw, ImageOps
 import cv2
+from fpdf import FPDF
 
 from . import io, visualization
 from . import mesh_processing
@@ -616,15 +617,21 @@ class Scene:
 
 
 class Printout:
-    def __init__(self, size=constants.SIZE_A2, px_per_mm=5):
+    """
+    Creates Printouts similar to GRASPA:
+    # see https://github.com/robotology/GRASPA-benchmark/blob/master/src/layout-printer/layout_printer.py
+    """
+    def __init__(self, size=constants.SIZE_A2, px_per_mm=5, aruco_dict='DICT_4X4_250', marker_size_mm=57,
+                 marker_spacing_mm=19):
         self._size = size
         self._px_per_mm = px_per_mm
         self._img_size = (int(px_per_mm * 1000 * size[1]), int(px_per_mm * 1000 * size[0]))  # rows first
-        self._scenes = []
-        self._image = np.full(self._img_size, fill_value=255, dtype=np.uint8)
-        self.add_markers()
+
+        # generate PIL image with RGBA ready to overlay scenes, and required marker info
+        self._pil_image, self.marker_info = self._generate_marker_image(aruco_dict, marker_size_mm, marker_spacing_mm)
 
     def _check_size(self, size):
+        # make sure given size is smaller or equal to self._size
         if len(self._size) != len(size):
             raise ValueError('given size has different number of dimensions than own size')
         for i in range(len(size)):
@@ -632,15 +639,42 @@ class Printout:
                 raise ValueError('given size must not exceed the own size')
 
     def add_scene(self, scene):
-        self._check_size(scene.ground_area)
-        self._scenes.append(scene)
+        """
+        Adds the scene to the printout by projecting all objects onto the canvas.
 
-    def add_markers(self):
-        # temporary, only works with A2 size
-        # same marker style as GRASPA, code adapted from there
-        # see https://github.com/robotology/GRASPA-benchmark/blob/master/src/layout-printer/layout_printer.py
-        marker_size_mm = 57
-        marker_spacing_mm = 19  # 57/3
+        :param scene: burg.core.Scene to be projected onto the printout. Must be of same (or smaller) size.
+        """
+        self._check_size(scene.ground_area)
+
+        scene_img = scene.create_projection_heatmap(px_per_mm=self._px_per_mm, transparent=True)
+        assert self._img_size[0] >= scene_img.shape[0] and self._img_size[1] >= scene_img.shape[1], \
+            f'scene image size too large. printout: {self._img_size}, scene: {scene_img.shape}'
+
+        # alpha channel is basically a mask we use to not draw over the markers unless there is an object
+        scene_img = Image.fromarray(scene_img, mode='RGBA')
+        rgba_image = self._pil_image.convert(mode='RGBA')
+        self._pil_image = Image.alpha_composite(rgba_image, scene_img).convert(mode='P')
+
+    def _generate_marker_image(self, aruco_dict, marker_size_mm, marker_spacing_mm):
+        """
+        Uses cv2.aruco markers from `aruco_dict` with the given sizes and puts them on a canvas.
+        Will put as many markers in the center of the canvas as possible regarding the dimensions.
+        For being able to perform marker detection, the crucial marker information will be returned alongside the
+        image.
+
+        Note that this function is based on the implementation of GRASPA templates by Fabrizio Bottarel et al.
+        see https://github.com/robotology/GRASPA-benchmark and specifically
+        https://github.com/robotology/GRASPA-benchmark/blob/master/src/layout-printer/layout_printer.py
+
+        :param aruco_dict: string, name of cv2.aruco dict
+        :param marker_size_mm: marker size in mm
+        :param marker_spacing_mm: marker spacing in mm
+
+        :return: (img, marker_info) - PIL image with aruco markers placed in the centre, dictionary with required info
+                 for pose estimation of the created aruco board
+        """
+        if aruco_dict not in constants.ARUCO_DICT.keys():
+            raise ValueError(f'{aruco_dict} is not an aruco dictionary. Choose from: {constants.ARUCO_DICT.keys()}')
 
         marker_size = marker_size_mm * self._px_per_mm
         marker_spacing = marker_spacing_mm * self._px_per_mm
@@ -648,35 +682,85 @@ class Printout:
         marker_count_x = self._img_size[1] // (marker_size + marker_spacing)
         marker_count_y = self._img_size[0] // (marker_size + marker_spacing)
 
+        # get the aruco board definition
+        aruco_board = cv2.aruco.GridBoard_create(
+            marker_count_x, marker_count_y, marker_size, marker_spacing,
+            cv2.aruco.getPredefinedDictionary(constants.ARUCO_DICT[aruco_dict]))
+
+        # draw the aruco board to specific size
         size_aruco_x = marker_count_x * marker_size + (marker_count_x - 1) * marker_spacing
         size_aruco_y = marker_count_y * marker_size + (marker_count_y - 1) * marker_spacing
-
-        dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
-        aruco_board = cv2.aruco.GridBoard_create(marker_count_x, marker_count_y, marker_size, marker_spacing,
-                                                 dictionary)
         aruco_img = aruco_board.draw((size_aruco_x, size_aruco_y), 0)
-        print(self._image.shape)
 
-        # they actually removed the "cross" in the center, to allow for printout as 4 A4 pages
-
-        # paste printout in center
+        # create full image according to printout size and paste aruco image in center
         border_x = np.int32((self._img_size[1] - size_aruco_x) / 2)
         border_y = np.int32((self._img_size[0] - size_aruco_y) / 2)
 
-        # GRASPA: origin of ref frame is at the bottom right of the aruco board
-        # we have to decide whether we want to do this as well, then the actual scenes should be a smaller size
-        # than A2, as we have to take into account the margin
-        # it should be simple enough to define a transform between aruco origin and scene origin
-        self._image[border_y:border_y+size_aruco_y, border_x:border_x+size_aruco_x] = aruco_img
+        image = np.full(self._img_size, fill_value=255, dtype=np.uint8)
+        image[border_y:border_y + size_aruco_y, border_x:border_x + size_aruco_x] = aruco_img
+        pil_image = Image.fromarray(image, mode='P')  # P: 8bit grayscale
+
+        # determine the marker origin with respect to world frame (of the scene), convert to [m]
+        origin_x = (border_x + size_aruco_x) / self._px_per_mm / 1000
+        origin_y = (border_y + size_aruco_y) / self._px_per_mm / 1000
+        marker_frame = np.eye(4)
+        marker_frame[0, 3] = origin_x
+        marker_frame[1, 3] = origin_y
+
+        # save all infos required to recreate marker board for detection
+        aruco_info = {
+            'dictionary': aruco_dict,
+            'marker_count_x': marker_count_x,
+            'marker_count_y': marker_count_y,
+            'marker_size_mm': marker_size_mm,
+            '   spacing_mm': marker_spacing_mm,
+            'marker_frame': marker_frame
+        }
+
+        return pil_image, aruco_info
 
     def generate(self):
-        # generate the scene projections and put them on top of the base image
-        pil_image = Image.fromarray(self._image, mode='P').convert(mode='RGBA')  # P: 8bit pixels
-        for scene in self._scenes:
-            scene_img = scene.create_projection_heatmap(px_per_mm=self._px_per_mm, transparent=True)
-            assert self._img_size == scene_img.shape[0:2], f'image sizes do not match {self._img_size}, {scene_img.shape}'
-            scene_img = Image.fromarray(scene_img, mode='RGBA')
-            pil_image = Image.alpha_composite(pil_image, scene_img)
+        return np.array(self._pil_image)
 
-        return np.array(pil_image)[:, :, 0]  # convert to 1-channel gray scale image
+    def save_image(self, filename):
+        self._pil_image.save(filename)  # mode is inferred from filename
 
+    def save_pdf(self, filename, split_to_size=None):
+        width_mm, height_mm = (self._size[0]*1000, self._size[1]*1000)
+        if split_to_size is None:
+            target_width_mm, target_height_mm = width_mm, height_mm
+        else:
+            target_width_mm, target_height_mm = split_to_size[0]*1000, split_to_size[1]*1000
+
+        # determine orientation for splitting pages, choose the one with least number of pages
+        n_pages_landscape = np.ceil(width_mm / target_width_mm) * np.ceil(height_mm / target_height_mm)
+        n_pages_portrait = np.ceil(width_mm / target_height_mm) * np.ceil(height_mm / target_width_mm)
+
+        if n_pages_portrait < n_pages_landscape:
+            pdf = FPDF(orientation='P', unit='mm', format=(target_height_mm, target_width_mm))
+            target_width_mm, target_height_mm = target_height_mm, target_width_mm
+        else:
+            pdf = FPDF(orientation='L', unit='mm', format=(target_height_mm, target_width_mm))
+        pdf.set_title('BURG Printout')
+
+        for page_x in range(int(np.ceil(width_mm / target_width_mm))):
+            for page_y in range(int(np.ceil(height_mm / target_height_mm))):
+                pdf.add_page()
+                print(f'current pos in page: {pdf.get_x(), pdf.get_y()}')
+                # crop img according to page
+                left = page_x * target_width_mm * self._px_per_mm
+                upper = page_y * target_height_mm * self._px_per_mm
+                right = min((page_x+1) * target_width_mm, width_mm) * self._px_per_mm
+                lower = min((page_y+1) * target_height_mm, height_mm) * self._px_per_mm
+                img = self._pil_image.crop(box=(left, upper, right, lower))
+
+                # save the image in temporary file, so we can put it into the pdf
+                img_file_handle, img_file = tempfile.mkstemp(suffix='.png')
+                img.save(img_file, format='PNG')
+                actual_width_mm = (right - left) / self._px_per_mm  # will usually be target_width_mm, except for last
+                pdf.image(img_file, x=0, y=0, w=actual_width_mm, type='PNG')
+
+                # clear the temporary files
+                os.close(img_file_handle), os.remove(img_file)
+
+        pdf.output(filename, 'F')
