@@ -618,8 +618,22 @@ class Scene:
 
 class Printout:
     """
-    Creates Printouts similar to GRASPA:
-    # see https://github.com/robotology/GRASPA-benchmark/blob/master/src/layout-printer/layout_printer.py
+    A Printout is basically an aruco marker board. By adding scenes the projections of the object instances will be
+    visible on the printout, overlaid over the markers. Using the marker detection, you can infer the poses of the
+    objects. All required info are stored in `marker_info`. You need to be careful to not overlay too many markers
+    though - the more of them are visible the better the pose estimation will be.
+
+    These Printouts are an extended and more flexible version of the GRASPA templates by  Bottarel et al.
+    You can define arbitrary sizes, get png or export as pdf and split up to a more reasonable and printable page size.
+
+    :param size: tuple, size of the printout. Should be at least as big as the ground planes of the scenes it will
+                 contain. Use sizes in burg.constants. For custom sizes, units are in meter and the bigger value should
+                 come first.
+    :param px_per_mm: int, defines the resolution of the underlying image and affects visual quality of the output.
+    :param aruco_dict: string, determines which aruco dictionary to use. See burg.constants.ARUCO_DICT for options.
+                       Number of contained markers must be sufficient to fill the whole template size.
+    :param marker_size_mm: int, desired size of markers in mm
+    :param marker_spacing_mm: int, desired gap between markers in mm
     """
     def __init__(self, size=constants.SIZE_A2, px_per_mm=5, aruco_dict='DICT_4X4_250', marker_size_mm=57,
                  marker_spacing_mm=19):
@@ -653,7 +667,7 @@ class Printout:
         # alpha channel is basically a mask we use to not draw over the markers unless there is an object
         scene_img = Image.fromarray(scene_img, mode='RGBA')
         rgba_image = self._pil_image.convert(mode='RGBA')
-        self._pil_image = Image.alpha_composite(rgba_image, scene_img).convert(mode='P')
+        self._pil_image = Image.alpha_composite(rgba_image, scene_img)
 
     def _generate_marker_image(self, aruco_dict, marker_size_mm, marker_spacing_mm):
         """
@@ -719,18 +733,42 @@ class Printout:
 
         return pil_image, aruco_info
 
-    def generate(self):
-        return np.array(self._pil_image)
+    def get_image(self):
+        """
+        :return: ndarray with grayscale image of the Printout.
+        """
+        return np.array(self._pil_image.convert('P'))
 
     def save_image(self, filename):
+        """
+        Saves an image of the printout to given filename. The file type defines which mode is used. We recommend
+        to save as '.png' file.
+
+        :param filename: str, path to file.
+        """
         self._pil_image.save(filename)  # mode is inferred from filename
 
-    def save_pdf(self, filename, split_to_size=None):
+    def save_pdf(self, filename, page_size=None, margin_mm=6.35):
+        """
+        Generates a pdf file and saves it to `filename`.
+
+        Make sure you can print the pdf to scale, otherwise the marker transforms will not be correct and the object
+        silhouettes will not fit. You can adjust the margin to avoid problems with the printer.
+        Margin of 6.35mm should generally be fine. You can try 0 and see if it works for you - this way most of the
+        printout will be visible.
+
+        :param filename: str, where to save the pdf file.
+        :param page_size: tuple, page size to use for the pdf file. The printout will be split up if necessary. Use
+                          sizes in burg.constants. You can also use custom tuples, then units should be in meter and
+                          the bigger value should come first. If None, will use the size of the Printout as page size.
+        :param margin_mm: float, will keep a margin to all sides without changing the scale/position of the printout.
+                          The parts of the printout within the margin will not be visible.
+        """
         width_mm, height_mm = (self._size[0]*1000, self._size[1]*1000)
-        if split_to_size is None:
+        if page_size is None:
             target_width_mm, target_height_mm = width_mm, height_mm
         else:
-            target_width_mm, target_height_mm = split_to_size[0]*1000, split_to_size[1]*1000
+            target_width_mm, target_height_mm = page_size[0]*1000, page_size[1]*1000
 
         # determine orientation for splitting pages, choose the one with least number of pages
         n_pages_landscape = np.ceil(width_mm / target_width_mm) * np.ceil(height_mm / target_height_mm)
@@ -746,19 +784,18 @@ class Printout:
         for page_x in range(int(np.ceil(width_mm / target_width_mm))):
             for page_y in range(int(np.ceil(height_mm / target_height_mm))):
                 pdf.add_page()
-                print(f'current pos in page: {pdf.get_x(), pdf.get_y()}')
-                # crop img according to page
-                left = page_x * target_width_mm * self._px_per_mm
-                upper = page_y * target_height_mm * self._px_per_mm
-                right = min((page_x+1) * target_width_mm, width_mm) * self._px_per_mm
-                lower = min((page_y+1) * target_height_mm, height_mm) * self._px_per_mm
+                # crop img according to page size and margins
+                left = (page_x * target_width_mm + margin_mm) * self._px_per_mm
+                upper = (page_y * target_height_mm + margin_mm) * self._px_per_mm
+                right = min((page_x+1) * target_width_mm - margin_mm, width_mm) * self._px_per_mm
+                lower = min((page_y+1) * target_height_mm - margin_mm, height_mm) * self._px_per_mm
                 img = self._pil_image.crop(box=(left, upper, right, lower))
 
                 # save the image in temporary file, so we can put it into the pdf
                 img_file_handle, img_file = tempfile.mkstemp(suffix='.png')
                 img.save(img_file, format='PNG')
-                actual_width_mm = (right - left) / self._px_per_mm  # will usually be target_width_mm, except for last
-                pdf.image(img_file, x=0, y=0, w=actual_width_mm, type='PNG')
+                actual_width_mm = (right - left) / self._px_per_mm
+                pdf.image(img_file, x=margin_mm, y=margin_mm, w=actual_width_mm, type='PNG')
 
                 # clear the temporary files
                 os.close(img_file_handle), os.remove(img_file)

@@ -4,7 +4,7 @@ SIZE_A4 = (0.297, 0.210)
 SIZE_A3 = (0.420, 0.297)
 SIZE_A2 = (0.594, 0.420)
 
-# define names of each possible ArUco tag OpenCV supports
+# define names of cv2.aruco dictionaries
 ARUCO_DICT = {
     'DICT_4X4_50': cv2.aruco.DICT_4X4_50,
     'DICT_4X4_100': cv2.aruco.DICT_4X4_100,
