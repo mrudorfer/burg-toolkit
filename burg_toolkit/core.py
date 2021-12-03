@@ -601,16 +601,16 @@ class Scene:
 
         :return: list of o3d.geometry.TriangleMesh of the object instances in this scene
         """
-        instances = self.objects
-        if with_bg_objects:
-            instances.extend(self.bg_objects)
-
         meshes = []
-        for instance in instances:
-            meshes.append(instance.get_mesh())
-
         if with_plane:
             meshes.append(visualization.create_plane(size=self.ground_area, centered=False))
+
+        bg_objects = []
+        if with_bg_objects:
+            bg_objects = self.bg_objects
+
+        for instance in [*self.objects, *bg_objects]:
+            meshes.append(instance.get_mesh())
 
         return meshes
 
