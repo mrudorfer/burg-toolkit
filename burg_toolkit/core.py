@@ -264,6 +264,7 @@ class ObjectLibrary(UserDict):
         super().__init__()
         self.name = name or 'default library'
         self.description = description or 'no description available'
+        self.filename = None
 
     @classmethod
     def from_yaml(cls, yaml_fn):
@@ -281,6 +282,7 @@ class ObjectLibrary(UserDict):
         logging.debug(f'keys: {[key for key in data.keys()]}')
 
         library = cls(data['name'], data['description'])
+        library.filename = yaml_fn
 
         # need to prepend the base directory of library to all paths, since yaml stores relative paths
         lib_dir = os.path.dirname(yaml_fn)
@@ -289,23 +291,29 @@ class ObjectLibrary(UserDict):
             obj = ObjectType(**item)
 
             # complete the paths of all files
-            obj.mesh_fn = cls._get_abs_path(obj.mesh_fn, lib_dir)
-            obj.vhacd_fn = cls._get_abs_path(obj.vhacd_fn, lib_dir)
-            obj.urdf_fn = cls._get_abs_path(obj.urdf_fn, lib_dir)
-            obj.thumbnail_fn = cls._get_abs_path(obj.thumbnail_fn, lib_dir)
+            obj.mesh_fn = io.get_abs_path(obj.mesh_fn, lib_dir)
+            obj.vhacd_fn = io.get_abs_path(obj.vhacd_fn, lib_dir)
+            obj.urdf_fn = io.get_abs_path(obj.urdf_fn, lib_dir)
+            obj.thumbnail_fn = io.get_abs_path(obj.thumbnail_fn, lib_dir)
 
             library[obj.identifier] = obj
 
         return library
 
-    def to_yaml(self, yaml_fn):
+    def to_yaml(self, yaml_fn=None):
         """
         Saves an ObjectLibrary to the specified yaml file.
         All object properties will be saved as well (although no direct changes to the mesh are saved).
         Paths will be made relative to the base directory of the yaml file.
 
-        :param yaml_fn: Filename where to store the object library.
+        :param yaml_fn: Filename where to store the object library. This will override the object library's filename
+                        property. If yaml_fn is None, will use the filename property of ObjectLibrary.
         """
+        if yaml_fn is not None:
+            self.filename = yaml_fn
+        if self.filename is None:
+            raise ValueError('No filename given. Cannot store ObjectLibrary to yaml.')
+
         # create the dictionary structure
         lib_dict = {
             'name': self.name,
@@ -313,7 +321,7 @@ class ObjectLibrary(UserDict):
             'objects': []
              }
 
-        lib_dir = os.path.dirname(yaml_fn)
+        lib_dir = os.path.dirname(self.filename)
         for _, item in self.data.items():
             stable_poses = None
             if item.stable_poses is not None:
@@ -324,30 +332,18 @@ class ObjectLibrary(UserDict):
             obj_dict = {
                 'identifier': item.identifier,
                 'name': item.name,
-                'thumbnail_fn': self._get_rel_path(item.thumbnail_fn, lib_dir),
-                'mesh_fn': self._get_rel_path(item.mesh_fn, lib_dir),
-                'vhacd_fn': self._get_rel_path(item.vhacd_fn, lib_dir),
-                'urdf_fn': self._get_rel_path(item.urdf_fn, lib_dir),
+                'thumbnail_fn': io.get_rel_path(item.thumbnail_fn, lib_dir),
+                'mesh_fn': io.get_rel_path(item.mesh_fn, lib_dir),
+                'vhacd_fn': io.get_rel_path(item.vhacd_fn, lib_dir),
+                'urdf_fn': io.get_rel_path(item.urdf_fn, lib_dir),
                 'mass': item.mass,
                 'friction_coeff': item.friction_coeff,
                 'stable_poses': stable_poses
             }
             lib_dict['objects'].append(obj_dict)
 
-        with open(yaml_fn, 'w') as lib_file:
+        with open(self.filename, 'w') as lib_file:
             yaml.dump(lib_dict, lib_file)
-
-    @staticmethod
-    def _get_abs_path(fn, base_dir):
-        if fn is None:
-            return None
-        return os.path.join(base_dir, fn)
-
-    @staticmethod
-    def _get_rel_path(fn, base_dir):
-        if fn is None:
-            return None
-        return os.path.relpath(fn, base_dir)
 
     def generate_vhacd_files(self, directory, override=False):
         """
@@ -422,16 +418,135 @@ class ObjectLibrary(UserDict):
 
 class Scene:
     """
-    contains all information about a scene
+    A class to hold information about a scene, specified by some ground area, a list of object instances and a list
+    of background object instances (which are usually considered fixed in space / immovable, i.e. obstacles or
+    support surfaces like table, shelf, etc.).
+
+    :param ground_area: tuple (x, y), dimension of the scene in [m], you can use predefined sizes in burg.constants.
+                        Scene origin is in (0, 0) and ground area extends to (x, y).
+    :param objects: list of ObjectInstances
+    :param bg_objects: list of ObjectInstances
     """
     def __init__(self, ground_area=constants.SIZE_A3, objects=None, bg_objects=None):
         self.ground_area = ground_area
         self.objects = objects or []
         self.bg_objects = bg_objects or []
 
+    def __str__(self):
+        return f'Scene:\n\tground area: {self.ground_area}' \
+               f'\n\t{len(self.objects)} objects: {[instance.object_type.identifier for instance in self.objects]}' \
+               f'\n\t{len(self.bg_objects)} bg objects: {[bg.object_type.identifier for bg in self.bg_objects]}'
+
+    def to_yaml(self, yaml_fn, object_library=None, printout=None):
+        """
+        Saves this Scene to the specified yaml file. Basically saves the object identifiers and the pose. For laoding,
+        an ObjectLibrary will be required. Providing an ObjectLibrary to this function will store the path and allow
+        to load ObjectLibrary with this scene file.
+        Printout info can be stored alongside the scene, which is relevant for marker detection and scene visualisation.
+        Paths will be made relative to the base directory of the yaml file.
+
+        :param yaml_fn: Filename where to store the scene.
+        :param object_library: If provided, will store the path to the library in the scene file.
+        :param printout: If provided, will store printout/marker info in the scene file.
+        """
+        yaml_dir = os.path.dirname(yaml_fn)
+        lib_fn = None if object_library is None else io.get_rel_path(object_library.filename, yaml_dir)
+
+        # create the dictionary structure
+        scene_dict = {
+            'object_library_fn': lib_fn,
+            'ground_area_x': self.ground_area[0],
+            'ground_area_y': self.ground_area[1],
+            'objects': [],
+            'bg_objects': [],
+        }
+
+        # add object and bg_object instances
+        for instance_list, name in zip([self.objects, self.bg_objects], ['objects', 'bg_objects']):
+            for instance in instance_list:
+                if object_library is not None and instance.object_type.identifier not in object_library.keys():
+                    logging.warning(f'Object type {instance.object_type.identifier} not found in ObjectLibrary. ' +
+                                    f'May not be able to restore from saved scene file.')
+                instance_dict = {
+                    'object_type': instance.object_type.identifier,
+                    'pose': instance.pose.tolist()
+                }
+                scene_dict[name].append(instance_dict)
+
+        if printout is None:
+            printout_dict = None
+        else:
+            printout_dict = {
+                'pdf_fn': io.get_rel_path(printout.pdf_fn, yaml_dir),
+                'image_fn': io.get_rel_path(printout.image_fn, yaml_dir),
+                'marker_info': printout.marker_info
+            }
+            # convert from np array to list
+            printout_dict['marker_info']['marker_frame'] = printout_dict['marker_info']['marker_frame'].tolist()
+        scene_dict['printout'] = printout_dict
+
+        with open(yaml_fn, 'w') as scene_file:
+            yaml.dump(scene_dict, scene_file)
+
+    @classmethod
+    def from_yaml(cls, yaml_fn, object_library=None):
+        """
+        Loads a Scene described in the specified yaml file.
+        If you have the ObjectLibrary loaded already, please provide it. Otherwise it will be loaded with the scene.
+
+        :param yaml_fn: Filename of the YAML file.
+        :param object_library: An ObjectLibrary to use. If None, will try to load the ObjectLibrary from the scene file.
+
+        :return: tuple with (Scene, ObjectLibrary, printout_info dict): Scene will be the loaded scene; ObjectLibrary
+                 is either the one provided, or if None provided then the one read from the scene file; printout_info
+                 is a dictionary with the filenames of printouts and marker_info, or None if not available in the
+                 scene file.
+        """
+        with open(yaml_fn, 'r') as stream:
+            data = yaml.safe_load(stream)
+        scene_dir = os.path.dirname(yaml_fn)
+
+        logging.debug(f'reading scene from {yaml_fn}')
+        logging.debug(f'keys: {[key for key in data.keys()]}')
+
+        ground_area = (data['ground_area_x'], data['ground_area_y'])
+
+        # make sure we have an object library to draw object types from
+        if object_library is None:
+            return_lib = True
+            lib_fn = data['object_library_fn']
+            if lib_fn is None:
+                raise ValueError('Scene file does not refer to an ObjectLibrary, please provide an ObjectLibrary.')
+            object_library = ObjectLibrary.from_yaml(io.get_abs_path(lib_fn, scene_dir))
+        else:
+            return_lib = False
+
+        # gather instances and bg_instances
+        objects = []
+        bg_objects = []
+        for source_list, dest_list in zip([data['objects'], data['bg_objects']], [objects, bg_objects]):
+            for item in source_list:
+                identifier = item['object_type']
+                if identifier not in object_library.keys():
+                    raise ValueError(f'ObjectType {identifier} not found in given ObjectLibrary. Unable to load scene.')
+                object_type = object_library[identifier]
+                pose = np.array(item['pose'])
+                dest_list.append(ObjectInstance(object_type, pose))
+
+        scene = cls(ground_area, objects, bg_objects)
+
+        # finally add the printout info if available
+        printout_info = data['printout']
+        if printout_info is not None:
+            printout_info['image_fn'] = io.get_abs_path(printout_info['image_fn'], scene_dir)
+            printout_info['pdf_fn'] = io.get_abs_path(printout_info['pdf_fn'], scene_dir)
+            printout_info['marker_info']['marker_frame'] = np.array(printout_info['marker_info']['marker_frame'])
+
+        return scene, object_library, printout_info
+
     def get_mesh_list(self, with_bg_objects=True, with_plane=True):
         """
-        provides the scene objects as meshes
+        provides the scene objects as meshes (i.e. transformed according to the pose in the scene)
 
         :param with_bg_objects: Whether or not to include the background objects.
         :param with_plane: If True, will also create a mesh to visualise the ground area.
@@ -500,69 +615,10 @@ class Scene:
 
         return colliding_object_indices
 
-    def create_projection_image(self, px_per_mm=2, transparent=True, max_z=0.01, color_upper=(100, 100, 100),
-                                color_lower=(0, 0, 0)):
-        """
-        Creates a projection image of the current scene.
-        The objects will be projected onto the xy plane, whereas different colors are used for the triangles that are
-        fully below `max_z` (`color_lower`), and all others (`color_upper`).
-        First the upper triangles are drawn, then the lower ones.
-
-        :param px_per_mm: resolution in pixels per mm
-        :param transparent: If True, returned image will have 4 channels (rgba), else 3 (rgb)
-        :param max_z: float, The boundary deciding whether triangles are in "upper" or "lower"
-        :param color_upper: 3-tuple of ints in [0, 255]
-        :param color_lower: 3-tuple of ints in [0, 255]
-
-        :return: ndarray of shape (w, h, c), where c is 3 or 4 depending on `transparent`, and (w, h) are determined
-                 based on the `ground_area` of the scene and the `px_per_mm` value.
-        """
-        if self.out_of_bounds_instances():
-            raise ValueError('some instances are out of bounds, cannot create a projection on bounded canvas.')
-
-        # parse colors and adjust depending on transparency
-        bg_color = (255, 255, 255)
-        img_mode = 'RGB'
-        if transparent:
-            color_upper = (*color_upper, 255)
-            color_lower = (*color_lower, 255)
-            bg_color = (*bg_color, 0)
-            img_mode = 'RGBA'
-
-        # create empty canvas
-        px_per_m = px_per_mm * 1000.0
-        img_size = [int(px_per_m * dim) for dim in self.ground_area]
-        im = Image.new(img_mode, img_size, color=bg_color)
-
-        # create projection for each mesh
-        draw = ImageDraw.Draw(im)
-        meshes = self.get_mesh_list(with_bg_objects=False, with_plane=False)
-        for mesh in meshes:
-            mesh = mesh_processing.as_trimesh(mesh)
-
-            # find which triangles are close to ground (fully below max_z)
-            low_mask = (mesh.triangles[:, :, 2] < max_z).all(axis=1)
-            up_mask = (1 - low_mask).astype(bool)
-
-            # first draw all the upper triangles
-            for t in mesh.triangles[up_mask][:, :, :2]:  # (n, 3, 3), we only want projection, i.e. (n, 3, 2)
-                img_points = np.rint(t * px_per_m)  # round to int
-                # we actually need to convert it to list, otherwise pillow cannot draw it (awful)
-                draw.polygon(img_points.flatten().tolist(), fill=color_upper, outline=color_upper)
-
-            # now draw the lower triangles
-            for t in mesh.triangles[low_mask][:, :, :2]:  # (n, 3, 3), we only want projection, i.e. (n, 3, 2)
-                img_points = np.rint(t * px_per_m)  # round to int
-                draw.polygon(img_points.flatten().tolist(), fill=color_lower, outline=color_lower)
-
-        # flip the image, as y-axis is pointing into other direction
-        im = ImageOps.flip(im)
-        return np.array(im)
-
     def create_projection_heatmap(self, px_per_mm=2, transparent=True):
         """
         Creates a projection image of the current scene.
-        The objects will be projected onto the xy plane, whereas the average of the triangles z-value is used to
+        The objects will be projected onto the xy plane, where the average of the triangle's z-value is used to
         determine its color. The closer to the ground, the darker the color gets.
 
         :param px_per_mm: resolution in pixels per mm
@@ -586,8 +642,6 @@ class Scene:
         img_size = [int(px_per_m * dim) for dim in self.ground_area]
         im = Image.new(img_mode, img_size, color=bg_color)
 
-        z_clip = 0.10  # z values are capped here, to make sure we stay within 255
-
         # create projection for each mesh
         draw = ImageDraw.Draw(im)
         meshes = self.get_mesh_list(with_bg_objects=False, with_plane=False)
@@ -597,13 +651,11 @@ class Scene:
             # compute average z-value for triangles based on vertices
             # sort triangles by z-value, draw from top to bottom
             z_values = np.average(mesh.triangles[:, :, 2], axis=-1)
-            z_values = np.minimum(z_values, z_clip)
             order = np.argsort(-z_values)
 
-            # first draw all the upper triangles
             for triangle, z_val in zip(mesh.triangles[order][:, :, :2], z_values[order]):
                 img_points = np.rint(triangle * px_per_m)  # round to int
-                c = int(800 * z_val**(1/2))
+                c = min(int(800 * z_val**(1/2)), 200)  # fancy look-up table, clip at 200 intensity
                 if transparent:
                     color = (c, c, c, 255)
                 else:
@@ -643,6 +695,10 @@ class Printout:
 
         # generate PIL image with RGBA ready to overlay scenes, and required marker info
         self._pil_image, self.marker_info = self._generate_marker_image(aruco_dict, marker_size_mm, marker_spacing_mm)
+
+        # memorize which files we saved to
+        self.image_fn = None
+        self.pdf_fn = None
 
     def _check_size(self, size):
         # make sure given size is smaller or equal to self._size
@@ -727,7 +783,7 @@ class Printout:
             'marker_count_x': marker_count_x,
             'marker_count_y': marker_count_y,
             'marker_size_mm': marker_size_mm,
-            '   spacing_mm': marker_spacing_mm,
+            'spacing_mm': marker_spacing_mm,
             'marker_frame': marker_frame
         }
 
@@ -747,6 +803,7 @@ class Printout:
         :param filename: str, path to file.
         """
         self._pil_image.save(filename)  # mode is inferred from filename
+        self.image_fn = filename
 
     def save_pdf(self, filename, page_size=None, margin_mm=6.35):
         """
@@ -756,6 +813,7 @@ class Printout:
         silhouettes will not fit. You can adjust the margin to avoid problems with the printer.
         Margin of 6.35mm should generally be fine. You can try 0 and see if it works for you - this way most of the
         printout will be visible.
+        https://stackoverflow.com/questions/3503615/what-are-the-minimum-margins-most-printers-can-handle/19581039
 
         :param filename: str, where to save the pdf file.
         :param page_size: tuple, page size to use for the pdf file. The printout will be split up if necessary. Use
@@ -801,3 +859,4 @@ class Printout:
                 os.close(img_file_handle), os.remove(img_file)
 
         pdf.output(filename, 'F')
+        self.pdf_fn = filename

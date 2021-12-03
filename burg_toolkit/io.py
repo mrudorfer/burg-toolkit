@@ -346,3 +346,21 @@ def make_sure_directory_exists(directory):
 
     for path in directory:
         pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+
+
+def get_abs_path(fn, base_dir):
+    """
+    Will return the absolute path by joining base_dir and fn. If fn is None, will return None.
+    """
+    if fn is None:
+        return None
+    return os.path.join(base_dir, fn)
+
+
+def get_rel_path(fn, base_dir):
+    """
+    Will return the relative path of fn as seen from base_dir. If fn is None, will return None.
+    """
+    if fn is None:
+        return None
+    return os.path.relpath(fn, base_dir)
