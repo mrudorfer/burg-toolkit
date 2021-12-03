@@ -25,6 +25,7 @@ class StablePoses:
     :param probabilities: (n,) ndarray or list with probabilities as float values
     :param poses: (n, 4, 4) ndarray or nested list with corresponding poses
     """
+
     def __init__(self, probabilities, poses):
         self.probabilities = np.array(probabilities)
         self._p_norm = self.probabilities / self.probabilities.sum()
@@ -94,10 +95,11 @@ class ObjectType:
     :param friction_coeff: friction coefficient, defaults to 0.24
     :param stable_poses: either dataclass StablePoses or dict with probabilities and poses (or None)
     """
+
     def __init__(self, identifier, name=None, mesh=None, mesh_fn=None, thumbnail_fn=None, vhacd_fn=None, urdf_fn=None,
                  mass=None, friction_coeff=None, stable_poses=None):
         self.identifier = identifier
-        self.name = name
+        self.name = name or identifier  # just duplicate identifier if no name given
         if mesh is not None and mesh_fn is not None:
             raise ValueError('Cannot create ObjectType if both mesh and mesh_fn are given. Choose one.')
         if mesh is None and mesh_fn is None:
@@ -128,6 +130,20 @@ class ObjectType:
     @mesh.setter
     def mesh(self, mesh):
         self._mesh = mesh
+
+    def has_all_attributes(self):
+        """
+        Check whether this object has all attributes, or something is missing.
+        Checks only attributes that can be created automatically, i.e. vhacd, urdf, thumbnail, stable poses.
+
+        :return: bool
+        """
+        sth_missing = \
+            self.thumbnail_fn is None or \
+            self.vhacd_fn is None or \
+            self.urdf_fn is None or \
+            self.stable_poses is None
+        return not sth_missing
 
     # todo: method to save the current mesh to a new, given mesh_fn
 
@@ -260,6 +276,7 @@ class ObjectLibrary(UserDict):
     :param name: string, name of the ObjectLibrary.
     :param description: string, description of the ObjectLibrary.
     """
+
     def __init__(self, name=None, description=None):
         super().__init__()
         self.name = name or 'default library'
@@ -319,7 +336,7 @@ class ObjectLibrary(UserDict):
             'name': self.name,
             'description': self.description,
             'objects': []
-             }
+        }
 
         lib_dir = os.path.dirname(self.filename)
         for _, item in self.data.items():
@@ -345,47 +362,59 @@ class ObjectLibrary(UserDict):
         with open(self.filename, 'w') as lib_file:
             yaml.dump(lib_dict, lib_file)
 
-    def generate_vhacd_files(self, directory, override=False):
+    def _prepare_directory(self, directory, default):
+        """
+        Will choose either `directory`, if given, or otherwise construct a directory based on where the library file
+        is located and the given `default` directory. Makes sure the directory exists, if it is a new one.
+        """
+        if directory is None:
+            if self.filename is None:
+                raise ValueError('no directory specified, also library has no filename from which it can be inferred')
+            directory = os.path.join(os.path.dirname(self.filename), default)
+        io.make_sure_directory_exists(directory)
+        return directory
+
+    def generate_vhacd_files(self, directory=None, override=False):
         """
         Calls the ObjectType's method to generate approximate convex decompositions for the object types in this lib.
 
-        :param directory: where to put the vhacd files.
+        :param directory: where to put the vhacd files. If None, will put in library_dir/vhacd
         :param override: If set to true, will create new vhacd files for all object types. If false, will create only
                          for those whose vhacd files are missing.
         """
-        io.make_sure_directory_exists(directory)
+        directory = self._prepare_directory(directory, default='vhacd')
         for name, obj in self.data.items():
             if override or obj.vhacd_fn is None:
                 vhacd_fn = os.path.join(directory, f'{obj.identifier}_vhacd.obj')
                 obj.generate_vhacd(vhacd_fn=vhacd_fn)
 
-    def generate_urdf_files(self, directory, use_vhacd=True, override=False):
+    def generate_urdf_files(self, directory=None, use_vhacd=True, override=False):
         """
         Calls the ObjectType's method to generate a urdf file for all object types in this library.
         If VHACD is used, but no VHACD available, VHACD will be created and stored in the same directory.
         Override parameter does not propagate through to VHACD creation - if VHACD exists it will be used.
         If you want to override VHACD files, generate them directly.
 
-        :param directory: where to put the urdf files.
+        :param directory: where to put the urdf files. If None, will put in library_dir/urdf
         :param use_vhacd: whether to link to vhacd meshes (True, default) or original meshes (False).
         :param override: If set to true, will create new urdf files for all object types. If false, will create only
                          for those whose urdf files are missing.
         """
-        io.make_sure_directory_exists(directory)
+        directory = self._prepare_directory(directory, default='urdf')
         for name, obj in self.data.items():
             if override or obj.urdf_fn is None:
                 urdf_fn = os.path.join(directory, f'{obj.identifier}.urdf')
                 obj.generate_urdf(urdf_fn=urdf_fn, use_vhacd=use_vhacd)
 
-    def generate_thumbnails(self, directory, override=False):
+    def generate_thumbnails(self, directory=None, override=False):
         """
         Calls the ObjectType's method to generate thumbnail for the object types in this library.
 
-        :param directory: where to put the thumbnails.
+        :param directory: where to put the thumbnails. If None, will put in library_dir/thumbnails
         :param override: If set to true, will create new vhacd files for all object types. If false, will create only
                          for those whose vhacd files are missing.
         """
-        io.make_sure_directory_exists(directory)
+        directory = self._prepare_directory(directory, default='thumbnails')
         for name, obj in self.data.items():
             if override or obj.thumbnail_fn is None:
                 thumbnail_fn = os.path.join(directory, f'{obj.identifier}.png')
@@ -415,6 +444,27 @@ class ObjectLibrary(UserDict):
         for idx, (identifier, object_type) in enumerate(self.data.items()):
             print(f'{idx}: {object_type}')
 
+    def objects_have_all_attributes(self):
+        """
+        :return: bool, True if all contained ObjectTypes have all attributes.
+        """
+        has_all_attributes = True
+        for name, obj in self.data.items():
+            has_all_attributes &= obj.has_all_attributes()
+        return has_all_attributes
+
+    def compute_all_attributes(self, override=False):
+        """
+        Computes all missing attributes of the contained object types, such as vhacd, urdf, thumbnails and stable poses.
+        Note: this may take some time.
+
+        :param override: Even if attributes are present, will override those, i.e. computes everything anew.
+        """
+        self.generate_vhacd_files(override=override)
+        self.generate_urdf_files(override=override)
+        self.compute_stable_poses(override=override)
+        self.generate_thumbnails(override=override)
+
 
 class Scene:
     """
@@ -427,6 +477,7 @@ class Scene:
     :param objects: list of ObjectInstances
     :param bg_objects: list of ObjectInstances
     """
+
     def __init__(self, ground_area=constants.SIZE_A3, objects=None, bg_objects=None):
         self.ground_area = ground_area
         self.objects = objects or []
@@ -513,13 +564,10 @@ class Scene:
 
         # make sure we have an object library to draw object types from
         if object_library is None:
-            return_lib = True
             lib_fn = data['object_library_fn']
             if lib_fn is None:
                 raise ValueError('Scene file does not refer to an ObjectLibrary, please provide an ObjectLibrary.')
             object_library = ObjectLibrary.from_yaml(io.get_abs_path(lib_fn, scene_dir))
-        else:
-            return_lib = False
 
         # gather instances and bg_instances
         objects = []
@@ -655,7 +703,7 @@ class Scene:
 
             for triangle, z_val in zip(mesh.triangles[order][:, :, :2], z_values[order]):
                 img_points = np.rint(triangle * px_per_m)  # round to int
-                c = min(int(800 * z_val**(1/2)), 200)  # fancy look-up table, clip at 200 intensity
+                c = min(int(800 * z_val ** (1 / 2)), 200)  # fancy look-up table, clip at 200 intensity
                 if transparent:
                     color = (c, c, c, 255)
                 else:
@@ -687,6 +735,7 @@ class Printout:
     :param marker_size_mm: int, desired size of markers in mm
     :param marker_spacing_mm: int, desired gap between markers in mm
     """
+
     def __init__(self, size=constants.SIZE_A2, px_per_mm=5, aruco_dict='DICT_4X4_250', marker_size_mm=57,
                  marker_spacing_mm=19):
         self._size = size
@@ -822,11 +871,11 @@ class Printout:
         :param margin_mm: float, will keep a margin to all sides without changing the scale/position of the printout.
                           The parts of the printout within the margin will not be visible.
         """
-        width_mm, height_mm = (self._size[0]*1000, self._size[1]*1000)
+        width_mm, height_mm = (self._size[0] * 1000, self._size[1] * 1000)
         if page_size is None:
             target_width_mm, target_height_mm = width_mm, height_mm
         else:
-            target_width_mm, target_height_mm = page_size[0]*1000, page_size[1]*1000
+            target_width_mm, target_height_mm = page_size[0] * 1000, page_size[1] * 1000
 
         # determine orientation for splitting pages, choose the one with least number of pages
         n_pages_landscape = np.ceil(width_mm / target_width_mm) * np.ceil(height_mm / target_height_mm)
@@ -845,8 +894,8 @@ class Printout:
                 # crop img according to page size and margins
                 left = (page_x * target_width_mm + margin_mm) * self._px_per_mm
                 upper = (page_y * target_height_mm + margin_mm) * self._px_per_mm
-                right = min((page_x+1) * target_width_mm - margin_mm, width_mm) * self._px_per_mm
-                lower = min((page_y+1) * target_height_mm - margin_mm, height_mm) * self._px_per_mm
+                right = min((page_x + 1) * target_width_mm - margin_mm, width_mm) * self._px_per_mm
+                lower = min((page_y + 1) * target_height_mm - margin_mm, height_mm) * self._px_per_mm
                 img = self._pil_image.crop(box=(left, upper, right, lower))
 
                 # save the image in temporary file, so we can put it into the pdf
