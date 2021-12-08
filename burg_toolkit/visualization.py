@@ -153,5 +153,16 @@ def create_plane(size=(0.5, 0.5), centered=True, h=0.001):
     return ground_plane
 
 
-def create_frame(size=0.01):
-    return o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
+def create_frame(size=0.01, pose=None):
+    """
+    Create a coordinate system for visualisation purposes.
+
+    :param size: float, side length of the axes
+    :param pose: (4, 4) ndarray, pose of the frame (if None, placed at origin)
+
+    :return: o3d.geometry.TriangleMesh with the frame
+    """
+    frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
+    if pose is not None:
+        frame.transform(pose)
+    return frame
