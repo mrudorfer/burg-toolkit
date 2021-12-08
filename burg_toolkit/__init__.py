@@ -10,6 +10,7 @@ from .grasp import *
 
 # import all other modules
 from . import constants, gripper, io, mesh_processing, metrics, render, sampling, sim, scene_sim, util, visualization
+from . import printout
 
 import logging
 # todo: setting debug level for now, will have to change this so applications can override it

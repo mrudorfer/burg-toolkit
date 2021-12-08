@@ -7,14 +7,12 @@ from collections import UserDict
 import numpy as np
 import yaml
 import pybullet as p
-from PIL import Image, ImageDraw, ImageOps
-import cv2
-from fpdf import FPDF
 
 from . import io, visualization
 from . import mesh_processing
 from . import render
 from . import constants
+from . import printout
 
 
 class StablePoses:
@@ -527,13 +525,7 @@ class Scene:
         if printout is None:
             printout_dict = None
         else:
-            printout_dict = {
-                'pdf_fn': io.get_rel_path(printout.pdf_fn, yaml_dir),
-                'image_fn': io.get_rel_path(printout.image_fn, yaml_dir),
-                'marker_info': printout.marker_info
-            }
-            # convert from np array to list
-            printout_dict['marker_info']['marker_frame'] = printout_dict['marker_info']['marker_frame'].tolist()
+            printout_dict = printout.to_dict()
         scene_dict['printout'] = printout_dict
 
         with open(yaml_fn, 'w') as scene_file:
@@ -586,11 +578,11 @@ class Scene:
         # finally add the printout info if available
         printout_info = data['printout']
         if printout_info is not None:
-            printout_info['image_fn'] = io.get_abs_path(printout_info['image_fn'], scene_dir)
-            printout_info['pdf_fn'] = io.get_abs_path(printout_info['pdf_fn'], scene_dir)
-            printout_info['marker_info']['marker_frame'] = np.array(printout_info['marker_info']['marker_frame'])
+            printout_obj = printout.Printout.from_dict(printout_info)
+        else:
+            printout_obj = None
 
-        return scene, object_library, printout_info
+        return scene, object_library, printout_obj
 
     def get_mesh_list(self, with_bg_objects=True, with_plane=True):
         """
@@ -662,250 +654,3 @@ class Scene:
                 colliding_object_indices.append(i2)
 
         return colliding_object_indices
-
-    def create_projection_heatmap(self, px_per_mm=2, transparent=True):
-        """
-        Creates a projection image of the current scene.
-        The objects will be projected onto the xy plane, where the average of the triangle's z-value is used to
-        determine its color. The closer to the ground, the darker the color gets.
-
-        :param px_per_mm: resolution in pixels per mm
-        :param transparent: If True, returned image will have 4 channels (rgba), else 3 (rgb)
-
-        :return: ndarray of shape (w, h, c), where c is 3 or 4 depending on `transparent`, and (w, h) are determined
-                 based on the `ground_area` of the scene and the `px_per_mm` value.
-        """
-        if self.out_of_bounds_instances():
-            raise ValueError('some instances are out of bounds, cannot create a projection on bounded canvas.')
-
-        # parse colors and adjust depending on transparency
-        bg_color = (255, 255, 255)
-        img_mode = 'RGB'
-        if transparent:
-            bg_color = (*bg_color, 0)
-            img_mode = 'RGBA'
-
-        # create empty canvas
-        px_per_m = px_per_mm * 1000.0
-        img_size = [int(px_per_m * dim) for dim in self.ground_area]
-        im = Image.new(img_mode, img_size, color=bg_color)
-
-        # create projection for each mesh
-        draw = ImageDraw.Draw(im)
-        meshes = self.get_mesh_list(with_bg_objects=False, with_plane=False)
-        for mesh in meshes:
-            mesh = mesh_processing.as_trimesh(mesh)
-
-            # compute average z-value for triangles based on vertices
-            # sort triangles by z-value, draw from top to bottom
-            z_values = np.average(mesh.triangles[:, :, 2], axis=-1)
-            order = np.argsort(-z_values)
-
-            for triangle, z_val in zip(mesh.triangles[order][:, :, :2], z_values[order]):
-                img_points = np.rint(triangle * px_per_m)  # round to int
-                c = min(int(800 * z_val ** (1 / 2)), 200)  # fancy look-up table, clip at 200 intensity
-                if transparent:
-                    color = (c, c, c, 255)
-                else:
-                    color = (c, c, c)
-
-                draw.polygon(img_points.flatten().tolist(), fill=color, outline=color)
-
-        # flip the image, as y-axis is pointing into other direction
-        im = ImageOps.flip(im)
-        return np.array(im)
-
-
-class Printout:
-    """
-    A Printout is basically an aruco marker board. By adding scenes the projections of the object instances will be
-    visible on the printout, overlaid over the markers. Using the marker detection, you can infer the poses of the
-    objects. All required info are stored in `marker_info`. You need to be careful to not overlay too many markers
-    though - the more of them are visible the better the pose estimation will be.
-
-    These Printouts are an extended and more flexible version of the GRASPA templates by  Bottarel et al.
-    You can define arbitrary sizes, get png or export as pdf and split up to a more reasonable and printable page size.
-
-    :param size: tuple, size of the printout. Should be at least as big as the ground planes of the scenes it will
-                 contain. Use sizes in burg.constants. For custom sizes, units are in meter and the bigger value should
-                 come first.
-    :param px_per_mm: int, defines the resolution of the underlying image and affects visual quality of the output.
-    :param aruco_dict: string, determines which aruco dictionary to use. See burg.constants.ARUCO_DICT for options.
-                       Number of contained markers must be sufficient to fill the whole template size.
-    :param marker_size_mm: int, desired size of markers in mm
-    :param marker_spacing_mm: int, desired gap between markers in mm
-    """
-
-    def __init__(self, size=constants.SIZE_A2, px_per_mm=5, aruco_dict='DICT_4X4_250', marker_size_mm=57,
-                 marker_spacing_mm=19):
-        self._size = size
-        self._px_per_mm = px_per_mm
-        self._img_size = (int(px_per_mm * 1000 * size[1]), int(px_per_mm * 1000 * size[0]))  # rows first
-
-        # generate PIL image with RGBA ready to overlay scenes, and required marker info
-        self._pil_image, self.marker_info = self._generate_marker_image(aruco_dict, marker_size_mm, marker_spacing_mm)
-
-        # memorize which files we saved to
-        self.image_fn = None
-        self.pdf_fn = None
-
-    def _check_size(self, size):
-        # make sure given size is smaller or equal to self._size
-        if len(self._size) != len(size):
-            raise ValueError('given size has different number of dimensions than own size')
-        for i in range(len(size)):
-            if self._size[i] < size[i]:
-                raise ValueError('given size must not exceed the own size')
-
-    def add_scene(self, scene):
-        """
-        Adds the scene to the printout by projecting all objects onto the canvas.
-
-        :param scene: burg.core.Scene to be projected onto the printout. Must be of same (or smaller) size.
-        """
-        self._check_size(scene.ground_area)
-
-        scene_img = scene.create_projection_heatmap(px_per_mm=self._px_per_mm, transparent=True)
-        assert self._img_size[0] >= scene_img.shape[0] and self._img_size[1] >= scene_img.shape[1], \
-            f'scene image size too large. printout: {self._img_size}, scene: {scene_img.shape}'
-
-        # alpha channel is basically a mask we use to not draw over the markers unless there is an object
-        scene_img = Image.fromarray(scene_img, mode='RGBA')
-        rgba_image = self._pil_image.convert(mode='RGBA')
-        self._pil_image = Image.alpha_composite(rgba_image, scene_img)
-
-    def _generate_marker_image(self, aruco_dict, marker_size_mm, marker_spacing_mm):
-        """
-        Uses cv2.aruco markers from `aruco_dict` with the given sizes and puts them on a canvas.
-        Will put as many markers in the center of the canvas as possible regarding the dimensions.
-        For being able to perform marker detection, the crucial marker information will be returned alongside the
-        image.
-
-        Note that this function is based on the implementation of GRASPA templates by Fabrizio Bottarel et al.
-        see https://github.com/robotology/GRASPA-benchmark and specifically
-        https://github.com/robotology/GRASPA-benchmark/blob/master/src/layout-printer/layout_printer.py
-
-        :param aruco_dict: string, name of cv2.aruco dict
-        :param marker_size_mm: marker size in mm
-        :param marker_spacing_mm: marker spacing in mm
-
-        :return: (img, marker_info) - PIL image with aruco markers placed in the centre, dictionary with required info
-                 for pose estimation of the created aruco board
-        """
-        if aruco_dict not in constants.ARUCO_DICT.keys():
-            raise ValueError(f'{aruco_dict} is not an aruco dictionary. Choose from: {constants.ARUCO_DICT.keys()}')
-
-        marker_size = marker_size_mm * self._px_per_mm
-        marker_spacing = marker_spacing_mm * self._px_per_mm
-
-        marker_count_x = self._img_size[1] // (marker_size + marker_spacing)
-        marker_count_y = self._img_size[0] // (marker_size + marker_spacing)
-
-        # get the aruco board definition
-        aruco_board = cv2.aruco.GridBoard_create(
-            marker_count_x, marker_count_y, marker_size, marker_spacing,
-            cv2.aruco.getPredefinedDictionary(constants.ARUCO_DICT[aruco_dict]))
-
-        # draw the aruco board to specific size
-        size_aruco_x = marker_count_x * marker_size + (marker_count_x - 1) * marker_spacing
-        size_aruco_y = marker_count_y * marker_size + (marker_count_y - 1) * marker_spacing
-        aruco_img = aruco_board.draw((size_aruco_x, size_aruco_y), 0)
-
-        # create full image according to printout size and paste aruco image in center
-        border_x = np.int32((self._img_size[1] - size_aruco_x) / 2)
-        border_y = np.int32((self._img_size[0] - size_aruco_y) / 2)
-
-        image = np.full(self._img_size, fill_value=255, dtype=np.uint8)
-        image[border_y:border_y + size_aruco_y, border_x:border_x + size_aruco_x] = aruco_img
-        pil_image = Image.fromarray(image, mode='P')  # P: 8bit grayscale
-
-        # determine the marker origin with respect to world frame (of the scene), convert to [m]
-        origin_x = (border_x + size_aruco_x) / self._px_per_mm / 1000
-        origin_y = (border_y + size_aruco_y) / self._px_per_mm / 1000
-        marker_frame = np.eye(4)
-        marker_frame[0, 3] = origin_x
-        marker_frame[1, 3] = origin_y
-
-        # save all infos required to recreate marker board for detection
-        aruco_info = {
-            'dictionary': aruco_dict,
-            'marker_count_x': marker_count_x,
-            'marker_count_y': marker_count_y,
-            'marker_size_mm': marker_size_mm,
-            'spacing_mm': marker_spacing_mm,
-            'marker_frame': marker_frame
-        }
-
-        return pil_image, aruco_info
-
-    def get_image(self):
-        """
-        :return: ndarray with grayscale image of the Printout.
-        """
-        return np.array(self._pil_image.convert('P'))
-
-    def save_image(self, filename):
-        """
-        Saves an image of the printout to given filename. The file type defines which mode is used. We recommend
-        to save as '.png' file.
-
-        :param filename: str, path to file.
-        """
-        self._pil_image.save(filename)  # mode is inferred from filename
-        self.image_fn = filename
-
-    def save_pdf(self, filename, page_size=None, margin_mm=6.35):
-        """
-        Generates a pdf file and saves it to `filename`.
-
-        Make sure you can print the pdf to scale, otherwise the marker transforms will not be correct and the object
-        silhouettes will not fit. You can adjust the margin to avoid problems with the printer.
-        Margin of 6.35mm should generally be fine. You can try 0 and see if it works for you - this way most of the
-        printout will be visible.
-        https://stackoverflow.com/questions/3503615/what-are-the-minimum-margins-most-printers-can-handle/19581039
-
-        :param filename: str, where to save the pdf file.
-        :param page_size: tuple, page size to use for the pdf file. The printout will be split up if necessary. Use
-                          sizes in burg.constants. You can also use custom tuples, then units should be in meter and
-                          the bigger value should come first. If None, will use the size of the Printout as page size.
-        :param margin_mm: float, will keep a margin to all sides without changing the scale/position of the printout.
-                          The parts of the printout within the margin will not be visible.
-        """
-        width_mm, height_mm = (self._size[0] * 1000, self._size[1] * 1000)
-        if page_size is None:
-            target_width_mm, target_height_mm = width_mm, height_mm
-        else:
-            target_width_mm, target_height_mm = page_size[0] * 1000, page_size[1] * 1000
-
-        # determine orientation for splitting pages, choose the one with least number of pages
-        n_pages_landscape = np.ceil(width_mm / target_width_mm) * np.ceil(height_mm / target_height_mm)
-        n_pages_portrait = np.ceil(width_mm / target_height_mm) * np.ceil(height_mm / target_width_mm)
-
-        if n_pages_portrait < n_pages_landscape:
-            pdf = FPDF(orientation='P', unit='mm', format=(target_height_mm, target_width_mm))
-            target_width_mm, target_height_mm = target_height_mm, target_width_mm
-        else:
-            pdf = FPDF(orientation='L', unit='mm', format=(target_height_mm, target_width_mm))
-        pdf.set_title('BURG Printout')
-
-        for page_x in range(int(np.ceil(width_mm / target_width_mm))):
-            for page_y in range(int(np.ceil(height_mm / target_height_mm))):
-                pdf.add_page()
-                # crop img according to page size and margins
-                left = (page_x * target_width_mm + margin_mm) * self._px_per_mm
-                upper = (page_y * target_height_mm + margin_mm) * self._px_per_mm
-                right = min((page_x + 1) * target_width_mm - margin_mm, width_mm) * self._px_per_mm
-                lower = min((page_y + 1) * target_height_mm - margin_mm, height_mm) * self._px_per_mm
-                img = self._pil_image.crop(box=(left, upper, right, lower))
-
-                # save the image in temporary file, so we can put it into the pdf
-                img_file_handle, img_file = tempfile.mkstemp(suffix='.png')
-                img.save(img_file, format='PNG')
-                actual_width_mm = (right - left) / self._px_per_mm
-                pdf.image(img_file, x=margin_mm, y=margin_mm, w=actual_width_mm, type='PNG')
-
-                # clear the temporary files
-                os.close(img_file_handle), os.remove(img_file)
-
-        pdf.output(filename, 'F')
-        self.pdf_fn = filename
