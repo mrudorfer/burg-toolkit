@@ -122,6 +122,12 @@ class Printout:
         size = tuple(dictionary['size'])
         return cls(size, marker_info)
 
+    def __str__(self):
+        strings = ['Printout:']
+        for key, val in self.to_dict():
+            strings.append(f'{str(key)}: {str(val)}')
+        return '\n\t'.join(strings)
+
     def get_marker_frame(self):
         # according to opencv docs https://docs.opencv.org/3.4/db/da9/tutorial_aruco_board_detection.html
         # the coordinate system in a Grid Board is positioned in the board plane, centered in the bottom left corner
