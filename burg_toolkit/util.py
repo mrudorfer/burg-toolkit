@@ -384,3 +384,14 @@ def tf_from_pos_quat(pos=None, quat=None, convention='wxyz'):
     tf[0:3, 3] = pos
     return tf
 
+
+def dict_to_str(dictionary, indent=1):
+    strings = []
+    indent_str = '\t' * indent
+    for key, value in dictionary.items():
+        if isinstance(value, dict):
+            strings.append(f'{indent_str}{str(key)}:')
+            strings.append(dict_to_str(value, indent+1))
+        else:
+            strings.append(f'{indent_str}{str(key)}: {str(value)}')
+    return '\n'.join(strings)

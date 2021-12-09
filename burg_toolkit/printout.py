@@ -6,7 +6,7 @@ import cv2
 import cv2.aruco
 from fpdf import FPDF
 
-from . import constants, mesh_processing
+from . import constants, mesh_processing, util
 
 
 class MarkerInfo:
@@ -123,10 +123,7 @@ class Printout:
         return cls(size, marker_info)
 
     def __str__(self):
-        strings = ['Printout:']
-        for key, val in self.to_dict():
-            strings.append(f'{str(key)}: {str(val)}')
-        return '\n\t'.join(strings)
+        return 'Printout:\n' + util.dict_to_str(self.to_dict())
 
     def get_marker_frame(self):
         # according to opencv docs https://docs.opencv.org/3.4/db/da9/tutorial_aruco_board_detection.html
