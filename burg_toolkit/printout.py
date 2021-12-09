@@ -30,14 +30,7 @@ class MarkerInfo:
         return cls(aruco_dict, marker_count_x, marker_count_y, marker_size_mm, marker_spacing_mm)
 
     def to_dict(self):
-        dictionary = {
-            'aruco_dict': self.aruco_dict,
-            'marker_count_x': self.marker_count_x,
-            'marker_count_y': self.marker_count_y,
-            'marker_size_mm': self.marker_size_mm,
-            'marker_spacing_mm': self.marker_spacing_mm
-        }
-        return dictionary
+        return vars(self)
 
     @classmethod
     def from_dict(cls, dictionary):
@@ -68,12 +61,6 @@ class MarkerInfo:
         aruco_board = self.get_board()
         image = aruco_board.draw((size_x_px, size_y_px))
         return image
-
-    def get_marker_frame(self):
-        x, y = self.get_board_size()
-        frame = np.eye(4)
-        frame[0:2, 3] = [x, y]
-        return frame
 
 
 class Printout:
@@ -127,15 +114,15 @@ class Printout:
 
     def get_marker_frame(self):
         # according to opencv docs https://docs.opencv.org/3.4/db/da9/tutorial_aruco_board_detection.html
-        # the coordinate system in a Grid Board is positioned in the board plane, centered in the bottom left corner
-        # of the board and with the Z pointing out
-        # as it is currently, it is almost certainly wrong (remember we flipped the image as well)
+        # the coordinate system of the aruco board is in the bottom left corner of the board, x going to the left,
+        # y moving up and z pointing out of the board plane
+        # the bottom left corner of the board is placed closest to our world frame, so the transform can be computed
+        # by adding the offset/border which is used to paste the aruco image into the full image
 
         board_size = self.marker_info.get_board_size()
-        print('board size vs full size', board_size, self._size)
         offset = [(full - board) / 2 for full, board in zip(self._size, board_size)]
         print('offset', offset)
-        marker_frame = self.marker_info.get_marker_frame()
+        marker_frame = np.eye(4)
         marker_frame[0:2, 3] += offset
         return marker_frame
 
