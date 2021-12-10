@@ -11,7 +11,13 @@ from . import constants, mesh_processing, util
 
 class MarkerInfo:
     """
-    Class that holds info about aruco markers, allowing to make detections or recreate the marker setup.
+    Class that holds info about aruco markers and a specific grid board pattern.
+
+    :param aruco_dict: string, specifies an aruco dictionary. See burg.constants.ARUCO_DICT for keys.
+    :param marker_count_x: int, number of markers in x direction
+    :param marker_count_y: int, number of markers in y direction
+    :param marker_size_mm: int, side length of a marker in mm
+    :param marker_spacing_mm: int, width of the gap between markers in mm
     """
     def __init__(self, aruco_dict, marker_count_x, marker_count_y, marker_size_mm, marker_spacing_mm):
         if aruco_dict not in constants.ARUCO_DICT.keys():
@@ -24,36 +30,88 @@ class MarkerInfo:
 
     @classmethod
     def from_area(cls, area, aruco_dict, marker_size_mm, marker_spacing_mm):
+        """
+        Creates a MarkerInfo object by providing an area (in meter) instead of marker counts.
+        Will try to fit as many markers into the area as possible.
+        Note that the resulting size of the aruco board can be smaller than the given area.
+
+        :param area: tuple, (x, y) in meters
+        :param aruco_dict: string, specifies an aruco dictionary. See burg.constants.ARUCO_DICT for keys.
+        :param marker_size_mm: int, side length of a marker in mm
+        :param marker_spacing_mm: int, width of the gap between markers in mm
+
+        :return: MarkerInfo object
+        """
         # area: (x, y) in meters
         marker_count_x = area[0]*1000 // (marker_size_mm + marker_spacing_mm)
         marker_count_y = area[1]*1000 // (marker_size_mm + marker_spacing_mm)
         return cls(aruco_dict, marker_count_x, marker_count_y, marker_size_mm, marker_spacing_mm)
 
     def to_dict(self):
+        """
+        Creates a dictionary representation of this object which holds all relevant information.
+
+        :return: dict
+        """
         return vars(self)
 
     @classmethod
     def from_dict(cls, dictionary):
+        """
+        Creates a MarkerInfo object based on a dictionary.
+
+        :param dictionary: dict, needs to provide all required fields for the default constructor. Must not have
+                           additional fields.
+
+        :return: MarkerInfo object
+        """
         return MarkerInfo(**dictionary)
 
     def get_dictionary(self):
+        """
+        Provides the cv2 aruco dictionary represented by the self.aruco_dict key
+
+        :return: cv2.aruco dictionary
+        """
         return cv2.aruco.getPredefinedDictionary(constants.ARUCO_DICT[self.aruco_dict])
 
     def get_board(self):
+        """
+        Provides the cv2 aruco board.
+
+        :return: cv2.aruco.GridBoard
+        """
         aruco_board = cv2.aruco.GridBoard_create(
             self.marker_count_x, self.marker_count_y, self.marker_size_mm, self.marker_spacing_mm,
             self.get_dictionary())
         return aruco_board
 
     def get_board_size_mm(self):
+        """
+        Computes the board size in millimeter.
+
+        :return: tuple, (size_x_mm, size_y_mm)
+        """
         size_x_mm = self.marker_count_x * self.marker_size_mm + (self.marker_count_x - 1) * self.marker_spacing_mm
         size_y_mm = self.marker_count_y * self.marker_size_mm + (self.marker_count_y - 1) * self.marker_spacing_mm
         return size_x_mm, size_y_mm
 
     def get_board_size(self):
+        """
+        Computes the board size in meter.
+
+        :return: tuple, (size_x_m, size_y_m)
+        """
         return tuple(size/1000 for size in self.get_board_size_mm())
 
     def get_board_image(self, px_per_mm):
+        """
+        Produces an image of the aruco grid board.
+
+        :param px_per_mm: int, resolution
+
+        :return: image as ndarray (note that rows=y and cols=x)
+        """
         size_x_mm, size_y_mm = self.get_board_size_mm()
         size_x_px = px_per_mm * size_x_mm
         size_y_px = px_per_mm * size_y_mm
@@ -113,15 +171,18 @@ class Printout:
         return 'Printout:\n' + util.dict_to_str(self.to_dict())
 
     def get_marker_frame(self):
-        # according to opencv docs https://docs.opencv.org/3.4/db/da9/tutorial_aruco_board_detection.html
-        # the coordinate system of the aruco board is in the bottom left corner of the board, x going to the left,
-        # y moving up and z pointing out of the board plane
-        # the bottom left corner of the board is placed closest to our world frame, so the transform can be computed
-        # by adding the offset/border which is used to paste the aruco image into the full image
+        """
+        Gives the pose of the marker board with respect to the scene's reference frame.
 
+        :return: (4, 4) ndarray with marker board pose in scene reference frame.
+        """
+        # according to opencv docs https://docs.opencv.org/3.4/db/da9/tutorial_aruco_board_detection.html
+        # the coordinate system of the aruco board is in the bottom left corner of the board, x pointing to the right,
+        # y up, and z out of the board plane
+        # the bottom left corner of the board is the one closest to our world frame, the orientation is the same
+        # transform is hence just adding the border used to paste the aruco image into the full image
         board_size = self.marker_info.get_board_size()
         offset = [(full - board) / 2 for full, board in zip(self._size, board_size)]
-        print('offset', offset)
         marker_frame = np.eye(4)
         marker_frame[0:2, 3] += offset
         return marker_frame
@@ -149,7 +210,7 @@ class Printout:
     @staticmethod
     def _add_scene_projection(image, scene, px_per_mm):
         """
-        Adds a projection image of the current scene on top of the given image.
+        Adds a projection image of the given scene on top of the given image.
         The objects will be projected onto the xy plane, where the average of the triangle's z-value is used to
         determine its color. The closer to the ground, the darker the color gets.
 
@@ -160,6 +221,9 @@ class Printout:
         """
         if scene.out_of_bounds_instances():
             raise ValueError('some instances are out of bounds, cannot create a projection on bounded canvas.')
+
+        assert image.shape[0] >= scene.ground_area[1] * px_per_mm * 1000, f'i: {image.shape}, s: {scene.ground_area}'
+        assert image.shape[1] >= scene.ground_area[0] * px_per_mm * 1000, f'i: {image.shape}, s: {scene.ground_area}'
 
         # create projection for each mesh
         meshes = scene.get_mesh_list(with_bg_objects=False, with_plane=False)
@@ -195,7 +259,6 @@ class Printout:
 
         # create marker image, size is smaller than the full image
         marker_img = self.marker_info.get_board_image(px_per_mm)
-        print('marker img shape:', marker_img.shape)
 
         # paste marker image in center of full image
         border_y = (img_size[0] - marker_img.shape[0]) // 2
@@ -222,7 +285,7 @@ class Printout:
     def save_image(self, filename, px_per_mm=5):
         """
         Saves an image of the printout to given filename. The file type defines which mode is used. We recommend
-        to save as '.png' file.
+        saving as '.png' file.
 
         :param filename: str, path to file.
         :param px_per_mm: int, desired resolution
