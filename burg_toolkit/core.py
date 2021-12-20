@@ -211,14 +211,16 @@ class ObjectType:
         io.save_urdf(urdf_fn, rel_mesh_fn, name, origin, inertia, com, mass)
         self.urdf_fn = urdf_fn
 
-    def generate_thumbnail(self, thumbnail_fn):
+    def generate_thumbnail(self, thumbnail_fn, engine=None):
         """
         Method generates a thumbnail picture in the specific file.
 
         :param thumbnail_fn: Path for the thumbnail to be generated
+        :param engine: a render.RenderEngine object that shall be used, optional
         """
         logging.debug(f'generating thumbnail for {self.identifier}')
-        render.MeshRenderer().render_thumbnail(self.mesh, thumbnail_fn=thumbnail_fn)
+        thr = render.ThumbnailRenderer(engine=engine)
+        thr.render(self, thumbnail_fn)
         self.thumbnail_fn = thumbnail_fn
 
     def __str__(self):
@@ -404,19 +406,20 @@ class ObjectLibrary(UserDict):
                 urdf_fn = os.path.join(directory, f'{obj.identifier}.urdf')
                 obj.generate_urdf(urdf_fn=urdf_fn, use_vhacd=use_vhacd)
 
-    def generate_thumbnails(self, directory=None, override=False):
+    def generate_thumbnails(self, directory=None, override=False, render_engine=None):
         """
         Calls the ObjectType's method to generate thumbnail for the object types in this library.
 
         :param directory: where to put the thumbnails. If None, will put in library_dir/thumbnails
         :param override: If set to true, will create new vhacd files for all object types. If false, will create only
                          for those whose vhacd files are missing.
+        :param render_engine: render.RenderEngine object, optional (only if you want to use a particular one)
         """
         directory = self._prepare_directory(directory, default='thumbnails')
         for name, obj in self.data.items():
             if override or obj.thumbnail_fn is None:
                 thumbnail_fn = os.path.join(directory, f'{obj.identifier}.png')
-                obj.generate_thumbnail(thumbnail_fn)
+                obj.generate_thumbnail(thumbnail_fn, engine=render_engine)
 
     def compute_stable_poses(self, verify_in_sim=True, override=False):
         """

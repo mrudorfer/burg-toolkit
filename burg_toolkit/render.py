@@ -1,50 +1,38 @@
 import os
-import logging
+import abc
 
 import numpy as np
-import quaternion
 import trimesh
 import pyrender
-import open3d as o3d
-from tqdm import tqdm
 import imageio
 from PIL import Image
-try:
-    import pyexr
-    logging.debug('OpenEXR support: ACTIVE')
-except ImportError:
-    pyexr = None
-    logging.debug('OpenEXR support: NONE')
-
-# temporary
-import pybullet
-from . import sim
 
 from . import util
 from . import io
 from . import mesh_processing
-
-
-def _check_pyexr():
-    if pyexr is None:
-        raise ImportError('pyexr pacakge is missing. It depends on OpenEXR, for which some prerequisites must be ' +
-                          'installed on the system. Please see https://stackoverflow.com/a/68102521/1264582 for ' +
-                          'additional info on how to install this.')
+from . import sim
+from . import core
 
 
 class Camera:
     """
-    holds intrinsic and extrinsic parameters, initialises with some Kinect-like intrinsics.
+    Holds intrinsic parameters as well as resolution.
     """
-    def __init__(self):
-        self.resolution = [640, 480]  # w x h
+    def __init__(self, width, height, fx, fy, cx, cy):
+        self.resolution = [width, height]
         self.intrinsic_parameters = {
-            'fx': 572.41140,
-            'fy': 573.57043,
-            'cx': 325.26110,
-            'cy': 242.04899
+            'fx': fx,
+            'fy': fy,
+            'cx': cx,
+            'cy': cy,
         }
-        self.pose = np.eye(4)
+
+    @classmethod
+    def create_kinect_like(cls):
+        """
+        Factory method that creates a kinect-like camera.
+        """
+        return cls(640, 480, 572.41140, 573.57043, 325.26110, 242.04899)
 
     def set_resolution(self, width: int, height: int):
         self.resolution = [width, height]
@@ -67,27 +55,34 @@ class Camera:
         if cy is not None:
             self.intrinsic_parameters['cy'] = cy
 
-    def get_o3d_intrinsics(self):
+    def point_cloud_from_depth(self, depth_image, camera_pose):
         """
-        :return: intrinsic parameters (incl. resolution) as instance of o3d.camera.PinholeCameraIntrinsic()
-        """
-        o3d_intrinsics = o3d.camera.PinholeCameraIntrinsic(
-            width=int(self.resolution[0]),
-            height=int(self.resolution[1]),
-            fx=self.intrinsic_parameters['fx'],
-            fy=self.intrinsic_parameters['fy'],
-            cx=self.intrinsic_parameters['cx'],
-            cy=self.intrinsic_parameters['cy']
-        )
-        return o3d_intrinsics
+        Takes a depth_image as well as a Camera object and computes the partial point cloud.
 
-    def set_extrinsic_parameters(self, camera_pose):
-        """
-        sets the pose of the camera
+        :param depth_image: numpy array with distance values in [m] representing the depth image.
+        :param camera_pose: (4, 4) ndarray, specifies the camera pose
 
-        :param camera_pose: np 4x4 homogenous tf matrix
+        :return: (n, 3) array with xyz values of points.
         """
-        self.pose = camera_pose
+        w, h = self.resolution
+        if not (w == depth_image.shape[1] and h == depth_image.shape[0]):
+            raise ValueError(
+                f'shape of depth image {depth_image.shape} does not fit camera resolution {self.resolution}')
+
+        mask = np.where(depth_image > 0)
+        x, y = mask[1], mask[0]
+
+        fx, fy = self.intrinsic_parameters['fx'], self.intrinsic_parameters['fy']
+        cx, cy = self.intrinsic_parameters['cx'], self.intrinsic_parameters['cy']
+
+        world_x = (x - cx) * depth_image[y, x] / fx
+        world_y = -(y - cy) * depth_image[y, x] / fy
+        world_z = -depth_image[y, x]
+        ones = np.ones(world_z.shape[0])
+
+        points = np.vstack((world_x, world_y, world_z, ones))
+        points = camera_pose @ points
+        return points[:3, :].T
 
 
 class CameraPoseGenerator:
@@ -239,171 +234,206 @@ class CameraPoseGenerator:
         return poses
 
 
-class MeshRenderer:
+class RenderEngine(abc.ABC):
     """
-    This class can render images of individual meshes and store them to files.
-    Default intrinsic parameters will be set which resemble a Kinect and can be overridden using
-    `set_camera_parameters()` function.
-
-    :param output_dir: directory where to put files (ignored for thumbnail-rendering)
-    :param camera: burg.render.Camera that holds relevant intrinsic parameters
+    Abstract class for RenderEngines. Currently, we support pyrender and pybullet.
+    This class defines a basic common interface and some common default values.
     """
-    def __init__(self, output_dir='../data/output/', camera=None):
-        self.output_dir = output_dir
-        io.make_sure_directory_exists(self.output_dir)
+    DEFAULT_Z_NEAR = 0.02
+    DEFAULT_Z_FAR = 2
 
-        if camera is None:
-            self.camera = Camera()
-        else:
-            self.camera = camera
+    @abc.abstractmethod
+    def setup_scene(self, scene, camera, ambient_light=None, with_plane=False):
+        """
+        Call this method to prepare rendering -- setting up the scene. The scene can then be used repeatedly to
+        render images from different camera poses.
 
-        self.cam_info_fn = 'CameraInfo'
+        :param scene: core.Scene
+        :param camera: render.Camera (for intrinsic parameters and resolution)
+        :param ambient_light: list of 3 values, defining ambient light color and intensity
+        :param with_plane: bool, if True, will add a ground plane to the scene
+        """
+        pass
 
-    @staticmethod
-    def _default_depth_fn_func(i):
-        return f'depth{i:04d}'
+    @abc.abstractmethod
+    def render(self, camera_pose):
+        """
+        This method renders the scene from the given camera pose.
 
-    @staticmethod
-    def _default_color_fn_func(i):
-        return f'image{i:04d}'
+        :param camera_pose: (4, 4) ndarray, pose of camera as in OpenGL (z axis pointing away from the target)
 
-    @staticmethod
-    def _check_fn_types_are_supported(color_fn_type, depth_fn_type):
-        supported_color_fn_types = ['png']
-        supported_depth_fn_types = ['tum', 'exr', 'npy-pc']
+        :return: (color_image, depth_image), ndarrays with dim (h, w, 3) and (h, w) respectively
+        """
+        pass
 
-        if color_fn_type is not None and color_fn_type not in supported_color_fn_types:
-            raise ValueError(f'color file type must be one of {supported_color_fn_types} or None')
-        if depth_fn_type is not None and depth_fn_type not in supported_depth_fn_types:
-            raise ValueError(f'depth file type must be one of {supported_depth_fn_types} or None')
-        if depth_fn_type == 'exr':
-            _check_pyexr()  # automatically raises Exception if not satisfied
-        return True
 
-    def _setup_scene(self, mesh, camera_poses, ambient_light):
-        mesh = mesh_processing.as_trimesh(mesh)
+class PyRenderEngine(RenderEngine):
+    def __init__(self):
+        super().__init__()
+        # parameters that can be adjusted
+        self.zfar = self.DEFAULT_Z_FAR
+        self.znear = self.DEFAULT_Z_NEAR
 
-        # let's determine camera's znear and zfar as limits for rendering, with some safety margin (factor 2)
-        # assuming we look onto origin
-        magnitudes = np.linalg.norm(camera_poses[:, 0:3, 3], axis=-1)
-        lower_bound = np.min(magnitudes) / 2
-        upper_bound = np.max(magnitudes) * 2
+        # internals
+        self._render_scene = None
+        self._cam_node = None
+        self._renderer = None
 
-        intrinsics = self.camera.intrinsic_parameters
-        cam_node = pyrender.Node(
+    def setup_scene(self, scene, camera, ambient_light=None, with_plane=False):
+        if ambient_light is None:
+            ambient_light = [1., 1., 1.]
+
+        self._cam_node = pyrender.Node(
             camera=pyrender.IntrinsicsCamera(
-                intrinsics['fx'],
-                intrinsics['fy'],
-                intrinsics['cx'],
-                intrinsics['cy'],
-                znear=lower_bound, zfar=upper_bound))
+                camera.intrinsic_parameters['fx'],
+                camera.intrinsic_parameters['fy'],
+                camera.intrinsic_parameters['cx'],
+                camera.intrinsic_parameters['cy'],
+                znear=self.znear,
+                zfar=self.zfar
+            )
+        )
 
-        # setup the pyrender scene
-        render_scene = pyrender.Scene(ambient_light=ambient_light)
-        render_scene.add(pyrender.Mesh.from_trimesh(mesh))
-        render_scene.add_node(cam_node)
-        return render_scene, cam_node
+        self._render_scene = pyrender.Scene(ambient_light=ambient_light)
+        for mesh in scene.get_mesh_list(with_plane=with_plane):
+            self._render_scene.add(pyrender.Mesh.from_trimesh(mesh_processing.as_trimesh(mesh)))
+        self._render_scene.add_node(self._cam_node)
 
-    def render_depth(self, mesh, camera_poses, sub_dir='', depth_fn_type='tum', depth_fn_func=None):
-        """shorthand for MeshRenderer.render(), but renders depth images only"""
-        self.render(mesh, camera_poses, sub_dir=sub_dir, depth_fn_type=depth_fn_type, depth_fn_func=depth_fn_func,
-                    color_fn_type=None)
+        resolution = camera.resolution
+        self._renderer = pyrender.OffscreenRenderer(resolution[0], resolution[1])
 
-    def render_color(self, mesh, camera_poses, sub_dir='', color_fn_type='png', color_fn_func=None):
-        """shorthand for MeshRenderer.render(), but renders color images only"""
-        self.render(mesh, camera_poses, sub_dir=sub_dir, color_fn_type=color_fn_type, color_fn_func=color_fn_func,
-                    depth_fn_type=None)
+    def render(self, camera_pose):
+        self._render_scene.set_pose(self._cam_node, pose=camera_pose)
+        color, depth = self._renderer.render(self._render_scene)
+        return color, depth
 
-    def render(self, mesh, camera_poses, sub_dir='', depth_fn_type='tum', depth_fn_func=None,
-               color_fn_type='png', color_fn_func=None):
+
+class PyBulletRenderEngine(sim.SimulatorBase, RenderEngine):
+    def __init__(self):
+        super().__init__()
+        # parameters that can be adjusted
+        self.zfar = self.DEFAULT_Z_FAR
+        self.znear = self.DEFAULT_Z_NEAR
+
+        # for retrieval after rendering
+        self.segmentation_mask = None
+
+        # internals
+        self._projection_matrix = None
+        self._ambient_light = None
+        self._w = None
+        self._h = None
+
+    def setup_scene(self, scene, camera, ambient_light=None, with_plane=False):
+        self.segmentation_mask = None  # reset
+
+        if ambient_light is None:
+            self._ambient_light = [1., 1., 1.]
+        else:
+            self._ambient_light = ambient_light
+
+        self._reset(plane_and_gravity=with_plane)
+        for instance in scene.objects:
+            self._add_object(instance)
+        for bg_instance in scene.bg_objects:
+            self._add_object(bg_instance, fixed_base=True)
+
+        # compute projection matrix from camera parameters
+        # see https://stackoverflow.com/questions/60430958/ and https://stackoverflow.com/questions/22064084/
+        # (plus some adjustments to pybullet)
+        self._w, self._h = camera.resolution
+        cx, cy = camera.intrinsic_parameters['cx'], camera.intrinsic_parameters['cy']
+        fx, fy = camera.intrinsic_parameters['fx'], camera.intrinsic_parameters['fy']
+        self._projection_matrix = np.array([
+            [2*fx/self._w, 0, 0, 0],
+            [0, 2*fy/self._h, 0, 0],
+            [-(2*cx/self._w - 1), 2*cy/self._h - 1, (self.znear+self.zfar)/(self.znear-self.zfar), -1],
+            [0, 0, (2 * self.znear * self.zfar) / (self.znear - self.zfar), 0]
+        ])
+
+    def render(self, camera_pose):
+        view_matrix = np.linalg.inv(camera_pose).T
+        w, h, rgb, depth, seg_mask = self._p.getCameraImage(
+            self._w, self._h,
+            viewMatrix=view_matrix.flatten(),
+            projectionMatrix=self._projection_matrix.flatten()
+        )
+        self.segmentation_mask = seg_mask  # to allow retrieval (?)
+
+        # post-processing
+        rgb = rgb[:, :, :3]  # remove alpha
+
+        # convert to meter, set non-existent depth values to zero
+        no_depth_mask = depth == 1
+        depth = self.zfar * self.znear / (self.zfar - (self.zfar - self.znear) * depth)
+        depth[no_depth_mask] = 0
+
+        return rgb, depth
+
+
+class RenderEngineFactory:
+    DEFAULT_ENGINE = 'pyrender'
+
+    @staticmethod
+    def create(engine=DEFAULT_ENGINE):
         """
-        Renders depth images of the given mesh, from the given camera poses.
-        Uses the configuration of the MeshRenderer object.
+        Factory method to create RenderEngines. Will choose a default engine if not requesting a specific one.
 
-        :param mesh: o3d.geometry.TriangleMesh or trimesh.Trimesh - the mesh which shall be rendered
-        :param camera_poses: (4, 4) or (n, 4, 4) ndarray with poses
-        :param sub_dir: directory where to produce output files (will be relative to the object's `output_dir`)
-        :param depth_fn_type: file format to store rendered depth, defaults to 'tum' (png), 'exr' also possible, or
-                              save directly as point cloud in 'npy-pc' numpy files.
-                              If None, no depth data will be saved
-        :param depth_fn_func: function to generate filenames (string) from integer, default function when None
-        :param color_fn_type: file format to store rendered color images, defaults to 'png', if None, no color images
-                              will be rendered
-        :param color_fn_func: function to generate filenames (string) from integer, default function when None
+        :param engine: string, optional, either 'pyrender' or 'pybullet', if not provided, DEFAULT_ENGINE is used
+
+        :return: object of requested subclass of RenderEngine
         """
-        self._check_fn_types_are_supported(color_fn_type, depth_fn_type)
-        if depth_fn_func is None:
-            depth_fn_func = self._default_depth_fn_func
-        if color_fn_func is None:
-            color_fn_func = self._default_color_fn_func
+        # could do something fancy like checking available dependencies to determine which one is the default engine
+        if engine == 'pyrender':
+            return PyRenderEngine()
+        elif engine == 'pybullet':
+            return PyBulletRenderEngine()
+        else:
+            raise NotImplementedError(f'{engine} render engine not implemented')
 
-        output_dir = os.path.join(self.output_dir, sub_dir)
-        io.make_sure_directory_exists(output_dir)
 
-        # make sure shape fits if only one pose provided
-        camera_poses = camera_poses.reshape(-1, 4, 4)
-        render_scene, cam_node = self._setup_scene(mesh, camera_poses, ambient_light=[0.3, 0.3, 0.3])
+class ThumbnailRenderer:
+    def __init__(self, engine=None, size=128):
+        self._engine = engine or RenderEngineFactory.create()
+        self._size = size
 
-        # set up rendering settings
-        resolution = self.camera.resolution
-        r = pyrender.OffscreenRenderer(resolution[0], resolution[1])
+    def render(self, object_type, thumbnail_fn=None):
+        """
+        Creates a thumbnail for the given object type.
 
-        # just for observation
-        n_points = np.empty(len(camera_poses))
+        :param object_type: core.ObjectType - first stable pose will be used for rendering, if available
+        :param thumbnail_fn: filepath where to save the thumbnail. If None provided, it will not be saved.
 
-        for i in tqdm(range(len(camera_poses))):
-            render_scene.set_pose(cam_node, pose=camera_poses[i])
-            # color is rgb, depth is mono float in [m]
-            color, depth = r.render(render_scene)
+        :return: (size, size, 3) ndarray with thumbnail of the object.
+        """
+        if object_type.stable_poses is None:
+            pose = np.eye(4)
+        else:
+            pose = object_type.stable_poses[0][1].copy()
 
-            if depth_fn_type is not None:
-                n_points[i] = np.count_nonzero(depth)
-                if depth_fn_type == 'tum':
-                    # use tum file format (which is actually a scaled 16bit png)
-                    # https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-                    depth_fn = os.path.join(output_dir, depth_fn_func(i) + '.png')
-                    imageio.imwrite(depth_fn, (depth * 5000).astype(np.uint16))
-                elif depth_fn_type == 'exr':
-                    # store images to file (extend to three channels and store in exr)
-                    # this is for compatibility with GPNet dataset, although it bloats the file size
-                    img = np.repeat(depth, 3).reshape(depth.shape[0], depth.shape[1], 3)
-                    depth_fn = os.path.join(output_dir, depth_fn_func(i) + '.exr')
-                    pyexr.write(depth_fn, img, channel_names=['R', 'G', 'B'], precision=pyexr.FLOAT)
-                elif depth_fn_type == 'npy-pc':
-                    # convert to point cloud data and store that in npy file
-                    self.camera.pose = camera_poses[i]
-                    pc = point_cloud_from_depth(depth, self.camera)
-                    pc_fn = os.path.join(output_dir, depth_fn_func(i) + '.npy')
-                    np.save(pc_fn, pc)
+        scene = core.Scene()
+        x = scene.ground_area[0] / 2
+        y = scene.ground_area[1] / 2
+        pose[0:2, 3] = [x, y]
+        instance = core.ObjectInstance(object_type, pose)
+        scene.objects.append(instance)
 
-            if color_fn_type is not None:
-                if color_fn_type == 'png':
-                    imageio.imwrite(os.path.join(output_dir, color_fn_func(i) + '.png'), color)
+        # aim camera at mesh centroid
+        centroid = mesh_processing.centroid(instance.get_mesh())
+        camera_position = [0.3, 0.3, 0.2 + centroid[2]]
+        camera_pose = util.look_at(position=camera_position, target=centroid, flip=True)
 
-        logging.debug(f'nonzero pixels in depth images (n points): avg {np.mean(n_points)}, min {np.min(n_points)}, ' +
-                      f'max {np.max(n_points)}')
+        self._engine.setup_scene(scene, Camera.create_kinect_like())
+        image, depth = self._engine.render(camera_pose)
 
-        # save camera info to npy file // format based on GPNet dataset
-        cam_info = np.empty(len(camera_poses), dtype=([
-            ('id', 'S16'),
-            ('position', '<f4', (3,)),
-            ('orientation', '<f4', (4,)),
-            ('calibration_matrix', '<f8', (9,)),
-            ('distance', '<f8')]))
+        # do clipping / resizing
+        image = self._clip_and_scale(image, size=self._size)
 
-        cam_info['id'] = [f'view{i}'.encode('UTF-8') for i in range(len(camera_poses))]
-        cam_info['position'] = camera_poses[:, 0:3, 3]
-        cam_info['orientation'] = quaternion.as_float_array(quaternion.from_rotation_matrix(camera_poses[:, 0:3, 0:3]))
+        if thumbnail_fn is not None:
+            io.make_sure_directory_exists(os.path.dirname(thumbnail_fn))
+            imageio.imwrite(thumbnail_fn, image)
 
-        intrinsics = self.camera.intrinsic_parameters
-        cam_info['calibration_matrix'] = np.array([intrinsics['fx'], 0, intrinsics['cx'],
-                                                   0, intrinsics['fy'], intrinsics['cy'],
-                                                   0, 0, 1])
-        # not really sure what to put in the distance field
-        # alternative would be to find some actual distance to object (e.g. depth value at center point), but
-        # this seems arbitrary as well. i don't think it's used by gpnet anyways.
-        cam_info['distance'] = np.linalg.norm(cam_info['position'], axis=-1)
-        np.save(os.path.join(output_dir, self.cam_info_fn), cam_info)
+        return image
 
     @staticmethod
     def _clip_and_scale(image, bg_color=255, size=128):
@@ -429,67 +459,3 @@ class MeshRenderer:
         # use PIL Image to resize and convert back to numpy
         thumbnail = np.array(Image.fromarray(np.uint8(thumbnail)).resize((size, size)))
         return thumbnail
-
-    def render_thumbnail(self, mesh, camera_position=None, thumbnail_fn=None, size=128):
-        """
-        Creates a square thumbnail of the given mesh object.
-
-        :param mesh: Can be open3d.geometry.TriangleMesh or Trimesh
-        :param camera_position: 3d-vector with desired position of camera, some reasonable default is preset. From that
-                                position, the camera will be oriented towards the centroid of the mesh.
-        :param thumbnail_fn: filepath where to save the thumbnail. If None provided, it will not be saved.
-        :param size: The desired width/height of the thumbnail.
-
-        :return: (size, size, 3) ndarray with thumbnail of the object.
-        """
-        # aim camera at mesh centroid
-        centroid = mesh_processing.centroid(mesh)
-        if camera_position is None:
-            camera_position = [0.3, 0.3, 0.2 + centroid[2]]
-
-        camera_pose = util.look_at(position=camera_position, target=centroid, flip=True)
-        render_scene, cam_node = self._setup_scene(mesh, camera_pose[None, :, :], ambient_light=[1., 1., 1.])
-
-        resolution = self.camera.resolution
-        r = pyrender.OffscreenRenderer(resolution[0], resolution[1])
-
-        render_scene.set_pose(cam_node, pose=camera_pose)
-        color, _ = r.render(render_scene)
-
-        # do clipping / resizing
-        color = self._clip_and_scale(color, size=size)
-
-        if thumbnail_fn is not None:
-            io.make_sure_directory_exists(os.path.dirname(thumbnail_fn))
-            imageio.imwrite(thumbnail_fn, color)
-
-        return color
-
-
-def point_cloud_from_depth(depth_image, camera):
-    """
-    Takes a depth_image as well as a Camera object and computes the partial point cloud.
-
-    :param depth_image: numpy array with distance values in [m] representing the depth image.
-    :param camera: Camera object describing the camera parameters applying to the depth image.
-
-    :return: (n, 3) array with xyz values of points.
-    """
-    w, h = camera.resolution
-    if not (w == depth_image.shape[1] and h == depth_image.shape[0]):
-        raise ValueError(f'shape of depth image {depth_image.shape} does not fit camera resolution {camera.resolution}')
-
-    mask = np.where(depth_image > 0)
-    x, y = mask[1], mask[0]
-
-    fx, fy = camera.intrinsic_parameters['fx'], camera.intrinsic_parameters['fy']
-    cx, cy = camera.intrinsic_parameters['cx'], camera.intrinsic_parameters['cy']
-
-    world_x = (x - cx) * depth_image[y, x] / fx
-    world_y = -(y - cy) * depth_image[y, x] / fy
-    world_z = -depth_image[y, x]
-    ones = np.ones(world_z.shape[0])
-
-    points = np.vstack((world_x, world_y, world_z, ones))
-    points = camera.pose @ points
-    return points[:3, :].T
