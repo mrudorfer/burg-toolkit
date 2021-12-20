@@ -6,7 +6,9 @@ from collections import UserDict
 
 import numpy as np
 import yaml
-import pybullet as p
+import pybullet
+from pybullet_utils import bullet_client
+
 
 from . import io, visualization
 from . import mesh_processing
@@ -163,7 +165,7 @@ class ObjectType:
         log_file_handle, log_file = tempfile.mkstemp(suffix='.log', text=True)
 
         # more documentation on this here: https://github.com/kmammou/v-hacd
-        p.connect(p.DIRECT)
+        p = bullet_client.BulletClient(pybullet.DIRECT)
         p.vhacd(mesh_file, vhacd_fn, log_file)
         p.disconnect()
 
