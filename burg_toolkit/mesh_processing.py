@@ -94,10 +94,16 @@ def as_trimesh(mesh):
     if isinstance(mesh, trimesh.Trimesh):
         return mesh
     if isinstance(mesh, o3d.geometry.TriangleMesh):
-        # todo: what happens if mesh does not have normals?
+        if mesh.has_vertex_normals():
+            vertex_normals = np.asarray(mesh.vertex_normals)
+        else:
+            vertex_normals = None
+        if mesh.has_triangle_normals():
+            triangle_normals = np.asarray(mesh.triangle_normals)
+        else:
+            triangle_normals = None
         return trimesh.Trimesh(np.asarray(mesh.vertices), np.asarray(mesh.triangles),
-                               vertex_normals=np.asarray(mesh.vertex_normals),
-                               triangle_normals=np.asarray(mesh.triangle_normals))
+                               vertex_normals=vertex_normals, triangle_normals=triangle_normals)
     raise TypeError(f'Given mesh must be trimesh or o3d mesh. Got {type(mesh)} instead.')
 
 
