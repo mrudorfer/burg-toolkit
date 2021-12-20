@@ -42,8 +42,7 @@ def save_mesh(fn, mesh_obj, overwrite_existing=True):
     elif isinstance(mesh_obj, core.ObjectType):
         mesh = mesh_obj.mesh
     elif isinstance(mesh_obj, core.ObjectInstance):
-        mesh = copy.deepcopy(mesh_obj.object_type.mesh)
-        mesh.transform(mesh_obj.pose)
+        mesh = mesh_obj.get_mesh()
     else:
         return ValueError('unrecognised mesh_obj type, must be one of:' +
                           'o3d.geometry.TriangleMesh, burg.core.ObjectType, burg.core.ObjectInstance')
@@ -133,9 +132,7 @@ class YCBObjectLibraryReader:
         for shape_name in shape_names:
             # this assumes the directory structure
             model_path = os.path.join(self.base_path, shape_name, self.model_type, self.model_fn)
-            mesh = load_mesh(model_path)
-            obj_type = core.ObjectType(identifier=shape_name, mesh=mesh)
-
+            obj_type = core.ObjectType(identifier=shape_name, mesh_fn=model_path)
             object_library[shape_name] = obj_type
 
         # this is a bloody mass hack
