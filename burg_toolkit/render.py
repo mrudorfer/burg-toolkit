@@ -34,6 +34,22 @@ class Camera:
         """
         return cls(640, 480, 572.41140, 573.57043, 325.26110, 242.04899)
 
+    @classmethod
+    def from_camera_matrix(cls, width, height, camera_matrix):
+        """
+        Factory method that draws the intrinsics parameters from a camera matrix.
+        Will only consider fx, fy, cx, cy.
+
+        :param width: int, width of images from this camera
+        :param height: int, height of images from this camera
+        :param camera_matrix: (3, 3) ndarray, intrinsic parameters of camera
+        """
+        fx = camera_matrix[0, 0]
+        fy = camera_matrix[1, 1]
+        cx = camera_matrix[0, 2]
+        cy = camera_matrix[1, 2]
+        return cls(width, height, fx, fy, cx, cy)
+
     def set_resolution(self, width: int, height: int):
         self.resolution = [width, height]
 
