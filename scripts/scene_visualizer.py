@@ -3,10 +3,16 @@
 Scene Visualizer
 ===================
 
-This script is an example for loading a scene from file, detecting the markers of the corresponding printout and
-visualizing the objects in the scene correspondingly.
-Currently, we can list available camera devices, calibrate a camera, detect printout markers.
-Todo: Overlay scene objects in acquired images.
+This script helps to set up scenes by detecting BURG printouts and overlaying objects from a given scene file.
+
+Before the overlay can be used, you will have to calibrate your camera to determine intrinsic parameters and
+distortion coefficients by using:
+> python scene_visualizer.py --calibrate --calibration_dir /foo/calib_data/
+
+After that, you can use the scene visualizer like this:
+> python scene_visualizer.py --calibration_dir /foo/calib_data/ --scene /bar/scene_file.yaml
+
+By default, video device 0 will be used.
 """
 
 import argparse
@@ -19,17 +25,15 @@ import numpy as np
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--list_ports', action='store_true', default=False,
                         help='checks all ports if camera devices are available')
     parser.add_argument('--calibrate', action='store_true', default=False,
-                        help='choose this option to identify camera matrix and distortion coefficients first.')
-    parser.add_argument('--calibration_dir', type=str, default='/home/rudorfem/tmp/calib/',
-                        help='path to folder with calibration data (or where to put calibration data)')
-    parser.add_argument('--port', type=int, default=0, help='port of camera device (built-in is usually 0)')
-    parser.add_argument('--scene', type=str,
-                        default='/home/rudorfem/datasets/object_libraries/test_library/scene.yaml',
-                        help='path to scene file that shall be visualised')
+                        help='option to activate calibration routine')
+    parser.add_argument('--calibration_dir', type=str, default='tmp/calib/',
+                        help='path to calibration data folder (defaults to tmp/calib/)')
+    parser.add_argument('--port', type=int, default=0, help='port of camera device (default is 0)')
+    parser.add_argument('--scene', type=str, help='path to scene file that shall be visualised')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='for additional output')
     return parser.parse_args()
 
@@ -39,7 +43,6 @@ def detect_scene(port, calib_path, scene_filename, verbose):
     # https://docs.opencv.org/3.4/db/da9/tutorial_aruco_board_detection.html
 
     scene, object_library, printout = burg.Scene.from_yaml(scene_filename)
-
     if verbose:
         print(object_library)
         print(scene)
@@ -58,6 +61,7 @@ def detect_scene(port, calib_path, scene_filename, verbose):
     # get camera info
     camera_matrix = np.load(os.path.join(calib_path, 'camera_matrix.npy'))
     distortion_coeffs = np.load(os.path.join(calib_path, 'distortion_coefficients.npy'))
+    render_engine = None
 
     # enter video loop
     cap = cv2.VideoCapture(port)
@@ -74,21 +78,40 @@ def detect_scene(port, calib_path, scene_filename, verbose):
             print('something wrong with the stream... sorry mate')
             break
 
-        # do main work here
+        # setup render engine if not already done
+        if render_engine is None:
+            w, h = frame.shape[1], frame.shape[0]
+            cam = burg.render.Camera.from_camera_matrix(w, h, camera_matrix)
+
+            render_engine = burg.render.PyRenderEngine()
+            render_engine.setup_scene(scene, cam, ambient_light=[0.3, 0.3, 0.3], with_plane=False)
+
+        # detect markers
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, rejected_image_points = \
             cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters, cameraMatrix=camera_matrix,
                                     distCoeff=distortion_coeffs)
 
+        # only if any markers have been found
         if len(corners) > 0:
-            marker_image = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-            result = cv2.aruco.estimatePoseBoard(corners, ids, aruco_board, camera_matrix, distortion_coeffs,
-                                                 rvec=None, tvec=None)
-            # todo: some refinement possible here, using rejected image points (partially occluded markers)
-            # check cv2.aruco.refineDetectedMarkers()
-            num_markers, rvec, tvec = result
-            marker_image = cv2.aruco.drawAxis(marker_image, camera_matrix, distortion_coeffs, rvec, tvec, 20)
-            cv2.imshow('detected markers', marker_image)
+            # try to refine the detection - since we have grid board, we know where to expect markers
+            corners, ids, rejected_image_points, recovered_indices = \
+                cv2.aruco.refineDetectedMarkers(gray, aruco_board, corners, ids, rejected_image_points,
+                                                camera_matrix, distortion_coeffs)
+
+            # estimate pose of the board using all detected markers
+            num_markers, rvec, tvec = \
+                cv2.aruco.estimatePoseBoard(corners, ids, aruco_board, camera_matrix, distortion_coeffs,
+                                            rvec=None, tvec=None)
+
+            # drawing markers
+            frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+            frame = cv2.aruco.drawAxis(frame, camera_matrix, distortion_coeffs, rvec, tvec, 20)
+
+            # render image of the scene, crop and fill in
+            color, depth = render_engine.render(camera_pose=compute_camera_pose(rvec, tvec, printout))
+            mask = depth != 0
+            frame[mask] = color[mask]
 
         cv2.imshow('frame', frame)
         key = cv2.waitKey(1)
@@ -99,11 +122,21 @@ def detect_scene(port, calib_path, scene_filename, verbose):
     cap.release()
     cv2.destroyAllWindows()
 
-    # pose = np.eye(4)
-    # pose[0:3, 0:3] = cv2.Rodrigues(rvec)[0]
-    # pose[0:3, 3] = tvec.flatten() / 1000  # cv2 measures in mm it appears
-    # print(f'{num_markers} markers have contributed to determine the pose of the board in camera frame:')
-    # print(pose)
+
+def compute_camera_pose(rvec, tvec, printout):
+    # rvec tvec are pose of markers wrt camera
+    pose = np.eye(4)
+    pose[0:3, 0:3] = cv2.Rodrigues(rvec)[0]
+    pose[0:3, 3] = tvec.flatten() / 1000  # marker size was given in mm
+
+    # compute camera wrt to markers and account for offset of markers in scene
+    camera_frame = printout.get_marker_frame() @ np.linalg.inv(pose)
+
+    # flip axes to have OpenGL camera
+    camera_frame[0:3, 2] = -camera_frame[0:3, 2]  # z away from scene
+    camera_frame[0:3, 1] = -camera_frame[0:3, 1]  # y up
+
+    return camera_frame
 
 
 def list_ports(total=5):
@@ -133,7 +166,7 @@ def list_ports(total=5):
 
 def video_capture(port, save_path):
     """
-    capture and display video of camera at given port, allow to save frames to save_path
+    capture and display video of camera at given port, allow saving frames to save_path
     """
     cap = cv2.VideoCapture(port)
     if not cap.isOpened():
@@ -184,6 +217,7 @@ def camera_calibration(images_path, calib_path):
     objpoints = []  # 3d point in real world space
     imgpoints = []  # 2d points in image plane.
     image_files = os.listdir(images_path)
+    print(f'found {len(image_files)} images in folder, start processing...')
     image_files = [os.path.join(images_path, image_fn) for image_fn in image_files]
     for fname in image_files:
         img = cv2.imread(fname)
@@ -209,8 +243,8 @@ def camera_calibration(images_path, calib_path):
 
     print(f'computed calibration data from {len(objpoints)} images.')
 
-    print(camera_matrix)
-    print(distortion_coefficients)
+    print('camera matrix:\n', camera_matrix)
+    print('distortion coefficients (k1, k2, p1, p2, k3):\n', distortion_coefficients)
 
     burg.io.make_sure_directory_exists(calib_path)
     cm_fn = os.path.join(calib_path, 'camera_matrix.npy')
@@ -246,4 +280,7 @@ if __name__ == "__main__":
         camera_calibration(calibration_images_path, args.calibration_dir)
         exit(0)
 
+    if args.scene is None:
+        print('No scene file provided. Please use --help to learn about usage.')
+        exit(0)
     detect_scene(args.port, args.calibration_dir, args.scene, args.verbose)
