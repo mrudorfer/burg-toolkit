@@ -276,7 +276,6 @@ def collisions(meshes):
         manager.add_object(f'{i}', as_trimesh(mesh))
 
     collision, pairs = manager.in_collision_internal(return_names=True)
-    print(f'pairs (type={type(pairs)}): {pairs}')
     # pairs are tuples in alphabetical order of the names, i.e. need to convert to indices of the given list
     pairs = [(int(item[0]), int(item[1])) for item in pairs]
     return pairs
