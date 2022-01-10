@@ -225,23 +225,29 @@ class Printout:
         assert image.shape[0] >= scene.ground_area[1] * px_per_mm * 1000, f'i: {image.shape}, s: {scene.ground_area}'
         assert image.shape[1] >= scene.ground_area[0] * px_per_mm * 1000, f'i: {image.shape}, s: {scene.ground_area}'
 
-        # create projection for each mesh
+        # naive approach would be to create a projection for each mesh
+        # however, output then depends on the order of objects, as some objects that are drawn later could hide
+        # objects that have been drawn earlier but are actually below the later objects
+        # therefore we first gather all the triangles of all meshes, sort them by z, and draw them in that order
         meshes = scene.get_mesh_list(with_bg_objects=False, with_plane=False)
+        triangles = []
         for mesh in meshes:
             mesh = mesh_processing.as_trimesh(mesh)
+            triangles.append(mesh.triangles)
 
-            # compute average z-value for triangles based on vertices, for coloring and order of drawing
-            z_values = np.average(mesh.triangles[:, :, 2], axis=-1)
-            order = np.argsort(-z_values)
+        triangles = np.concatenate(triangles)
+        # compute average z-value for triangles based on vertices, for coloring and order of drawing
+        z_values = np.average(triangles[:, :, 2], axis=-1)
+        order = np.argsort(-z_values)
 
-            # get pixel coordinates from world coordinates
-            triangle_points = np.rint(mesh.triangles[:, :, :2] * px_per_mm * 1000).astype(np.int32)  # round to int
-            # flip y axis, because image coordinate system starts at the top left
-            triangle_points[:, :, 1] = image.shape[0] - triangle_points[:, :, 1]
+        # get pixel coordinates from world coordinates
+        triangle_points = np.rint(triangles[:, :, :2] * px_per_mm * 1000).astype(np.int32)  # round to int
+        # flip y axis, because image coordinate system starts at the top left
+        triangle_points[:, :, 1] = image.shape[0] - triangle_points[:, :, 1]
 
-            for triangle, z_val in zip(triangle_points[order], z_values[order]):
-                c = min(int(800 * z_val ** (1 / 2)), 200)  # fancy look-up table for color, clip at 200 intensity
-                cv2.fillConvexPoly(image, triangle, c)
+        for triangle, z_val in zip(triangle_points[order], z_values[order]):
+            c = min(int(800 * max(z_val, 0) ** (1 / 2)), 200)  # fancy look-up table for color, clip at 200 intensity
+            cv2.fillConvexPoly(image, triangle, c)
 
         return image
 
