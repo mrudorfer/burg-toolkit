@@ -270,7 +270,7 @@ class ObjectInstance:
         return mesh
 
 
-class ObjectLibrary(UserDict):
+class ObjectLibrary(UserDict, io.YAMLObject):
     """
     Contains a library of ObjectType objects and adds some convenience methods to it.
     Acts like a regular python dict.
@@ -286,6 +286,10 @@ class ObjectLibrary(UserDict):
         self.filename = None
 
     @classmethod
+    def yaml_version(cls):
+        return '1.0'
+
+    @classmethod
     def from_yaml(cls, yaml_fn):
         """
         Loads an ObjectLibrary described in the specified yaml file.
@@ -294,8 +298,7 @@ class ObjectLibrary(UserDict):
 
         :return: ObjectLibrary containing all the objects.
         """
-        with open(yaml_fn, 'r') as stream:
-            data = yaml.safe_load(stream)
+        data = cls.get_yaml_data(yaml_fn)
 
         logging.debug(f'reading object library from {yaml_fn}')
         logging.debug(f'keys: {[key for key in data.keys()]}')
@@ -361,8 +364,7 @@ class ObjectLibrary(UserDict):
             }
             lib_dict['objects'].append(obj_dict)
 
-        with open(self.filename, 'w') as lib_file:
-            yaml.dump(lib_dict, lib_file)
+        self.dump_yaml_data(yaml_fn, lib_dict)
 
     def _prepare_directory(self, directory, default):
         """
@@ -469,7 +471,7 @@ class ObjectLibrary(UserDict):
         self.generate_thumbnails(override=override)
 
 
-class Scene:
+class Scene(io.YAMLObject):
     """
     A class to hold information about a scene, specified by some ground area, a list of object instances and a list
     of background object instances (which are usually considered fixed in space / immovable, i.e. obstacles or
@@ -490,6 +492,10 @@ class Scene:
         return f'Scene:\n\tground area: {self.ground_area}' \
                f'\n\t{len(self.objects)} objects: {[instance.object_type.identifier for instance in self.objects]}' \
                f'\n\t{len(self.bg_objects)} bg objects: {[bg.object_type.identifier for bg in self.bg_objects]}'
+
+    @classmethod
+    def yaml_version(cls):
+        return '1.0'
 
     def to_yaml(self, yaml_fn, object_library=None, printout=None):
         """
@@ -533,8 +539,7 @@ class Scene:
             printout_dict = printout.to_dict()
         scene_dict['printout'] = printout_dict
 
-        with open(yaml_fn, 'w') as scene_file:
-            yaml.dump(scene_dict, scene_file)
+        self.dump_yaml_data(yaml_fn, scene_dict)
 
     @classmethod
     def from_yaml(cls, yaml_fn, object_library=None):
@@ -550,8 +555,7 @@ class Scene:
                  is a dictionary with the filenames of printouts and marker_info, or None if not available in the
                  scene file.
         """
-        with open(yaml_fn, 'r') as stream:
-            data = yaml.safe_load(stream)
+        data = cls.get_yaml_data(yaml_fn)
         scene_dir = os.path.dirname(yaml_fn)
 
         logging.debug(f'reading scene from {yaml_fn}')
@@ -580,7 +584,7 @@ class Scene:
 
         scene = cls(ground_area, objects, bg_objects)
 
-        # finally add the printout info if available
+        # finally, add the printout info if available
         printout_info = data['printout']
         if printout_info is not None:
             printout_obj = printout.Printout.from_dict(printout_info)

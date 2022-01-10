@@ -2,8 +2,10 @@ import glob
 import os
 import pathlib
 import logging
+from abc import ABC, abstractmethod
 
 import numpy as np
+import yaml
 import mat73
 import scipy.io as spio
 import h5py
@@ -18,6 +20,72 @@ except ImportError:
 from . import core
 from . import util
 from . import grasp
+
+
+class YAMLFileTypeException(Exception):
+    pass
+
+
+class YAMLObject(ABC):
+    YAML_FILE_TYPE = 'yaml_file_type'
+    YAML_FILE_VERSION = 'yaml_file_version'
+
+    @classmethod
+    @abstractmethod
+    def yaml_version(cls):
+        """ must be implemented to instantiate - provides a version number for the files """
+        pass
+
+    @abstractmethod
+    def to_yaml(self, yaml_fn):
+        """ push the object to a yaml file """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_yaml(cls, yaml_fn):
+        """ create an object instance based on a yaml file """
+        pass
+
+    @classmethod
+    def get_yaml_data(cls, yaml_fn):
+        with open(yaml_fn, 'r') as stream:
+            data = yaml.safe_load(stream)
+
+        # check correct file type
+        if cls.YAML_FILE_TYPE not in data.keys():
+            raise YAMLFileTypeException(f'YAML file must have a {cls.YAML_FILE_TYPE} field. '
+                                        f'Your file may be too old if it does not have it. '
+                                        f'File: {yaml_fn}')
+        if data[cls.YAML_FILE_TYPE] != cls.__name__:
+            raise YAMLFileTypeException(f'YAML file has wrong file type. Expected {cls.__name__} but got '
+                                        f'{data[cls.YAML_FILE_TYPE]} instead. File: {yaml_fn}')
+
+        # check correct version
+        if cls.YAML_FILE_VERSION not in data.keys():
+            raise YAMLFileTypeException(f'YAML file must have a {cls.YAML_FILE_VERSION} field. '
+                                        f'Your file may be too old if it does not have it. '
+                                        f'File: {yaml_fn}')
+        if data[cls.YAML_FILE_VERSION] != cls.yaml_version():
+            raise YAMLFileTypeException(f'YAML file has wrong version. Expected {cls.yaml_version()} but got '
+                                        f'{data[cls.YAML_FILE_VERSION]} instead. File: {yaml_fn}')
+
+        # all ok, remove those fields from the dict
+        data.pop(cls.YAML_FILE_TYPE)
+        data.pop(cls.YAML_FILE_VERSION)
+
+        return data
+
+    def dump_yaml_data(self, yaml_fn, data):
+        if self.YAML_FILE_TYPE in data.keys() or self.YAML_FILE_VERSION in data.keys():
+            raise ValueError(f'Given dict must not contain keys like {self.YAML_FILE_TYPE} or {self.YAML_FILE_VERSION}')
+
+        # add those attributes
+        data[self.YAML_FILE_VERSION] = self.yaml_version()
+        data[self.YAML_FILE_TYPE] = type(self).__name__
+
+        with open(yaml_fn, 'w') as file:
+            yaml.dump(data, file)
 
 
 def load_mesh(mesh_fn, texture_fn=None):
