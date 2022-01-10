@@ -584,6 +584,7 @@ class Scene:
         printout_info = data['printout']
         if printout_info is not None:
             printout_obj = printout.Printout.from_dict(printout_info)
+            printout_obj.add_scene(scene)
         else:
             printout_obj = None
 
