@@ -230,6 +230,9 @@ class Printout:
         # objects that have been drawn earlier but are actually below the later objects
         # therefore we first gather all the triangles of all meshes, sort them by z, and draw them in that order
         meshes = scene.get_mesh_list(with_bg_objects=False, with_plane=False)
+        if not meshes:
+            return image
+
         triangles = []
         for mesh in meshes:
             mesh = mesh_processing.as_trimesh(mesh)
