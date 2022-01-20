@@ -26,6 +26,7 @@ class SimulatorBase(ABC):
         self.SOLVER_STEPS = 100  # a bit more than default helps in contact-rich tasks
         self.TIME_SLEEP = self.dt * 3  # for visualization
         self.SPINNING_FRICTION = 0.1
+        self.SPINNING_FRICTION = 0.003  # this setting is used in AdaGrasp
         self.ROLLING_FRICTION = 0.0001
         self.MIN_OBJ_MASS = 0.05  # small masses will be replaced by this (could tune a bit more, in combo with solver)
         self.JOINT_TYPES = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
@@ -77,6 +78,7 @@ class SimulatorBase(ABC):
         self._p.setAdditionalSearchPath(pybullet_data.getDataPath())
         self._body_ids[plane_id] = self._p.loadURDF("plane.urdf")
         self._p.setGravity(0, 0, -9.81)
+        self._p.changeDynamics(self._body_ids[plane_id], -1, lateralFriction=1.0)
 
     def _step(self, n=1, seconds=None):
         """
