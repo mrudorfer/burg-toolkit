@@ -112,11 +112,11 @@ See the scripts for more examples on usage and the docs for more detailed specif
 ### house keeping
 
 - replace messy manual test files with more reasonable unit testing
-- properly load textures for meshes
 - proper packaging/distribution of example files
-- resolve numpy-quaternion issues in installation
+- resolve numpy-quaternion issues in installation (maybe switch to [quaternionic](https://github.com/moble/quaternionic)?)
 - package-level logging
 - update to newer open3d version
+- properly load textures for meshes
 - documentation on readthedocs
 
 ### features
@@ -131,10 +131,19 @@ See the scripts for more examples on usage and the docs for more detailed specif
     
 ## Acknowledgments
 
-The BURG research project is funded by CHIST-ERA and EPSRC.
+This work was conducted within the BURG research project for Benchmarking and Understanding Robotic Grasping. 
+It is supported by CHIST-ERA and EPSRC grant no. EP/S032487/1.
 
 ## References
 
+### research
+
 - BURG research project: https://burg.acin.tuwien.ac.at/
-- Clemens Eppner, Arsalan Mousavian and Dieter Fox: "A Billion Ways to Grasps - An Evaluation of Grasp Sampling Schemes on a Dense, Physics-based Grasp Data Set", ISRR 2019 - https://sites.google.com/view/abillionwaystograsp
-- Qian-Yi Zhou, Jaesik Park, and Vladlen Koltun: "Open3D: A modern library for 3D data processing", 2018 - http://www.open3d.org/
+- Clemens Eppner, Arsalan Mousavian and Dieter Fox: "[A Billion Ways to Grasps](https://sites.google.com/view/abillionwaystograsp) - An Evaluation of Grasp Sampling Schemes on a Dense, Physics-based Grasp Data Set", ISRR 2019
+- Berk Calli, Aaron Walsman, Arjun Singh, Siddhartha Srinivasa, Pieter Abbeel, Aaron M. Dollar: "Benchmarking in Manipulation Research: Using the [Yale-CMU-Berkeley Object and Model Set](http://ycb-benchmarks.s3-website-us-east-1.amazonaws.com/)", IEEE Robotics & Automation Magazine, vol. 22, no. 3, pp. 36-52, Sept. 2015
+
+### software
+
+- [open3D](https://github.com/isl-org/Open3D). Qian-Yi Zhou, Jaesik Park, and Vladlen Koltun: "Open3D: A modern library for 3D data processing", 2018 - http://www.open3d.org/
+- [trimesh](https://github.com/mikedh/trimesh). Mike Dawson-Haggerty et al.
+- [quaternion](https://github.com/moble/quaternion). Mike Boyle, Jon Long, Martin Ling, stiiin, Blair Bonnett, Leo C. Stein, Eric Wieser, Dante A. B. Iozzo, John Belmonte, John Long, Mark Wiebe, Yin Li, Zé Vinícius, James Macfarlane, & odidev. Zenodo: https://doi.org/10.5281/zenodo.5555617
