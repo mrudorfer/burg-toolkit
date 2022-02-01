@@ -63,6 +63,9 @@ def detect_scene(port, calib_path, scene_filename, verbose):
     distortion_coeffs = np.load(os.path.join(calib_path, 'distortion_coefficients.npy'))
     render_engine = None
 
+    print(f'camera matrix\n{camera_matrix}')
+    print(f'distortion coeffs\n{distortion_coeffs}')
+
     # enter video loop
     cap = cv2.VideoCapture(port)
     if not cap.isOpened():
