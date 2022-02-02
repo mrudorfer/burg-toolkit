@@ -42,15 +42,15 @@ extras_require['full'] = set(itertools.chain.from_iterable(extras_require.values
 
 setuptools.setup(
     name='BURG-toolkit',
-    version='0.1',
+    version='0.2.0',
     python_requires=python_versions,
     install_requires=requirements_default,
     extras_require=extras_require,
     packages=setuptools.find_packages(),
-    url='',
+    url='https://github.com/mrudorfer/burg-toolkit',
     license='',
     author='Martin Rudorfer',
-    author_email='m.rudorfer@bham.ac.uk',
+    author_email='mail@ketza.de',
     description='toolkit for benchmarking and understanding robotic grasping',
     long_description=long_description
 )
