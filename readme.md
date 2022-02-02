@@ -129,6 +129,19 @@ See the scripts for more examples on usage and the docs for more detailed specif
     - determine simulation-based grasp success rate for grasp sets
     - use various grippers
     
+## Citation
+
+If you use this toolkit in your research, please consider a citation:
+
+```
+@misc{rudorfer2022,
+  author = {Martin Rudorfer},
+  title = {BURG toolkit, a Python module for benchmarking and understanding robotic grasping},
+  howpublished = {\url{https://github.com/mrudorfer/burg-toolkit}},
+  year = {2022}
+}
+```
+
 ## Acknowledgments
 
 This work was conducted within the BURG research project for Benchmarking and Understanding Robotic Grasping. 
