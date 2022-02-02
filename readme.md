@@ -145,5 +145,6 @@ It is supported by CHIST-ERA and EPSRC grant no. EP/S032487/1.
 ### software
 
 - [open3D](https://github.com/isl-org/Open3D). Qian-Yi Zhou, Jaesik Park, and Vladlen Koltun: "Open3D: A modern library for 3D data processing", 2018 - http://www.open3d.org/
-- [trimesh](https://github.com/mikedh/trimesh). Mike Dawson-Haggerty et al.
+- [trimesh](https://github.com/mikedh/trimesh). Mike Dawson-Haggerty et al., https://trimsh.org/
+- [pybullet](https://github.com/bulletphysics/bullet3). Erwin Coumans and Yunfei Bai: "PyBullet: a Python module for physics simulation for games, robotics and machine learning." 2016–2022. http://pybullet.org
 - [quaternion](https://github.com/moble/quaternion). Mike Boyle, Jon Long, Martin Ling, stiiin, Blair Bonnett, Leo C. Stein, Eric Wieser, Dante A. B. Iozzo, John Belmonte, John Long, Mark Wiebe, Yin Li, Zé Vinícius, James Macfarlane, & odidev. Zenodo: https://doi.org/10.5281/zenodo.5555617
