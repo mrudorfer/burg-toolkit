@@ -104,7 +104,21 @@ gs2 = burg.GraspSet.from_translations(np.random.random(30, 3))
 print('grasp coverage is:', burg.metrics.coverage(gs1, gs2))
 ```
 
-See the scripts for more examples on usage and the docs for more detailed specifications.
+You can download an exemplary object library and two scenes here: [setuptool-examples.zip](https://drive.google.com/file/d/17CqIyr3KndNl3fT2dXhQrDfgaNAT0mxz/view?usp=drivesdk) [10.4MB].
+The objects are borrowed from the [YCB dataset](#references).
+The object library can be used with the `setup_scenes_example.py`, it also shows how to generate the required additional files for simulation.
+Scenes can be loaded and visualised with:
+
+```
+import burg_toolkit as burg
+
+scene_filename = 'path/to/scene.yaml'
+scene, object_library, printout = burg.Scene.from_yaml(scene_filename)
+
+print(object_library)
+print(scene)
+burg.visualization.show_geometries([scene])
+```
 
 
 ## plans for the project
