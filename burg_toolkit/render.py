@@ -350,9 +350,9 @@ class PyBulletRenderEngine(sim.SimulatorBase, RenderEngine):
 
         self._reset(plane_and_gravity=with_plane)
         for instance in scene.objects:
-            self._add_object(instance)
+            self.add_object(instance)
         for bg_instance in scene.bg_objects:
-            self._add_object(bg_instance, fixed_base=True)
+            self.add_object(bg_instance, fixed_base=True)
 
         # compute projection matrix from camera parameters
         # see https://stackoverflow.com/questions/60430958/ and https://stackoverflow.com/questions/22064084/

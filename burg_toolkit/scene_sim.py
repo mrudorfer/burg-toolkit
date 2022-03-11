@@ -32,12 +32,12 @@ class SceneSimulator(SimulatorBase):
         :return: number of simulated seconds as indicator whether the simulator timed out or not.
         """
         self._reset(plane_and_gravity=True)
-        instance = self._add_object(object_instance)
+        instance = self.add_object(object_instance)
 
         steps_below_eps = 0
         max_steps = self.min_secs_below_eps / self.dt
-        while self._simulated_seconds < self.timeout and steps_below_eps < max_steps:
-            self._step()
+        while self.simulated_seconds < self.timeout and steps_below_eps < max_steps:
+            self.step()
             vel, angular_vel = self._p.getBaseVelocity(instance)
             velocities = np.asarray([*vel, *angular_vel])
             max_vel = np.abs(velocities).max()
@@ -45,8 +45,8 @@ class SceneSimulator(SimulatorBase):
             if max_vel < self.eps:
                 steps_below_eps += 1
 
-        object_instance.pose = self._get_body_pose(instance, convert2burg=True)
-        return self._simulated_seconds
+        object_instance.pose = self.get_body_pose(instance, convert2burg=True)
+        return self.simulated_seconds
 
     def simulate_scene(self, scene):
         """
@@ -63,14 +63,14 @@ class SceneSimulator(SimulatorBase):
         instance_body_ids = {}
         bg_body_ids = {}
         for instance in scene.objects:
-            instance_body_ids[instance] = self._add_object(instance)
+            instance_body_ids[instance] = self.add_object(instance)
         for bg_instance in scene.bg_objects:
-            bg_body_ids[bg_instance] = self._add_object(bg_instance, fixed_base=True)
+            bg_body_ids[bg_instance] = self.add_object(bg_instance, fixed_base=True)
 
         steps_below_eps = 0
         max_steps = self.min_secs_below_eps / self.dt
-        while self._simulated_seconds < self.timeout and steps_below_eps < max_steps:
-            self._step()
+        while self.simulated_seconds < self.timeout and steps_below_eps < max_steps:
+            self.step()
             # check velocities of all objects
             max_vel = 0
             for body_id in instance_body_ids.values():
@@ -84,6 +84,6 @@ class SceneSimulator(SimulatorBase):
                 steps_below_eps += 1
 
         for instance in scene.objects:
-            instance.pose = self._get_body_pose(instance_body_ids[instance], convert2burg=True)
+            instance.pose = self.get_body_pose(instance_body_ids[instance], convert2burg=True)
 
-        return self._simulated_seconds
+        return self.simulated_seconds

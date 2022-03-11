@@ -1,9 +1,11 @@
+import logging
 import os
 
 import numpy as np
 import open3d as o3d
 
 from . import util
+from . import gripper_module
 
 
 class ParallelJawGripper:
@@ -131,3 +133,109 @@ class Robotiq2F85(ParallelJawGripper):
         # todo: if we actually make a package distribution, this might not work anymore
         self._path_to_urdf = os.path.join(os.path.dirname(__file__), '../data/gripper/robotiq-2f-85/robotiq_2f_85.urdf')
         print(f'path to urdf evaluated to {self._path_to_urdf}')
+
+
+class MountedGripper:
+    """
+    This class represents a gripper on a dummy mount. The mount can be moved linearly in x/y/z but not rotated.
+    The corresponding gripper_type is instantiated in the given pose, where the pose is the grasp center (TCP).
+
+    :param grasp_simulator: GraspSimulator object that is using the MountedGripper
+    :param gripper_type: string, requested gripper type
+    :param grasp_pose: numpy 4x4 pose, grasp center (TCP)
+    """
+    def __init__(self, grasp_simulator, gripper_type, grasp_pose, gripper_scale=1.0):
+        self._simulator = grasp_simulator
+
+        # create gripper object
+        self.gripper = gripper_module.all_grippers[gripper_type](grasp_simulator, gripper_scale)
+
+        # compute gripper pose, load and init gripper
+        tf2hand = util.tf_from_pos_quat(self.gripper.get_pos_offset(), self.gripper.get_orn_offset(),
+                                        convention='pybullet')
+        gripper_pose = grasp_pose @ tf2hand
+        pos_gripper, orn_gripper = util.position_and_quaternion_from_tf(gripper_pose, convention='pybullet')
+        self.gripper_id = self.gripper.load(pos_gripper, orn_gripper)
+        self.gripper.configure()
+
+        # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
+        pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper_id)
+        mount_urdf = os.path.join(os.path.dirname(__file__), '../data/gripper/dummy_xyz_robot.urdf')
+        self.mount_id, self.robot_joints = self._simulator.load_robot(mount_urdf, position=pos_mount,
+                                                                      orientation=orn_mount, fixed_base=True)
+        # attach gripper to mount
+        self._simulator.bullet_client.createConstraint(
+            self.mount_id, self.robot_joints['end_effector_link']['id'],
+            self.gripper_id, -1,
+            jointType=self._simulator.bullet_client.JOINT_FIXED, jointAxis=[0, 0, 0],
+            parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
+            parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
+        )
+
+        # control all mount joints to stay at 0 with high force
+        # makes sure gripper stays at the same position while closing
+        mount_joints = [joint for joint in range(self._simulator.bullet_client.getNumJoints(self.mount_id))]
+        self._simulator.bullet_client.setJointMotorControlArray(
+            self.mount_id,
+            mount_joints,
+            self._simulator.bullet_client.POSITION_CONTROL,
+            targetPositions=[0] * len(mount_joints),
+            forces=[1000] * len(mount_joints)
+        )
+
+    def joint_pos(self):
+        mount_joints = range(len(self.robot_joints))
+        joint_states = self._simulator.bullet_client.getJointStates(self.mount_id, mount_joints)
+        print(joint_states)
+        pos = []
+        for joint in mount_joints:
+            pos.append(joint_states[joint][0])
+        return np.array(pos)
+
+    def cartesian_pos(self):
+        pos, *_ = self._simulator.bullet_client.getLinkState(
+            self.mount_id,
+            self.robot_joints['end_effector_link']['id']
+        )
+        return np.array(pos)
+
+    def go_to_cartesian_pos(self, pos, timeout=10):
+        """
+        Attempts to move the mounted gripper to pos.
+
+        :param pos: [x, y, z], target position
+        :param timeout: max seconds to simulate
+
+        :return: bool, True if position attained, False if timeout reached
+        """
+        logging.debug(f'go_to_cartesian_pos: moving to {pos}')
+
+        target_joint_pos = self._simulator.bullet_client.calculateInverseKinematics(
+            self.mount_id,
+            self.robot_joints['end_effector_link']['id'],
+            list(pos)
+        )
+        logging.debug(f'found target joint positions: {target_joint_pos}')
+
+        self._simulator.bullet_client.setJointMotorControlArray(
+            self.mount_id,
+            range(len(self.robot_joints)),
+            self._simulator.bullet_client.POSITION_CONTROL,
+            targetPositions=target_joint_pos,
+            targetVelocities=[0.01] * len(self.robot_joints),
+            forces=[np.minimum(item['max_force'], 50) for _, item in self.robot_joints.items()]
+        )
+
+        def goal_reached(tolerance=0.001):
+            return np.linalg.norm(pos - self.cartesian_pos()) < tolerance
+
+        end_time = self._simulator.simulated_seconds + timeout
+        while not goal_reached() and self._simulator.simulated_seconds <= end_time:
+            self._simulator.step()
+
+        if goal_reached():
+            logging.debug('goal position reached')
+            return True
+        logging.debug('reached timeout before attaining goal position')
+        logging.debug(f'current cartesian pos: {self.cartesian_pos()}')
+        return False
