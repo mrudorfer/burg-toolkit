@@ -27,8 +27,7 @@ Developed for:
 - Python 3.6-3.8
 - Ubuntu 20.04 and Windows, but at some point we stopped testing on Windows
 
-Recommended way is to install in a virtual environment.
-Go inside project main directory (where the `setup.py` resides) and execute:
+Recommended way is to install in a virtual environment:
 
 ```
 git clone git@github.com:mrudorfer/burg-toolkit.git
