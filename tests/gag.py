@@ -20,7 +20,8 @@ def main():
     pose[2, 3] = 0.15
     grasp = burg.Grasp()
     grasp.pose = pose
-    sim.execute_grasp('franka', grasp, scene.objects[0])
+    # sim.execute_grasp('franka', grasp, scene.objects[0])
+    sim.execute_grasp('ezgripper', grasp, scene.objects[0])
     # sim.execute_grasp('robotiq_2f_85', grasp, scene.objects[0])
 
 
