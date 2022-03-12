@@ -18,11 +18,11 @@ class GripperEZGripper(GripperBase):
         self._force = 500
         self._grasp_speed = 1.5
 
-        finger1_joint_ids = [2, 3]
-        finger2_joint_ids = [4, 5]
+        finger1_joint_ids = [0, 1]
+        finger2_joint_ids = [2, 3]
         self._finger_joint_ids = [finger1_joint_ids, finger2_joint_ids]
-        self._driver_joint_id = 2
-        self._follower_joint_ids = [3, 4, 5]
+        self._driver_joint_id = 0
+        self._follower_joint_ids = [1, 2, 3]
         self._joint_ids = [self._driver_joint_id] + self._follower_joint_ids
 
         self._joint_lower = 0.8

@@ -24,13 +24,15 @@
       <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
     </inertial>
   </link>
-  <joint name="left_ezgripper_connect" type="fixed">
+<!-- removing fixed links/joints
+<joint name="left_ezgripper_connect" type="fixed">
     <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
     <parent link="base_link"/>
     <child link="left_ezgripper_palm_link"/>
     <axis xyz="0 0 0"/>
     <limit effort="0" lower="-1.57075" upper="0.25" velocity="3.67"/>
   </joint>
+  -->
   <link name="left_ezgripper_finger_L1_1">
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -148,6 +150,7 @@
       <jointName>left_ezgripper_knuckle_L1_L2_1,left_ezgripper_knuckle_L1_L2_2</jointName>
     </plugin>
   </gazebo>
+  <!-- removing fixed links/joints
   <link name="world"/>
   <joint name="fixed" type="fixed">
     <parent link="world"/>
@@ -159,6 +162,6 @@
         <origin xyz="0 0 0" />
         <inertia  ixx="1.0" ixy="0.0"  ixz="0.0"  iyy="1.0"  iyz="0.0"  izz="1.0" />
     </inertial>
-
   </link>
+  -->
 </robot>
