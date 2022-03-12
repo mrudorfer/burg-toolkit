@@ -5,9 +5,9 @@ import copy
 from collections import UserDict
 
 import numpy as np
-import yaml
 import pybullet
 from pybullet_utils import bullet_client
+from scipy.spatial.transform import Rotation
 
 
 from . import io, visualization
@@ -253,6 +253,33 @@ class ObjectInstance:
             self.pose = np.eye(4)
         else:
             self.pose = pose
+
+    @classmethod
+    def from_stable_pose(cls, object_type, pose_idx=None, x=0, y=0, angle=0):
+        """
+        Creates an object instance in a stable pose.
+
+        :param object_type: ObjectType
+        :param pose_idx: index of object_type's stable_pose, if None, will be sampled uniformly from all stable poses
+        :param x: float, added displacement in x
+        :param y: float, added displacement in y
+        :param angle: float, added angular rotation around z
+
+        :return: ObjectInstance
+        """
+        if object_type.stable_poses is None:
+            raise ValueError('cannot create object instance from stable pose if object type does not have stable poses')
+        if pose_idx is None:
+            initial_pose = object_type.stable_poses.sample_pose(uniformly=True)
+        else:
+            initial_pose = object_type.stable_poses.poses[pose_idx]
+
+        tf_rot = np.eye(4)
+        tf_rot[:3, :3] = Rotation.from_rotvec(angle * np.array([0, 0, 1])).as_matrix()
+        pose = tf_rot @ initial_pose
+        pose[0, 3] += x
+        pose[1, 3] += y
+        return cls(object_type, pose=pose)
 
     def __str__(self):
         return f'instance of {self.object_type.identifier} object type. pose:\n{self.pose}'
