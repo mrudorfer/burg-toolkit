@@ -8,6 +8,9 @@ from . import util
 from . import gripper_module
 
 
+_log = logging.getLogger(__name__)
+
+
 class ParallelJawGripper:
     """
     Represents a general parallel jawed gripper.
@@ -171,6 +174,7 @@ class MountedGripper:
             parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
             parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
+        self._simulator._inspect_body(self.gripper_id)  # todo: temp
 
         # control all mount joints to stay at 0 with high force
         # makes sure gripper stays at the same position while closing
@@ -208,22 +212,25 @@ class MountedGripper:
 
         :return: bool, True if position attained, False if timeout reached
         """
-        logging.debug(f'go_to_cartesian_pos: moving to {pos}')
+        _log.debug(f'go_to_cartesian_pos: moving to {pos}')
 
         target_joint_pos = self._simulator.bullet_client.calculateInverseKinematics(
             self.mount_id,
             self.robot_joints['end_effector_link']['id'],
             list(pos)
         )
-        logging.debug(f'found target joint positions: {target_joint_pos}')
+        _log.debug(f'found target joint positions: {target_joint_pos}')
+        assumed_max_object_mass = 1.1  # will not be able to lift heavier objects
+        required_force = (self.gripper.mass + assumed_max_object_mass) * 9.81
+        _log.debug(f'required force (compensating gripper weight of {self.gripper.mass}) set to {required_force}')
 
         self._simulator.bullet_client.setJointMotorControlArray(
             self.mount_id,
             range(len(self.robot_joints)),
             self._simulator.bullet_client.POSITION_CONTROL,
             targetPositions=target_joint_pos,
-            targetVelocities=[0.01] * len(self.robot_joints),
-            forces=[np.minimum(item['max_force'], 50) for _, item in self.robot_joints.items()]
+            # targetVelocities=[0.01] * len(self.robot_joints),
+            forces=[required_force] * len(self.robot_joints)
         )
 
         def goal_reached(tolerance=0.001):
@@ -233,9 +240,11 @@ class MountedGripper:
         while not goal_reached() and self._simulator.simulated_seconds <= end_time:
             self._simulator.step()
 
+        _log.debug(f'lifting took {self._simulator.simulated_seconds - (end_time - timeout):.3f} seconds')
+
         if goal_reached():
-            logging.debug('goal position reached')
+            _log.debug('goal position reached')
             return True
-        logging.debug('reached timeout before attaining goal position')
-        logging.debug(f'current cartesian pos: {self.cartesian_pos()}')
+        _log.debug('reached timeout before attaining goal position')
+        _log.debug(f'current cartesian pos: {self.cartesian_pos()}')
         return False
