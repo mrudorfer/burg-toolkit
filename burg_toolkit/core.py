@@ -9,12 +9,14 @@ import pybullet
 from pybullet_utils import bullet_client
 from scipy.spatial.transform import Rotation
 
-
 from . import io, visualization
 from . import mesh_processing
 from . import render
 from . import constants
 from . import printout
+
+
+_log = logging.getLogger(__name__)
 
 
 class StablePoses:
@@ -189,20 +191,20 @@ class ObjectType:
         :param urdf_fn: Path for the urdf to be generated (directory must exist).
         :param use_vhacd: Whether to use the vhacd (True, default) or the actual mesh (False).
         """
-        logging.debug(f'generating urdf for {self.identifier}')
+        _log.debug(f'generating urdf for {self.identifier}')
         name = self.identifier
         mass = self.mass
         origin = [0, 0, 0]  # mesh origin will be placed at origin when loading urdf in simulation
         inertia, com = mesh_processing.compute_mesh_inertia(self.mesh, mass)
-        logging.debug(f'inertia: {inertia}')
-        logging.debug(f'com: {com}')
-        logging.debug(f'center: {self.mesh.get_center()}')
+        _log.debug(f'inertia: {inertia}')
+        _log.debug(f'com: {com}')
+        _log.debug(f'center: {self.mesh.get_center()}')
 
         if use_vhacd:
             if self.vhacd_fn is None:
                 # we can just generate the vhacd here, assume same path as urdf
                 vhacd_fn = os.path.join(os.path.dirname(urdf_fn), f'{name}_vhacd.obj')
-                logging.debug(f'creating VHACD at {vhacd_fn}')
+                _log.debug(f'creating VHACD at {vhacd_fn}')
                 self.generate_vhacd(vhacd_fn)
             rel_mesh_fn = os.path.relpath(self.vhacd_fn, os.path.dirname(urdf_fn))
         else:
@@ -220,7 +222,7 @@ class ObjectType:
         :param thumbnail_fn: Path for the thumbnail to be generated
         :param engine: a render.RenderEngine object that shall be used, optional
         """
-        logging.debug(f'generating thumbnail for {self.identifier}')
+        _log.debug(f'generating thumbnail for {self.identifier}')
         thr = render.ThumbnailRenderer(engine=engine)
         thr.render(self, thumbnail_fn)
         self.thumbnail_fn = thumbnail_fn
@@ -327,8 +329,8 @@ class ObjectLibrary(UserDict, io.YAMLObject):
         """
         data = cls.get_yaml_data(yaml_fn)
 
-        logging.debug(f'reading object library from {yaml_fn}')
-        logging.debug(f'keys: {[key for key in data.keys()]}')
+        _log.debug(f'reading object library from {yaml_fn}')
+        _log.debug(f'keys: {[key for key in data.keys()]}')
 
         library = cls(data['name'], data['description'])
         library.filename = yaml_fn
@@ -552,8 +554,8 @@ class Scene(io.YAMLObject):
         for instance_list, name in zip([self.objects, self.bg_objects], ['objects', 'bg_objects']):
             for instance in instance_list:
                 if object_library is not None and instance.object_type.identifier not in object_library.keys():
-                    logging.warning(f'Object type {instance.object_type.identifier} not found in ObjectLibrary. ' +
-                                    f'May not be able to restore from saved scene file.')
+                    _log.warning(f'Object type {instance.object_type.identifier} not found in ObjectLibrary. ' +
+                                 f'May not be able to restore from saved scene file.')
                 instance_dict = {
                     'object_type': instance.object_type.identifier,
                     'pose': instance.pose.tolist()
@@ -585,8 +587,8 @@ class Scene(io.YAMLObject):
         data = cls.get_yaml_data(yaml_fn)
         scene_dir = os.path.dirname(yaml_fn)
 
-        logging.debug(f'reading scene from {yaml_fn}')
-        logging.debug(f'keys: {[key for key in data.keys()]}')
+        _log.debug(f'reading scene from {yaml_fn}')
+        _log.debug(f'keys: {[key for key in data.keys()]}')
 
         ground_area = (data['ground_area_x'], data['ground_area_y'])
 

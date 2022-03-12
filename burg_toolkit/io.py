@@ -15,11 +15,15 @@ try:
     import pyexr
 except ImportError:
     pyexr = None
-    logging.info('Could not import pyexr, loading burg toolkit without OpenEXR support.')
 
 from . import core
 from . import util
 from . import grasp
+
+
+_log = logging.getLogger(__name__)
+if pyexr is None:
+    _log.info(f'Could not import pyexr, loading {__name__} without OpenEXR support.')
 
 
 class YAMLFileTypeException(Exception):

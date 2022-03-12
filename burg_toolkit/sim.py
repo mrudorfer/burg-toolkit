@@ -12,6 +12,9 @@ from . import util
 from . import gripper
 
 
+_log = logging.getLogger(__name__)
+
+
 class SimulatorBase:
     """
     This is an abstract base class for all simulators.
@@ -88,12 +91,12 @@ class SimulatorBase:
 
     def register_step_func(self, step_func):
         if step_func in self._step_funcs:
-            logging.debug('step func was already registered. will only be executed once per step.')
+            _log.debug('step func was already registered. will only be executed once per step.')
         self._step_funcs.append(step_func)
 
     def unregister_step_func(self, step_func):
         if step_func not in self._step_funcs:
-            logging.debug('asking me to unregister step func, but step func was not registered in the first place.')
+            _log.debug('asking me to unregister step func, but step func was not registered in the first place.')
             return
         self._step_funcs.remove(step_func)
 
@@ -175,7 +178,7 @@ class SimulatorBase:
 
         if self.verbose:
             self._p.changeVisualShape(object_id, -1, rgbaColor=self._get_next_color())
-            print(f'added object {object_instance.object_type.identifier}')
+            _log.debug(f'added object {object_instance.object_type.identifier}')
 
         # add to the corresponding body id dicts to keep track of objects
         body_id_dict = self._env_bodies if fixed_base else self._moving_bodies
@@ -349,8 +352,8 @@ class SimulatorBase:
         distance = 0.01  # do not return any points for objects that are farther apart than this
         points = self._p.getClosestPoints(body_id_1, body_id_2, distance)
 
-        logging.debug(f'checking collision between {self._p.getBodyInfo(body_id_1)} and {self._p.getBodyInfo(body_id_2)}')
-        logging.debug(f'found {len(points)} points that are close')
+        _log.debug(f'checking collision between {self._p.getBodyInfo(body_id_1)} and {self._p.getBodyInfo(body_id_2)}')
+        _log.debug(f'found {len(points)} points that are close')
 
         n_colliding_points = 0
         distances = []
@@ -360,9 +363,9 @@ class SimulatorBase:
             if distance < 0:
                 n_colliding_points += 1
 
-        logging.debug(f'and {n_colliding_points} points actually have a negative distance')
+        _log.debug(f'and {n_colliding_points} points actually have a negative distance')
         if distances:
-            logging.debug(f'minimum distance is: {min(distances)}')
+            _log.debug(f'minimum distance is: {min(distances)}')
         return n_colliding_points > 0
 
     def are_in_contact(self, body_id_1, link_id_1, body_id_2, link_id_2):
@@ -462,71 +465,69 @@ class GraspSimulator(SimulatorBase):
         :return: GraspScore
         """
         self._reset(plane_and_gravity=True)
-        logging.debug('loading scene...')
+        _log.debug('loading scene...')
         self.add_scene(self.scene)
 
         # create gripper, loading at pose, attaching dummy bot
-        logging.debug('loading gripper...')
+        _log.debug('loading gripper...')
         robot = gripper.MountedGripper(self, gripper_type, grasp_pose.pose)
 
         ###################################
         # PHASE 1: CHECK GRIPPER COLLISIONS
         # checking collisions against environment objects (ground plane)
-        logging.debug('checking collisions with environment bodies')
+        _log.debug('checking collisions with environment bodies')
         for body_key, body_id in self._env_bodies.items():
             if self.are_in_collision(robot.gripper_id, body_id):
-                logging.debug(f'gripper in collision with {body_key} ({body_id})')
+                _log.debug(f'gripper in collision with {body_key} ({body_id})')
                 return GraspScores.COLLISION_WITH_GROUND
 
         # checking collisions against target object
-        logging.debug('checking collisions with target')
+        _log.debug('checking collisions with target')
         if self.are_in_collision(robot.gripper_id, target):
-            logging.debug(f'gripper in collision with target ({target})')
+            _log.debug(f'gripper in collision with target ({target})')
             return GraspScores.COLLISION_WITH_TARGET
 
         # checking collisions with other scene objects
-        logging.debug('checking collisions with other bodies')
+        _log.debug('checking collisions with other bodies')
         for body_key, body_id in self._moving_bodies.items():
             if body_id == self.look_up_body_id(target) or body_id == self.look_up_body_id(robot.gripper_id):
                 continue
             if self.are_in_collision(robot.gripper_id, body_id):
-                logging.debug(f'gripper in collision with {body_key} ({body_id})')
+                _log.debug(f'gripper in collision with {body_key} ({body_id})')
                 return GraspScores.COLLISION_WITH_CLUTTER
 
-        logging.debug('COLLISION CHECKS PASSED')
+        _log.debug('COLLISION CHECKS PASSED')
         if self.verbose:
             print('press enter to continue')
             input()
 
-        logging.debug('closing gripper...')
+        _log.debug('closing gripper...')
         robot.gripper.close()
-        logging.debug('GRIPPER CLOSED')
-        logging.debug('simulation continues...')
-        self.step(seconds=1)
+        _log.debug('GRIPPER CLOSED')
         if self.verbose:
             print('press enter to continue')
             input()
 
-        logging.debug('checking contacts...')
+        _log.debug('checking contacts...')
         if not self.contact_established(robot.gripper_id, robot.gripper.get_contact_link_ids(), target):
-            logging.debug('no contact with target object established')
+            _log.debug('no contact with target object established')
             return GraspScores.NO_CONTACT_ESTABLISHED
-        logging.debug('CONTACT ESTABLISHED')
+        _log.debug('CONTACT ESTABLISHED')
 
         # start lifting
-        logging.debug('lifting object...')
+        _log.debug('lifting object...')
         curr_pos = robot.cartesian_pos()
         curr_pos[2] += 0.3
         robot.go_to_cartesian_pos(curr_pos)
-        logging.debug('DONE LIFTING')
+        _log.debug('DONE LIFTING')
 
         # check again if object is still in contact
-        logging.debug('checking contacts...')
+        _log.debug('checking contacts...')
         if not self.contact_established(robot.gripper_id, robot.gripper.get_contact_link_ids(), target):
-            logging.debug('no contact with target object established')
+            _log.debug('no contact with target object established')
             return GraspScores.SLIPPED_DURING_LIFTING
-        logging.debug('CONTACT CONFIRMED')
-        logging.debug('GRASP SUCCESSFUL')
+        _log.debug('CONTACT CONFIRMED')
+        _log.debug('GRASP SUCCESSFUL')
 
         if self.verbose:
             print('press enter to finish up')

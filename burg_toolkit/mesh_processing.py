@@ -8,6 +8,9 @@ from . import core
 from . import scene_sim
 
 
+_log = logging.getLogger(__name__)
+
+
 def check_properties(mesh):
     """
     Utility function to check properties of a mesh. Will be printed to standard output.
@@ -164,7 +167,7 @@ def compute_mesh_inertia(mesh, mass):
     """
     mesh = as_trimesh(mesh)
     if not mesh.is_watertight:
-        logging.warning('Computing Inertia and COM despite mesh not being watertight. Be careful.')
+        _log.warning('Computing Inertia and COM despite mesh not being watertight. Be careful.')
 
     # trimesh meshes are density-based, so let's set density based on given mass and mesh volume
     mesh.density = mass / mesh.volume
@@ -181,7 +184,7 @@ def center_of_mass(mesh):
     """
     mesh = as_trimesh(mesh)
     if not mesh.is_watertight:
-        logging.warning('Computing center of mass despite mesh not being watertight. Be careful.')
+        _log.warning('Computing center of mass despite mesh not being watertight. Be careful.')
     return mesh.center_mass
 
 
@@ -201,8 +204,8 @@ def _get_prob_indices(probs, min_prob, max_num, min_num):
     min_prob = min_prob or 0  # catch None
     min_num = min_num or 0
     if len(probs) < min_num:
-        logging.warning(f'Requested to give at least {min_num} probs from an array of {len(probs)} probs. ' +
-                        f'Could not meet the condition, returning only {len(probs)} elements.')
+        _log.warning(f'Requested to give at least {min_num} probs from an array of {len(probs)} probs. ' +
+                     f'Could not meet the condition, returning only {len(probs)} elements.')
         return np.arange(len(probs))
 
     above_min_prob = probs >= min_prob
@@ -240,7 +243,7 @@ def compute_stable_poses(object_type, verify_in_sim=True, min_prob=0.02, max_num
     used_tf_indices = _get_prob_indices(probs, min_prob, max_num, min_num)
     transforms = transforms[used_tf_indices]
     probs = probs[used_tf_indices]
-    logging.debug(f'\tfound {len(probs)} stable poses with probs between {np.min(probs)} and {np.max(probs)}')
+    _log.debug(f'\tfound {len(probs)} stable poses with probs between {np.min(probs)} and {np.max(probs)}')
 
     if verify_in_sim:
         simulator = scene_sim.SceneSimulator()

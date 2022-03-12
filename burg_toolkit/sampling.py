@@ -14,6 +14,9 @@ from . import visualization
 from . import mesh_processing
 
 
+_log = logging.getLogger(__name__)
+
+
 def rays_within_cone(axis, angle, n=10, uniform_on_plane=False):
     """
     Samples `n` rays originating from a cone apex.
@@ -558,8 +561,8 @@ def sample_scene(object_library, ground_area, instances_per_scene, instances_per
                 break
 
         if not success:
-            logging.warning(f'Could not add object to scene, exceeded number of max_tries ({max_tries}). Returning ' +
-                            f'scene with fewer object instances than requested.')
+            _log.warning(f'Could not add object to scene, exceeded number of max_tries ({max_tries}). Returning ' +
+                         f'scene with fewer object instances than requested.')
 
     # todo: simulate scene to make sure it's stable
     # since objects are not touching, this should actually not be necessary.
