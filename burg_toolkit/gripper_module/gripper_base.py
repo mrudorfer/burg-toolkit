@@ -20,6 +20,7 @@ class GripperBase(abc.ABC):
         self._sim = simulator
         self._bullet_client = simulator.bullet_client
         self._gripper_size = gripper_size
+        self.__mass = None
 
     @abc.abstractmethod
     def load(self, position, orientation, open_scale):
@@ -60,3 +61,16 @@ class GripperBase(abc.ABC):
     @property
     def body_id(self):
         return self._body_id
+
+    @property
+    def mass(self):
+        if self.__mass is None:
+            assert self.body_id is not None, 'can only get mass after gripper is added to simulation'
+
+            # sum up mass of base and all links
+            mass = self._bullet_client.getDynamicsInfo(self.body_id, -1)[0]
+            for i in range(self._bullet_client.getNumJoints(self.body_id)):
+                mass += self._bullet_client.getDynamicsInfo(self.body_id, i)[0]
+            self.__mass = mass
+
+        return self.__mass
