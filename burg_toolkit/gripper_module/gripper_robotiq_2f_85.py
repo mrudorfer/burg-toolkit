@@ -29,21 +29,18 @@ class GripperRobotiq2F85(GripperBase):
         self._follower_joint_sign = [1, -1, -1, 1, 1]
 
     def load(self, position, orientation, open_scale=1.0):
+        if open_scale != 1.0:
+            raise NotImplementedError('robotiq 2f gripper can only be loaded in a fully open state (open_scale=1.0)')
+
         gripper_urdf = self.get_asset_path('robotiq_2f_85/model.urdf')
-        body_id = self._bullet_client.loadURDF(
+        self._body_id = self._bullet_client.loadURDF(
             gripper_urdf,
             flags=self._bullet_client.URDF_USE_SELF_COLLISION,
             globalScaling=self._gripper_size,
             basePosition=position,
             baseOrientation=orientation
         )
-        if open_scale != 1.0:
-            raise NotImplementedError('robotiq 2f gripper can only be loaded in a fully open state (open_scale=1.0)')
 
-        self._body_id = body_id
-        return body_id
-
-    def configure(self):
         # Set friction coefficients for gripper fingers
         for i in range(self._bullet_client.getNumJoints(self.body_id)):
             self._bullet_client.changeDynamics(self.body_id, i, lateralFriction=1.0, spinningFriction=1.0,

@@ -158,23 +158,22 @@ class MountedGripper:
                                         convention='pybullet')
         gripper_pose = grasp_pose @ tf2hand
         pos_gripper, orn_gripper = util.position_and_quaternion_from_tf(gripper_pose, convention='pybullet')
-        self.gripper_id = self.gripper.load(pos_gripper, orn_gripper)
-        self.gripper.configure()
+        self.gripper.load(pos_gripper, orn_gripper)
 
         # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
-        pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper_id)
+        pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper.body_id)
         mount_urdf = os.path.join(os.path.dirname(__file__), '../data/gripper/dummy_xyz_robot.urdf')
         self.mount_id, self.robot_joints = self._simulator.load_robot(mount_urdf, position=pos_mount,
                                                                       orientation=orn_mount, fixed_base=True)
         # attach gripper to mount
         self._simulator.bullet_client.createConstraint(
             self.mount_id, self.robot_joints['end_effector_link']['id'],
-            self.gripper_id, -1,
+            self.gripper.body_id, -1,
             jointType=self._simulator.bullet_client.JOINT_FIXED, jointAxis=[0, 0, 0],
             parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
             parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
-        self._simulator._inspect_body(self.gripper_id)  # todo: temp
+        self._simulator._inspect_body(self.gripper.body_id)  # todo: temp
 
         # control all mount joints to stay at 0 with high force
         # makes sure gripper stays at the same position while closing

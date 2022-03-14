@@ -6,9 +6,7 @@ class GripperBase(abc.ABC):
     r"""Base class for all grippers.
     Any gripper should subclass this class.
     You have to implement the following class method:
-        - load(): load URDF and return the body_id
-        - configure(): configure the gripper (e.g. friction)
-        - open(): open gripper
+        - load(): load URDF and configure gripper according to open_scale
         - close(): close gripper
         - get_pos_offset(): return [x, y, z], the coordinate of the grasping center relative to the base
         - get_orn_offset(): the base orientation (in quaternion) when loading the gripper
@@ -24,14 +22,6 @@ class GripperBase(abc.ABC):
 
     @abc.abstractmethod
     def load(self, position, orientation, open_scale):
-        pass
-
-    @abc.abstractmethod
-    def configure(self):
-        pass
-
-    @abc.abstractmethod
-    def open(self, open_scale):
         pass
 
     @abc.abstractmethod

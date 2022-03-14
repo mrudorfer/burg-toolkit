@@ -22,29 +22,27 @@ class GripperFranka(GripperBase):
         self._grasp_speed = 0.1
 
     def load(self, position, orientation, open_scale=1.0):
+        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('franka/model.urdf')
-        body_id = self._bullet_client.loadURDF(
+        self._body_id = self._bullet_client.loadURDF(
             gripper_urdf, flags=self._bullet_client.URDF_USE_SELF_COLLISION,
             globalScaling=self._gripper_size,
             basePosition=position,
             baseOrientation=orientation
         )
         # change color
-        for link_id in range(-1, self._bullet_client.getNumJoints(body_id)):
-            self._bullet_client.changeVisualShape(body_id, link_id, rgbaColor=[0.5, 0.5, 0.5, 1])
+        for link_id in range(-1, self._bullet_client.getNumJoints(self.body_id)):
+            self._bullet_client.changeVisualShape(self.body_id, link_id, rgbaColor=[0.5, 0.5, 0.5, 1])
 
         # open gripper
         for joint_id in self._moving_joint_ids:
-            self._bullet_client.resetJointState(body_id, joint_id, self._finger_open_distance * open_scale)
+            self._bullet_client.resetJointState(self.body_id, joint_id, self._finger_open_distance * open_scale)
 
-        self._body_id = body_id
-        return body_id
-        
-    def configure(self):
-        # Set friction coefficients for gripper fingers
+        # set friction coefficients for gripper fingers
         for i in range(self._bullet_client.getNumJoints(self.body_id)):
             self._bullet_client.changeDynamics(self.body_id, i, lateralFriction=1.0, spinningFriction=1.0,
                                                rollingFriction=0.0001, frictionAnchor=True)
+
         self._sim.register_step_func(self.step_constraints)
 
     def step_constraints(self):

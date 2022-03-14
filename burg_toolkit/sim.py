@@ -477,22 +477,22 @@ class GraspSimulator(SimulatorBase):
         # checking collisions against environment objects (ground plane)
         _log.debug('checking collisions with environment bodies')
         for body_key, body_id in self._env_bodies.items():
-            if self.are_in_collision(robot.gripper_id, body_id):
+            if self.are_in_collision(robot.gripper.body_id, body_id):
                 _log.debug(f'gripper in collision with {body_key} ({body_id})')
                 return GraspScores.COLLISION_WITH_GROUND
 
         # checking collisions against target object
         _log.debug('checking collisions with target')
-        if self.are_in_collision(robot.gripper_id, target):
+        if self.are_in_collision(robot.gripper.body_id, target):
             _log.debug(f'gripper in collision with target ({target})')
             return GraspScores.COLLISION_WITH_TARGET
 
         # checking collisions with other scene objects
         _log.debug('checking collisions with other bodies')
         for body_key, body_id in self._moving_bodies.items():
-            if body_id == self.look_up_body_id(target) or body_id == self.look_up_body_id(robot.gripper_id):
+            if body_id == self.look_up_body_id(target) or body_id == self.look_up_body_id(robot.gripper.body_id):
                 continue
-            if self.are_in_collision(robot.gripper_id, body_id):
+            if self.are_in_collision(robot.gripper.body_id, body_id):
                 _log.debug(f'gripper in collision with {body_key} ({body_id})')
                 return GraspScores.COLLISION_WITH_CLUTTER
 
@@ -509,7 +509,7 @@ class GraspSimulator(SimulatorBase):
             input()
 
         _log.debug('checking contacts...')
-        if not self.contact_established(robot.gripper_id, robot.gripper.get_contact_link_ids(), target):
+        if not self.contact_established(robot.gripper.body_id, robot.gripper.get_contact_link_ids(), target):
             _log.debug('no contact with target object established')
             return GraspScores.NO_CONTACT_ESTABLISHED
         _log.debug('CONTACT ESTABLISHED')
@@ -523,7 +523,7 @@ class GraspSimulator(SimulatorBase):
 
         # check again if object is still in contact
         _log.debug('checking contacts...')
-        if not self.contact_established(robot.gripper_id, robot.gripper.get_contact_link_ids(), target):
+        if not self.contact_established(robot.gripper.body_id, robot.gripper.get_contact_link_ids(), target):
             _log.debug('no contact with target object established')
             return GraspScores.SLIPPED_DURING_LIFTING
         _log.debug('CONTACT CONFIRMED')
