@@ -103,10 +103,8 @@ class GripperEZGripper(GripperBase):
         return self._orn_offset
 
     def get_contact_link_ids(self):
-        # todo: this is tricky
-        # we have two finger links on each side
-        # obviously we want to have some contact from each side
-        return self._joint_ids
+        # this is a nested list with two joints per finger
+        return self._finger_joint_ids
 
     def get_vis_pts(self, open_scale):
         width = 0.09 * np.sin(open_scale)

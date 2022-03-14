@@ -9,7 +9,7 @@ from pybullet_utils import bullet_client
 from matplotlib import pyplot as plt
 
 from . import util
-from . import gripper
+from .gripper import MountedGripper
 
 
 _log = logging.getLogger(__name__)
@@ -444,14 +444,30 @@ class GraspSimulator(SimulatorBase):
     def bullet_client(self):
         return self._p
 
-    def contact_established(self, gripper_id, finger_links, target, min_contacts=2):
+    def contact_established(self, gripper, target, min_contacts=2):
+        """
+        checks if there is contact established between the gripper and the target object
+
+        :param gripper: gripper_module.GripperBase, the instantiated gripper
+        :param target: ObjectInstance, to be grasped
+        :param min_contacts: minimum number of fingers that need to be in contact (might make this dependent on the
+                             number of fingers of the gripper in the future...)
+
+        :return: bool, True if `min_contacts` finger of `gripper` are in contact with `target`
+        """
         target_id = self.look_up_body_id(target)
         n_contacts = 0
-        for finger_link in finger_links:
-            if self.are_in_contact(gripper_id, finger_link, target_id, -1):
-                n_contacts += 1
-                if n_contacts >= min_contacts:
-                    return True
+        for finger_link in gripper.get_contact_link_ids():
+            # finger_link could be a nested list if there are multiple links per finger
+            # we don't care which link is in contact, as long as one link from each finger is in contact
+            if not isinstance(finger_link, list):
+                finger_link = [finger_link]
+            for link in finger_link:
+                if self.are_in_contact(gripper.body_id, link, target_id, -1):
+                    n_contacts += 1
+                    break
+            if n_contacts >= min_contacts:
+                return True
         return False
 
     def execute_grasp(self, gripper_type, grasp_pose, target):
@@ -470,7 +486,7 @@ class GraspSimulator(SimulatorBase):
 
         # create gripper, loading at pose, attaching dummy bot
         _log.debug('loading gripper...')
-        robot = gripper.MountedGripper(self, gripper_type, grasp_pose.pose)
+        robot = MountedGripper(self, gripper_type, grasp_pose.pose)
 
         ###################################
         # PHASE 1: CHECK GRIPPER COLLISIONS
@@ -509,7 +525,7 @@ class GraspSimulator(SimulatorBase):
             input()
 
         _log.debug('checking contacts...')
-        if not self.contact_established(robot.gripper.body_id, robot.gripper.get_contact_link_ids(), target):
+        if not self.contact_established(robot.gripper, target):
             _log.debug('no contact with target object established')
             return GraspScores.NO_CONTACT_ESTABLISHED
         _log.debug('CONTACT ESTABLISHED')
@@ -523,7 +539,7 @@ class GraspSimulator(SimulatorBase):
 
         # check again if object is still in contact
         _log.debug('checking contacts...')
-        if not self.contact_established(robot.gripper.body_id, robot.gripper.get_contact_link_ids(), target):
+        if not self.contact_established(robot.gripper, target):
             _log.debug('no contact with target object established')
             return GraspScores.SLIPPED_DURING_LIFTING
         _log.debug('CONTACT CONFIRMED')

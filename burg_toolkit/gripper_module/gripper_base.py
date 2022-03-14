@@ -10,6 +10,7 @@ class GripperBase(abc.ABC):
         - close(): close gripper
         - get_pos_offset(): return [x, y, z], the coordinate of the grasping center relative to the base
         - get_orn_offset(): the base orientation (in quaternion) when loading the gripper
+        - get_contact_link_ids(): list of contacting finger links. if multiple links per finger, then use nested lists
         - get_vis_pts(open_scale): [(x0, y0), (x1, y1), (x2, y2s), ...], contact points for visualization (in world coordinate)
     """
     @abc.abstractmethod
