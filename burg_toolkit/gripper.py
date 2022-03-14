@@ -176,6 +176,7 @@ class MountedGripper:
             parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
         self._simulator._inspect_body(self.gripper.body_id)  # todo: temp
+        print('gripper joint pos:', self.gripper.joint_positions())
 
         # control all mount joints to stay at 0 with high force
         # makes sure gripper stays at the same position while closing
