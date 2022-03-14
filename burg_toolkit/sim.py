@@ -92,6 +92,7 @@ class SimulatorBase:
     def register_step_func(self, step_func):
         if step_func in self._step_funcs:
             _log.debug('step func was already registered. will only be executed once per step.')
+            return
         self._step_funcs.append(step_func)
 
     def unregister_step_func(self, step_func):
