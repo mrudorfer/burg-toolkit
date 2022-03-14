@@ -470,13 +470,15 @@ class GraspSimulator(SimulatorBase):
                 return True
         return False
 
-    def execute_grasp(self, gripper_type, grasp_pose, target):
+    def execute_grasp(self, gripper_type, grasp_pose, target, gripper_scale=1.0, gripper_opening_width=1.0):
         """
         executes a grasp in the scene.
 
         :param gripper_type: A class that inherits from GripperBase
         :param grasp_pose: A core.Grasp
         :param target: Must be one of the object instances in the scene which we attempt to grasp
+        :param gripper_scale: float, Scaling factor for the gripper
+        :param gripper_opening_width: float, Factor for scaling opening width, must be in [0.1, 1.0]
 
         :return: GraspScore
         """
@@ -486,7 +488,7 @@ class GraspSimulator(SimulatorBase):
 
         # create gripper, loading at pose, attaching dummy bot
         _log.debug('loading gripper...')
-        robot = MountedGripper(self, gripper_type, grasp_pose.pose)
+        robot = MountedGripper(self, gripper_type, grasp_pose.pose, gripper_scale, gripper_opening_width)
 
         ###################################
         # PHASE 1: CHECK GRIPPER COLLISIONS
@@ -517,9 +519,11 @@ class GraspSimulator(SimulatorBase):
             print('press enter to continue')
             input()
 
+        _log.debug(f'gripper joint states: {robot.gripper.joint_positions()}')
         _log.debug('closing gripper...')
         robot.gripper.close()
         _log.debug('GRIPPER CLOSED')
+        _log.debug(f'gripper joint states: {robot.gripper.joint_positions()}')
         if self.verbose:
             print('press enter to continue')
             input()
