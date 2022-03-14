@@ -47,7 +47,8 @@ class GripperFranka(GripperBase):
             self._bullet_client.POSITION_CONTROL,
             targetPosition=pos,
             force=self._force,
-            positionGain=2*self._grasp_speed
+            targetVelocity=2 * self._grasp_speed,
+            positionGain=1.8
         )
         return pos
 
