@@ -337,12 +337,13 @@ class SimulatorBase:
         for joint_state in joint_states:
             print(f'\t{joint_state[0]}')
 
-    def are_in_collision(self, body_key_1, body_key_2):
+    def are_in_collision(self, body_key_1, body_key_2, threshold=0.0):
         """
         checks if two bodies are in collision with each other.
 
         :param body_key_1: first body key
         :param body_key_2: second body key
+        :param threshold: float, distance upon which we recognise it as a collision
 
         :return: bool, True if the two bodies are in collision
         """
@@ -361,10 +362,10 @@ class SimulatorBase:
         for point in points:
             distance = point[8]
             distances.append(distance)
-            if distance < 0:
+            if distance < threshold:
                 n_colliding_points += 1
 
-        _log.debug(f'and {n_colliding_points} points actually have a negative distance')
+        _log.debug(f'and {n_colliding_points} points\' distance is below threshold of {threshold}')
         if distances:
             _log.debug(f'minimum distance is: {min(distances)}')
         return n_colliding_points > 0
@@ -504,6 +505,9 @@ class GraspSimulator(SimulatorBase):
         _log.debug('checking collisions with target')
         if self.are_in_collision(robot.gripper.body_id, target):
             _log.debug(f'gripper in collision with target ({target})')
+            if self.verbose:
+                print('enter')
+                input()
             return GraspScores.COLLISION_WITH_TARGET
 
         # checking collisions with other scene objects
