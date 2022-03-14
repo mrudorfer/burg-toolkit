@@ -143,11 +143,13 @@ class MountedGripper:
     This class represents a gripper on a dummy mount. The mount can be moved linearly in x/y/z but not rotated.
     The corresponding gripper_type is instantiated in the given pose, where the pose is the grasp center (TCP).
 
-    :param grasp_simulator: GraspSimulator object that is using the MountedGripper
+    :param grasp_simulator: sim.GraspSimulator object that is using the MountedGripper
     :param gripper_type: string, requested gripper type
     :param grasp_pose: numpy 4x4 pose, grasp center (TCP)
+    :param gripper_scale: float, scale size of gripper
+    :param opening_width: float, between 0.1 and 1.0, sets initial opening width
     """
-    def __init__(self, grasp_simulator, gripper_type, grasp_pose, gripper_scale=1.0):
+    def __init__(self, grasp_simulator, gripper_type, grasp_pose, gripper_scale=1.0, opening_width=1.0):
         self._simulator = grasp_simulator
 
         # create gripper object
@@ -158,7 +160,7 @@ class MountedGripper:
                                         convention='pybullet')
         gripper_pose = grasp_pose @ tf2hand
         pos_gripper, orn_gripper = util.position_and_quaternion_from_tf(gripper_pose, convention='pybullet')
-        self.gripper.load(pos_gripper, orn_gripper)
+        self.gripper.load(pos_gripper, orn_gripper, opening_width)
 
         # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
         pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper.body_id)
