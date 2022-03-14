@@ -18,10 +18,12 @@ def main():
     pose = np.eye(4)
     pose[0:2, 3] = 0.1
     pose[2, 3] = 0.04
+    # pose[2, 3] = 0.1
     grasp = burg.Grasp()
     grasp.pose = pose
-    #sim.execute_grasp('franka', grasp, scene.objects[0])
-    sim.execute_grasp('ezgripper', grasp, scene.objects[0])
+    # sim.execute_grasp('franka', grasp, scene.objects[0])
+    # sim.execute_grasp('ezgripper', grasp, scene.objects[0])
+    sim.execute_grasp('wsg_32', grasp, scene.objects[0], gripper_scale=1.45)
     # sim.execute_grasp('robotiq_2f_85', grasp, scene.objects[0])
 
 

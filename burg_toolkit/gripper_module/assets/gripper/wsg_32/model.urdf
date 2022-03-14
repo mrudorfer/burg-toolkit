@@ -1,5 +1,9 @@
 <?xml version="1.0"?>
-<!-- source: https://github.com/si-machines/wsg_32_description -->
+<!-- source: https://github.com/si-machines/wsg_32_description
+  applied a couple of fixes:
+    - alignment of collision/visual shapes
+    - adding effort=20 and velocity=0.2 to moving joints
+-->
 <robot
   name="wsg_32_description">
   <link
@@ -74,8 +78,8 @@
     </visual>
     <collision>
       <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+        xyz="-0.00725 0 0.0004"
+        rpy="0 1.57079 0" />
       <geometry>
         <mesh
           filename="meshes/left_finger_link.STL" />
@@ -97,8 +101,8 @@
     <limit
       lower="-0.028"
       upper="0"
-      effort="0"
-      velocity="0" />
+      effort="20"
+      velocity="0.2" />
   </joint>
   <link
     name="wsg_50_gripper_base_link_gripper_right">
@@ -132,8 +136,8 @@
     </visual>
     <collision>
       <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+        xyz="-0.00725 0 0.0004"
+        rpy="-1.57079 3.14159  -1.57079" />
       <geometry>
         <mesh
           filename="meshes/right_finger_link.STL" />
@@ -151,12 +155,12 @@
     <child
       link="wsg_50_gripper_base_link_gripper_right" />
     <axis
-      xyz="1 0 0" />
+      xyz="0 0 1" />
     <limit
       lower="0"
       upper="0.028"
-      effort="0"
-      velocity="0" />
+      effort="20"
+      velocity="0.2" />
   </joint>
 
 
@@ -194,7 +198,7 @@
     </visual>
     <collision>
       <origin
-        xyz="0 0 0"
+        xyz="-0.01 0 0.00"
         rpy="0 0 0" />
       <geometry>
         <mesh
@@ -232,7 +236,7 @@
     </inertial>
     <visual>
       <origin
-        xyz="0.00 0 0.00"
+        xyz="-0.00 0 0.00"
         rpy="0 0 0" />
       <geometry>
         <mesh
@@ -246,7 +250,7 @@
     </visual>
     <collision>
       <origin
-        xyz="0 0 0"
+        xyz="-0.00 0 0.00"
         rpy="0 0 0" />
       <geometry>
         <mesh
