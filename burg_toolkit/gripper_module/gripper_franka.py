@@ -30,18 +30,12 @@ class GripperFranka(GripperBase):
             basePosition=position,
             baseOrientation=orientation
         )
-        # change color
-        for link_id in range(-1, self._bullet_client.getNumJoints(self.body_id)):
-            self._bullet_client.changeVisualShape(self.body_id, link_id, rgbaColor=[0.5, 0.5, 0.5, 1])
+        self.set_color([0.5, 0.5, 0.5])
+        self.configure_friction()
 
         # open gripper
         for joint_id in self._moving_joint_ids:
             self._bullet_client.resetJointState(self.body_id, joint_id, self._finger_open_distance * open_scale)
-
-        # set friction coefficients for gripper fingers
-        for i in range(self._bullet_client.getNumJoints(self.body_id)):
-            self._bullet_client.changeDynamics(self.body_id, i, lateralFriction=1.0, spinningFriction=1.0,
-                                               rollingFriction=0.0001, frictionAnchor=True)
 
         self._sim.register_step_func(self.step_constraints)
 

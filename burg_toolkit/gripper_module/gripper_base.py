@@ -53,15 +53,55 @@ class GripperBase(abc.ABC):
     def body_id(self):
         return self._body_id
 
+    def is_loaded(self):
+        """
+        returns True, if the gripper instance has been added to a simulation
+        """
+        return self.body_id is not None
+
     @property
     def mass(self):
         if self.__mass is None:
-            assert self.body_id is not None, 'can only get mass after gripper is added to simulation'
+            assert self.is_loaded(), 'can only get mass after gripper is loaded in simulation'
 
             # sum up mass of base and all links
             mass = self._bullet_client.getDynamicsInfo(self.body_id, -1)[0]
-            for i in range(self._bullet_client.getNumJoints(self.body_id)):
+            for i in range(self.num_joints):
                 mass += self._bullet_client.getDynamicsInfo(self.body_id, i)[0]
             self.__mass = mass
 
         return self.__mass
+
+    def set_color(self, color):
+        """
+        changes the visual appearance of the gripper links by adding color
+        """
+        assert self.is_loaded(), 'can only set color after gripper is loaded in simulation'
+        if len(color) == 3:
+            color.append(1)
+
+        for link_id in range(-1, self.num_joints):
+            self._bullet_client.changeVisualShape(self.body_id, link_id, rgbaColor=color)
+
+    @property
+    def num_joints(self):
+        assert self.is_loaded(), 'can only determine number of joints after gripper is loaded in simulation'
+        return self._bullet_client.getNumJoints(self.body_id)
+
+    def configure_friction(self, lateral_friction=1.0, spinning_friction=1.0, rolling_friction=0.0001,
+                           friction_anchor=True):
+        """
+        configures the friction properties of all gripper joints
+        """
+        assert self.is_loaded(), 'can only configure friction after gripper is loaded in simulation'
+        for i in range(self.num_joints):
+            self._bullet_client.changeDynamics(self.body_id, i,
+                                               lateralFriction=lateral_friction, spinningFriction=spinning_friction,
+                                               rollingFriction=rolling_friction, frictionAnchor=friction_anchor)
+
+    def joint_positions(self):
+        joint_states = self._bullet_client.getJointStates(self.body_id, range(self.num_joints))
+        pos = []
+        for joint in range(self.num_joints):
+            pos.append(joint_states[joint][0])
+        return pos

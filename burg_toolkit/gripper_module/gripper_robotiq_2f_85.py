@@ -41,10 +41,7 @@ class GripperRobotiq2F85(GripperBase):
             baseOrientation=orientation
         )
 
-        # Set friction coefficients for gripper fingers
-        for i in range(self._bullet_client.getNumJoints(self.body_id)):
-            self._bullet_client.changeDynamics(self.body_id, i, lateralFriction=1.0, spinningFriction=1.0,
-                                               rollingFriction=0.0001, frictionAnchor=True)
+        self.configure_friction()
         self._sim.register_step_func(self.step_constraints)
 
     def step_constraints(self):
