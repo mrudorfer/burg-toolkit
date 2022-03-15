@@ -3,6 +3,7 @@
   applied a couple of fixes:
     - alignment of collision/visual shapes
     - adding effort=20 and velocity=0.2 to moving joints
+    - replacing STL files with VHACD
 -->
 <robot
   name="wsg_32_description">
@@ -28,7 +29,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes/hand_link.STL" />
+          filename="meshes/hand_link_vhacd.obj" />
       </geometry>
       <material
         name="">
@@ -42,7 +43,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes/hand_link.STL" />
+          filename="meshes/hand_link_vhacd.obj" />
       </geometry>
     </collision>
   </link>
@@ -53,7 +54,7 @@
         xyz="-2.850603053553E-05 -0.00191114285188175 0.00382933445364996"
         rpy="0 0 0" />
       <mass
-        value="3.41920163633724E-06" />
+        value="0.03" />
       <inertia
         ixx="3.06504383705634E-10"
         ixy="5.74222476890191E-11"
@@ -68,7 +69,7 @@
         rpy="0 1.57079 0" />
       <geometry>
         <mesh
-          filename="meshes/left_finger_link.STL" />
+          filename="meshes/left_finger_link_vhacd.obj" />
       </geometry>
       <material
         name="">
@@ -82,7 +83,7 @@
         rpy="0 1.57079 0" />
       <geometry>
         <mesh
-          filename="meshes/left_finger_link.STL" />
+          filename="meshes/left_finger_link_vhacd.obj" />
       </geometry>
     </collision>
   </link>
@@ -111,7 +112,7 @@
         xyz="-2.72000777333109E-05 -0.00460993992652343 -0.00191114282807962"
         rpy="-1.57079 3.14159 -1.57079" />
       <mass
-        value="3.41920163633724E-06" />
+        value="0.03" />
       <inertia
         ixx="3.06504383705634E-10"
         ixy="2.40533503848236E-10"
@@ -126,7 +127,7 @@
         rpy="-1.57079 3.14159  -1.57079" />
       <geometry>
         <mesh
-          filename="meshes/right_finger_link.STL" />
+          filename="meshes/right_finger_link_vhacd.obj" />
       </geometry>
       <material
         name="">
@@ -140,7 +141,7 @@
         rpy="-1.57079 3.14159  -1.57079" />
       <geometry>
         <mesh
-          filename="meshes/right_finger_link.STL" />
+          filename="meshes/right_finger_link_vhacd.obj" />
       </geometry>
     </collision>
   </link>
@@ -173,7 +174,7 @@
         xyz="0 0 0"
         rpy="0 0 0" />
       <mass
-        value="0.001" />
+        value="0.03" />
       <inertia
         ixx="3.06504383705634E-10"
         ixy="2.40533503848236E-10"
@@ -188,7 +189,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes/universal_finger.STL" />
+          filename="meshes/universal_finger_vhacd.obj" />
       </geometry>
       <material
         name="">
@@ -202,7 +203,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes/universal_finger.STL" />
+          filename="meshes/universal_finger_vhacd.obj" />
       </geometry>
     </collision>
   </link>
@@ -225,7 +226,7 @@
         xyz="0 0 0"
         rpy="0 0 0" />
       <mass
-        value="0.001" />
+        value="0.03" />
       <inertia
         ixx="3.06504383705634E-10"
         ixy="2.40533503848236E-10"
@@ -240,7 +241,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes/universal_finger.STL" />
+          filename="meshes/universal_finger_vhacd.obj" />
       </geometry>
       <material
         name="">
@@ -254,7 +255,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes/universal_finger.STL" />
+          filename="meshes/universal_finger_vhacd.obj" />
       </geometry>
     </collision>
   </link>
