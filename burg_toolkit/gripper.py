@@ -205,52 +205,101 @@ class MountedGripper:
         )
         return np.array(pos)
 
-    def go_to_cartesian_pos(self, pos, timeout=5, tolerance=0.01):
+    def _interpolate_linear(self, target_pos, current_pos=None, max_distance=0.01):
+        """
+        Computes waypoints between target_pos and current_pos, whereas the distance between waypoints is at most
+        max_distance. The target_pos is included in the waypoints, the current_pos is not.
+        All poses refer to cartesian space.
+
+        :return: list of waypoints as ndarray
+        """
+        if current_pos is None:
+            current_pos = self.cartesian_pos()
+
+        vector = np.array(target_pos) - np.array(current_pos)
+        total_distance = np.linalg.norm(vector)
+        n_segments = int(total_distance // max_distance + 1)
+        distance = total_distance/n_segments
+
+        print('n_segments', n_segments)
+
+        waypoints = np.zeros(shape=(n_segments, 3), dtype=float)
+        last_waypoint = np.array(current_pos)
+        unit_vec = vector / total_distance
+        for i in range(n_segments-1):
+            # create new waypoints
+            new_waypoint = last_waypoint + unit_vec * distance
+            waypoints[i, :] = new_waypoint
+            last_waypoint = new_waypoint
+
+        waypoints[-1, :] = target_pos
+        return waypoints
+
+    def go_to_cartesian_pos(self, target_pos, timeout=5, tolerance=0.001):
         """
         Attempts to move the mounted gripper to pos.
 
-        :param pos: [x, y, z], target position
+        :param target_pos: [x, y, z], target position
         :param timeout: max seconds to simulate
         :param tolerance: pose tolerance for accepting the goal pose
 
         :return: bool, True if position attained, False if timeout reached
         """
-        _log.debug(f'go_to_cartesian_pos: moving to {pos}')
+        _log.debug(f'go_to_cartesian_pos: moving to {target_pos}')
 
+        def point_reached(point):
+            return np.linalg.norm(point - self.cartesian_pos()) < tolerance
+
+        waypoints = self._interpolate_linear(target_pos)
+        end_time = self._simulator.simulated_seconds + timeout
+        # perform position control with target velocity except for the final waypoint
+        for i in range(len(waypoints)-1):
+            waypoint = waypoints[i]
+            print(f'waypoint {i}: {waypoint}')
+            target_joint_pos = self._simulator.bullet_client.calculateInverseKinematics(
+                self.mount_id,
+                self.robot_joints['end_effector_link']['id'],
+                list(waypoint)
+            )
+            assumed_max_object_mass = 1.1  # will not be able to lift heavier objects
+            required_force = (self.gripper.mass + assumed_max_object_mass) * 9.81
+
+            pos_gain = 0.05
+            self._simulator.bullet_client.setJointMotorControlArray(
+                self.mount_id,
+                range(len(self.robot_joints)),
+                self._simulator.bullet_client.POSITION_CONTROL,
+                targetPositions=target_joint_pos,
+                targetVelocities=[0.01] * len(self.robot_joints),
+                forces=[500] * len(self.robot_joints),
+                positionGains=[pos_gain] * len(self.robot_joints),
+                velocityGains=[np.sqrt(pos_gain/4)] * len(self.robot_joints)
+            )
+
+            while not point_reached(waypoint) and self._simulator.simulated_seconds <= end_time:
+                self._simulator.step()
+
+        # finally approach target pos with pure position control
         target_joint_pos = self._simulator.bullet_client.calculateInverseKinematics(
             self.mount_id,
             self.robot_joints['end_effector_link']['id'],
-            list(pos)
+            list(target_pos)
         )
-        _log.debug(f'found target joint positions: {target_joint_pos}')
-        assumed_max_object_mass = 1.1  # will not be able to lift heavier objects
-        required_force = (self.gripper.mass + assumed_max_object_mass) * 9.81
-        _log.debug(f'required force (compensating gripper weight of {self.gripper.mass}) set to {required_force}')
-
         self._simulator.bullet_client.setJointMotorControlArray(
             self.mount_id,
             range(len(self.robot_joints)),
             self._simulator.bullet_client.POSITION_CONTROL,
             targetPositions=target_joint_pos,
-            # targetVelocities=[0.03] * len(self.robot_joints),
-            forces=[required_force] * len(self.robot_joints),
-            # positionGains=[0.01002] * len(self.robot_joints),
-            # velocityGains=[np.sqrt(0.1002/4)] * len(self.robot_joints)
         )
-
-        def goal_reached():
-            return np.linalg.norm(pos - self.cartesian_pos()) < tolerance
-
-        end_time = self._simulator.simulated_seconds + timeout
-        while not goal_reached() and self._simulator.simulated_seconds <= end_time:
+        while not point_reached(target_pos) and self._simulator.simulated_seconds <= end_time:
             self._simulator.step()
 
+        # end of lifting operation, check if we actually arrived at the goal
         _log.debug(f'lifting took {self._simulator.simulated_seconds - (end_time - timeout):.3f} seconds')
-
-        if goal_reached():
+        if point_reached(target_pos):
             _log.debug('goal position reached')
             return True
         _log.warning(f'go_to_pose reached timeout before attaining goal pose '
-                     f'(d={np.linalg.norm(pos-self.cartesian_pos()):.3f})')
+                     f'(d={np.linalg.norm(target_pos-self.cartesian_pos()):.3f})')
         _log.debug(f'current cartesian pos: {self.cartesian_pos()}')
         return False
