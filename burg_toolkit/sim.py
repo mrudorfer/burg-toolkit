@@ -337,7 +337,7 @@ class SimulatorBase:
         for joint_state in joint_states:
             print(f'\t{joint_state[0]}')
 
-    def are_in_collision(self, body_key_1, body_key_2, threshold=0.0):
+    def are_in_collision(self, body_key_1, body_key_2, threshold=-0.001):
         """
         checks if two bodies are in collision with each other.
 
