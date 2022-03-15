@@ -1,22 +1,14 @@
 import numpy as np
 from .gripper_base import GripperBase
-import time
-import threading
 
 
 class GripperRG2(GripperBase):
-    def __init__(self, bullet_client, gripper_size):
-        r""" Initialization of RG2 gripper
-        specific args for RG2:
-            - gripper_size: global scaling of the gripper when loading URDF
-        """
-        super().__init__()
-
-        self._bullet_client = bullet_client
-        self._gripper_size = gripper_size
+    """ RG2 Gripper """
+    def __init__(self, simulator, gripper_size=1.0):
+        super().__init__(simulator, gripper_size)
 
         # offset the gripper to a down facing pose for grasping
-        self._pos_offset = np.array([0, 0, 0.163 * self._gripper_size]) # offset from base to center of grasping
+        self._pos_offset = np.array([0, 0, 0.163 * self._gripper_size])  # offset from base to center of grasping
         self._orn_offset = self._bullet_client.getQuaternionFromEuler([np.pi, 0, 0])
         
         # define force and speed (grasping)
@@ -30,37 +22,42 @@ class GripperRG2(GripperBase):
         self._follower_joint_ids = [0, 2, 3, 4, 5]
         self._follower_joint_sign = [1, -1, -1, -1, 1]
 
+        self._contact_joint_ids = [2, 5]
 
-    def load(self, basePosition):
-        gripper_urdf = "assets/gripper/rg2/model.urdf"
-        body_id = self._bullet_client.loadURDF(
+    def load(self, position, orientation, open_scale=1.0):
+        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
+        gripper_urdf = self.get_asset_path('rg2/model.urdf')
+        self._body_id = self._bullet_client.loadURDF(
             gripper_urdf,
-            flags=self._bullet_client.URDF_USE_SELF_COLLISION,
+            # flags=self._bullet_client.URDF_USE_SELF_COLLISION,
             globalScaling=self._gripper_size,
-            basePosition=basePosition
+            basePosition=position,
+            baseOrientation=orientation
         )
-        return body_id
+        self.configure_friction()
+        self.configure_mass()
 
+        # set initial opening width
+        driver_pos = open_scale*self._driver_joint_lower + (1-open_scale)*self._driver_joint_upper
+        follower_pos = driver_pos * np.array(self._follower_joint_sign)
+        self._bullet_client.resetJointState(self.body_id, self._driver_joint_id, targetValue=driver_pos)
+        for i, pos in zip(self._follower_joint_ids, follower_pos):
+            self._bullet_client.resetJointState(self.body_id, i, targetValue=pos)
 
-    def configure(self, mount_gripper_id, n_links_before):
-        # Set friction coefficients for gripper fingers
-        for i in range(n_links_before, self._bullet_client.getNumJoints(mount_gripper_id)):
-            self._bullet_client.changeDynamics(mount_gripper_id,i,lateralFriction=1.0,spinningFriction=1.0,rollingFriction=0.0001,frictionAnchor=True)
+        self._sim.register_step_func(self.step_constraints)
 
-
-    def step_constraints(self, mount_gripper_id, n_joints_before):
-        pos = self._bullet_client.getJointState(mount_gripper_id, self._driver_joint_id+n_joints_before)[0]
+    def step_constraints(self):
+        pos = self._bullet_client.getJointState(self.body_id, self._driver_joint_id)[0]
         targets = pos * np.array(self._follower_joint_sign)
         self._bullet_client.setJointMotorControlArray(
-            mount_gripper_id,
-            [(joint_id+n_joints_before) for joint_id in self._follower_joint_ids],
+            self.body_id,
+            self._follower_joint_ids,
             self._bullet_client.POSITION_CONTROL,
             targetPositions=targets,
             forces=[self._force] * len(self._follower_joint_ids),
-            positionGains=[1] * len(self._follower_joint_ids)
+            positionGains=[1.5] * len(self._follower_joint_ids)
         )
         return pos
-
 
     def open(self, mount_gripper_id, n_joints_before, open_scale):
         open_scale = np.clip(open_scale, 0.1, 1.0)
@@ -78,27 +75,21 @@ class GripperRG2(GripperBase):
                 break
             self._bullet_client.stepSimulation()
     
-    def close(self, mount_gripper_id, n_joints_before):
+    def close(self):
         self._bullet_client.setJointMotorControl2(
-            mount_gripper_id,
-            self._driver_joint_id+n_joints_before,
+            self.body_id,
+            self._driver_joint_id,
             self._bullet_client.VELOCITY_CONTROL,
             targetVelocity=self._grasp_speed,
             force=self._force
         )
-        for i in range(240 * 2):
-            pos = self.step_constraints(mount_gripper_id, n_joints_before)
-            if pos>self._driver_joint_upper:
-                break
-            self._bullet_client.stepSimulation()
+        self._sim.step(seconds=2)
     
     def get_pos_offset(self):
         return self._pos_offset
 
-    
     def get_orn_offset(self):
         return self._orn_offset
-
 
     def get_vis_pts(self, open_scale):
         width = 0.05 * np.sin(open_scale)
@@ -106,3 +97,6 @@ class GripperRG2(GripperBase):
             [-width, 0],
             [width, 0]
         ])
+
+    def get_contact_link_ids(self):
+        return self._contact_joint_ids
