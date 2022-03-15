@@ -10,7 +10,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="meshes/palm.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/palm_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="White">
         <color rgba="1.0 1.0 1.0 1.0"/>
@@ -19,7 +19,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="meshes/palm.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/palm_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -31,7 +31,7 @@
   <joint name="palm_left_inner_joint" type="revolute">
     <origin rpy="0 -0.43 0" xyz="-0.0075 0.0 0.0715"/>
     <axis xyz="0 1 0"/>
-    <limit effort="20" lower="0" upper="0.86" velocity="0.2"/>
+    <limit effort="200" lower="0" upper="0.86" velocity="0.2"/>
     <parent link="palm"/>
     <child link="left_inner"/>
   </joint>
@@ -39,7 +39,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0.0075 0.0 -0.0715"/>
       <geometry>
-        <mesh filename="meshes/left_inner.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/left_inner_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="White">
         <color rgba="1.0 1.0 1.0 1.0"/>
@@ -48,7 +48,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.0075 0.0 -0.0715"/>
       <geometry>
-        <mesh filename="meshes/left_inner.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/left_inner_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -60,24 +60,24 @@
   <joint name="palm_left_outer_joint" type="revolute">
     <origin rpy="0 -0.43 0" xyz="-0.017 0.0 0.055"/>
     <axis xyz="0 1 0"/>
-    <limit effort="20" lower="0" upper="0.86" velocity="0.2"/>
+    <limit effort="200" lower="0" upper="0.86" velocity="0.2"/>
     <parent link="palm"/>
     <child link="left_outer"/>
   </joint>
   <link name="left_outer">
-    <visual>
+    <!--<visual>
       <origin rpy="0 0 0" xyz="0.017 0.0 -0.055"/>
       <geometry>
-        <mesh filename="meshes/left_outer.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/left_outer_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="White">
         <color rgba="1.0 1.0 1.0 1.0"/>
       </material>
-    </visual>
+    </visual>-->
     <collision>
       <origin rpy="0 0 0" xyz="0.017 0.0 -0.055"/>
       <geometry>
-        <mesh filename="meshes/left_outer.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/left_outer_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -89,24 +89,24 @@
   <joint name="left_finger_joint" type="revolute">
     <origin rpy="0 0.43 0" xyz="-0.025592 0.0 0.048677"/>
     <axis xyz="0 1 0"/>
-    <limit effort="20" lower="-0.86" upper="0" velocity="0.2"/>
+    <limit effort="200" lower="-0.86" upper="0" velocity="0.2"/>
     <parent link="left_outer"/>
     <child link="left_finger"/>
   </joint>
   <link name="left_finger">
-    <visual>
+    <!--<visual>
       <origin rpy="0 0 0" xyz="0.0426 0.0 -0.1037"/>
       <geometry>
-        <mesh filename="meshes/left_finger.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/left_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="white">
         <color rgba="1.0 1.0 1.0 1.0"/>
       </material>
-    </visual>
+    </visual>-->
     <collision>
       <origin rpy="0 0 0" xyz="0.0426 0.0 -0.1037"/>
       <geometry>
-        <mesh filename="meshes/left_finger.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/left_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -118,7 +118,7 @@
   <joint name="palm_right_inner_joint" type="revolute">
     <origin rpy="0 0.43 0" xyz="0.0075 0.0 0.0715"/>
     <axis xyz="0 1 0"/>
-    <limit effort="20" lower="-0.86" upper="0" velocity="0.2"/>
+    <limit effort="200" lower="-0.86" upper="0" velocity="0.2"/>
     <parent link="palm"/>
     <child link="right_inner"/>
   </joint>
@@ -126,7 +126,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.0075 0.0 -0.0715"/>
       <geometry>
-        <mesh filename="meshes/right_inner.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/right_inner_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="White">
         <color rgba="1.0 1.0 1.0 1.0"/>
@@ -135,7 +135,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0075 0.0 -0.0715"/>
       <geometry>
-        <mesh filename="meshes/right_inner.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/right_inner_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -147,7 +147,7 @@
   <joint name="palm_right_outer_joint" type="revolute">
     <origin rpy="0 0.43 0" xyz="0.017 0.0 0.055"/>
     <axis xyz="0 1 0"/>
-    <limit effort="20" lower="-0.86" upper="0" velocity="0.2"/>
+    <limit effort="200" lower="-0.86" upper="0" velocity="0.2"/>
     <parent link="palm"/>
     <child link="right_outer"/>
   </joint>
@@ -155,7 +155,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.017 0.0 -0.055"/>
       <geometry>
-        <mesh filename="meshes/right_outer.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/right_outer_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="White">
         <color rgba="1.0 1.0 1.0 1.0"/>
@@ -164,7 +164,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.017 0.0 -0.055"/>
       <geometry>
-        <mesh filename="meshes/right_outer.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/right_outer_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
@@ -176,7 +176,7 @@
   <joint name="right_finger_joint" type="revolute">
     <origin rpy="0 -0.43 0" xyz="0.025592 0.0 0.048677"/>
     <axis xyz="0 1 0"/>
-    <limit effort="20" lower="0" upper="0.86" velocity="0.2"/>
+    <limit effort="200" lower="0" upper="0.86" velocity="0.2"/>
     <parent link="right_outer"/>
     <child link="right_finger"/>
   </joint>
@@ -184,7 +184,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.0426 0.0 -0.1037"/>
       <geometry>
-        <mesh filename="meshes/right_finger.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/right_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="white">
         <color rgba="1.0 1.0 1.0 1.0"/>
@@ -193,7 +193,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0426 0.0 -0.1037"/>
       <geometry>
-        <mesh filename="meshes/right_finger.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="meshes/right_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
     <inertial>
