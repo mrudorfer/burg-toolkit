@@ -48,6 +48,7 @@ class GripperEZGripper(GripperBase):
             baseOrientation=orientation
         )
         self.configure_friction()
+        self.configure_mass()
 
         # set initial joint positions
         init_joint_pos = self._get_joint_positions(open_scale)

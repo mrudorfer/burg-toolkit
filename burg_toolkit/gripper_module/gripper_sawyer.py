@@ -37,13 +37,16 @@ class GripperSawyer(GripperBase):
             basePosition=position,
             baseOrientation=orientation
         )
-        # self.set_color([0.5, 0.5, 0.5])
+        self.set_color([0.5, 0.5, 0.5])
         self.configure_friction()
+        self.configure_mass()
 
         # open gripper according to open_scale
         driver_pos, follower_pos = self._get_target_joint_pos(open_scale)
         self._bullet_client.resetJointState(self.body_id, self._driver_joint_id, driver_pos)
         self._bullet_client.resetJointState(self.body_id, self._follower_joint_id, follower_pos)
+
+        self._sim.register_step_func(self.step_constraints)
 
     def _get_target_joint_pos(self, open_scale):
         driver_pos = (self._upper_limit - self._lower_limit) * (1 - open_scale)
@@ -58,32 +61,22 @@ class GripperSawyer(GripperBase):
             self._bullet_client.POSITION_CONTROL,
             targetPosition=self._upper_limit-pos,
             force=self._force,
-            positionGain=2*self._grasp_speed
+            targetVelocity=2 * self._grasp_speed,
+            positionGain=1.8
         )
         return pos
     
     def close(self):
-        # variant = 'velocity_control_plus_follower'
-        variant = 'position_control_both'
-        if variant == 'velocity_control_plus_follower':
-            self._bullet_client.setJointMotorControl2(
-                self.body_id,
-                self._driver_joint_id,
-                self._bullet_client.VELOCITY_CONTROL,
-                targetVelocity=self._grasp_speed,
-                force=self._force,
-            )
-            self._sim.register_step_func(self.step_constraints)
-
-        if variant == 'position_control_both':
-            self._bullet_client.setJointMotorControlArray(
-                self.body_id,
-                [self._driver_joint_id, self._follower_joint_id],
-                self._bullet_client.POSITION_CONTROL,
-                targetPositions=self._get_target_joint_pos(open_scale=0),
-                forces=[self._force]*2,
-                positionGains=[0.02]*2
-            )
+        self._bullet_client.setJointMotorControl2(
+            self.body_id,
+            self._driver_joint_id,
+            self._bullet_client.POSITION_CONTROL,
+            targetPosition=self._get_target_joint_pos(open_scale=0)[0],
+            targetVelocity=self._grasp_speed,
+            force=self._force,
+            positionGain=0.04,
+            velocityGain=1
+        )
         self._sim.step(seconds=2)
 
     def get_pos_offset(self):

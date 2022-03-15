@@ -32,6 +32,7 @@ class GripperFranka(GripperBase):
         )
         self.set_color([0.5, 0.5, 0.5])
         self.configure_friction()
+        self.configure_mass()
 
         # open gripper
         for joint_id in self._moving_joint_ids:

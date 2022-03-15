@@ -99,6 +99,16 @@ class GripperBase(abc.ABC):
                                                lateralFriction=lateral_friction, spinningFriction=spinning_friction,
                                                rollingFriction=rolling_friction, frictionAnchor=friction_anchor)
 
+    def configure_mass(self, base_mass=0.4, combined_finger_mass=0.1):
+        """
+        configures the mass of the gripper such that all grippers have a uniform mass and can hence be controlled
+        uniformly
+        """
+        assert self.is_loaded()
+        self._bullet_client.changeDynamics(self.body_id, -1, mass=base_mass)
+        for i in range(self.num_joints):
+            self._bullet_client.changeDynamics(self.body_id, i, mass=combined_finger_mass/self.num_joints)
+
     def joint_positions(self):
         joint_states = self._bullet_client.getJointStates(self.body_id, range(self.num_joints))
         pos = []

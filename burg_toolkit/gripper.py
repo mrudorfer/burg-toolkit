@@ -205,12 +205,13 @@ class MountedGripper:
         )
         return np.array(pos)
 
-    def go_to_cartesian_pos(self, pos, timeout=10):
+    def go_to_cartesian_pos(self, pos, timeout=5, tolerance=0.01):
         """
         Attempts to move the mounted gripper to pos.
 
         :param pos: [x, y, z], target position
         :param timeout: max seconds to simulate
+        :param tolerance: pose tolerance for accepting the goal pose
 
         :return: bool, True if position attained, False if timeout reached
         """
@@ -231,11 +232,13 @@ class MountedGripper:
             range(len(self.robot_joints)),
             self._simulator.bullet_client.POSITION_CONTROL,
             targetPositions=target_joint_pos,
-            # targetVelocities=[0.01] * len(self.robot_joints),
-            forces=[required_force] * len(self.robot_joints)
+            # targetVelocities=[0.03] * len(self.robot_joints),
+            forces=[required_force] * len(self.robot_joints),
+            # positionGains=[0.01002] * len(self.robot_joints),
+            # velocityGains=[np.sqrt(0.1002/4)] * len(self.robot_joints)
         )
 
-        def goal_reached(tolerance=0.001):
+        def goal_reached():
             return np.linalg.norm(pos - self.cartesian_pos()) < tolerance
 
         end_time = self._simulator.simulated_seconds + timeout
@@ -247,6 +250,7 @@ class MountedGripper:
         if goal_reached():
             _log.debug('goal position reached')
             return True
-        _log.debug('reached timeout before attaining goal position')
+        _log.warning(f'go_to_pose reached timeout before attaining goal pose '
+                     f'(d={np.linalg.norm(pos-self.cartesian_pos()):.3f})')
         _log.debug(f'current cartesian pos: {self.cartesian_pos()}')
         return False
