@@ -3,7 +3,12 @@ from .gripper_base import GripperBase
 
 
 class GripperRG2(GripperBase):
-    """ RG2 Gripper """
+    """ RG2 Gripper
+
+    Gripper model collides with itself and gets stuck while closing. Hence, self-collisions are disabled in pybullet.
+    Closing works, but once we lift the gripper, it does not hold on to the object. It looks like either the
+    contact has no friction or the closing force is too small. Tried to fix it but does not seem to work...
+    """
     def __init__(self, simulator, gripper_size=1.0):
         super().__init__(simulator, gripper_size)
 
