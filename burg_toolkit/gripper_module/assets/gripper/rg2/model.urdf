@@ -65,7 +65,7 @@
     <child link="left_outer"/>
   </joint>
   <link name="left_outer">
-    <!--<visual>
+    <visual>
       <origin rpy="0 0 0" xyz="0.017 0.0 -0.055"/>
       <geometry>
         <mesh filename="meshes/left_outer_vhacd.obj" scale="0.001 0.001 0.001"/>
@@ -73,7 +73,7 @@
       <material name="White">
         <color rgba="1.0 1.0 1.0 1.0"/>
       </material>
-    </visual>-->
+    </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0.017 0.0 -0.055"/>
       <geometry>
@@ -94,7 +94,7 @@
     <child link="left_finger"/>
   </joint>
   <link name="left_finger">
-    <!--<visual>
+    <visual>
       <origin rpy="0 0 0" xyz="0.0426 0.0 -0.1037"/>
       <geometry>
         <mesh filename="meshes/left_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
@@ -102,7 +102,7 @@
       <material name="white">
         <color rgba="1.0 1.0 1.0 1.0"/>
       </material>
-    </visual>-->
+    </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0.0426 0.0 -0.1037"/>
       <geometry>
