@@ -54,26 +54,10 @@ class GripperRG2(GripperBase):
             self._follower_joint_ids,
             self._bullet_client.POSITION_CONTROL,
             targetPositions=targets,
-            forces=[self._force] * len(self._follower_joint_ids),
+            forces=[2*self._force] * len(self._follower_joint_ids),
             positionGains=[1.5] * len(self._follower_joint_ids)
         )
         return pos
-
-    def open(self, mount_gripper_id, n_joints_before, open_scale):
-        open_scale = np.clip(open_scale, 0.1, 1.0)
-        target_pos = open_scale*self._driver_joint_lower + (1-open_scale)*self._driver_joint_upper  # recalculate scale because larger joint position corresponds to smaller open width
-        self._bullet_client.setJointMotorControl2(
-            mount_gripper_id,
-            self._driver_joint_id+n_joints_before,
-            self._bullet_client.POSITION_CONTROL,
-            targetPosition=target_pos,
-            force=self._force
-        )
-        for i in range(240 * 2):
-            driver_pos = self.step_constraints(mount_gripper_id, n_joints_before)
-            if np.abs(driver_pos - target_pos)<1e-5:
-                break
-            self._bullet_client.stepSimulation()
     
     def close(self):
         self._bullet_client.setJointMotorControl2(
@@ -81,7 +65,7 @@ class GripperRG2(GripperBase):
             self._driver_joint_id,
             self._bullet_client.VELOCITY_CONTROL,
             targetVelocity=self._grasp_speed,
-            force=self._force
+            force=2*self._force
         )
         self._sim.step(seconds=2)
     

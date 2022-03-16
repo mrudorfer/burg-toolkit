@@ -17,8 +17,8 @@ def main():
     sim = burg.sim.GraspSimulator(scene, verbose=True)
     pose = np.eye(4)
     pose[0:2, 3] = 0.10
-    pose[2, 3] = 0.04
-    # pose[2, 3] = 0.1
+    pose[2, 3] = 0.02
+    pose[2, 3] = 0.1
     grasp = burg.Grasp()
     grasp.pose = pose
     # sim.execute_grasp('franka', grasp, scene.objects[0])
@@ -26,8 +26,9 @@ def main():
     # sim.execute_grasp('wsg_32', grasp, scene.objects[0], gripper_scale=1.45, gripper_opening_width=1)
     # sim.execute_grasp('wsg_50', grasp, scene.objects[0], gripper_opening_width=1)
     # sim.execute_grasp('sawyer', grasp, scene.objects[0], gripper_scale=1.1, gripper_opening_width=1)
-    # sim.execute_grasp('robotiq_2f_85', grasp, scene.objects[0])
-    sim.execute_grasp('robotiq_2f_140', grasp, scene.objects[0], gripper_opening_width=0.8)
+    # sim.execute_grasp('robotiq_2f_85', grasp, scene.objects[0], gripper_opening_width=0.9)
+    # sim.execute_grasp('robotiq_2f_140', grasp, scene.objects[0], gripper_opening_width=0.8)
+    sim.execute_grasp('rg2', grasp, scene.objects[0], gripper_opening_width=0.8)
 
 
 if __name__ == '__main__':
