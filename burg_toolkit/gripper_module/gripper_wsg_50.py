@@ -31,6 +31,7 @@ class GripperWSG50(GripperBase):
         )
         self.set_color([0.5, 0.5, 0.5])
         self.configure_friction()
+        self.configure_mass()
 
         # open gripper according to open_scale
         target_pos = [-self._finger_open_distance * open_scale, self._finger_open_distance * open_scale]
