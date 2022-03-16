@@ -4,9 +4,8 @@ from .gripper_base import GripperBase
 
 class GripperSawyer(GripperBase):
     """
-    As with WSG_32, the gripper model is self-colliding and unable to close.
-    We therefore disable self-collisions via pybullet and use position control on both fingers instead of a velocity
-    control with driver/follower.
+    The gripper model is self-colliding and unable to close.
+    We therefore disable self-collisions via pybullet, leading the fingertips to overshoot a little when closing.
     """
     def __init__(self, simulator, gripper_size=1.0):
         super().__init__(simulator, gripper_size)
@@ -70,12 +69,9 @@ class GripperSawyer(GripperBase):
         self._bullet_client.setJointMotorControl2(
             self.body_id,
             self._driver_joint_id,
-            self._bullet_client.POSITION_CONTROL,
-            targetPosition=self._get_target_joint_pos(open_scale=0)[0],
+            self._bullet_client.VELOCITY_CONTROL,
             targetVelocity=self._grasp_speed,
             force=self._force,
-            positionGain=0.04,
-            velocityGain=1
         )
         self._sim.step(seconds=2)
 
