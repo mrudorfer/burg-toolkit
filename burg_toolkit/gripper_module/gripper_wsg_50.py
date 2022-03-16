@@ -48,7 +48,7 @@ class GripperWSG50(GripperBase):
             targetPosition=-pos,
             force=self._force,
             targetVelocity=2*self._grasp_speed,
-            positionGain=1.8
+            positionGain=1.0
         )
         return pos
 
