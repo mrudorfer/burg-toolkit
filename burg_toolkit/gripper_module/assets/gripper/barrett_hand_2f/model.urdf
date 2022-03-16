@@ -15,7 +15,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/palm_282.dae.stl"/>
+                <mesh filename="./meshes/palm_282.dae_vhacd.obj"/>
             </geometry>
             <material name="Grey">
                 <color rgba="0.75 0.75 0.75 1.0"/>
@@ -24,7 +24,7 @@
         <collision>
             <origin rpy="0 0 0 " xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/palm_282.dae.stl"/>
+                <mesh filename="./meshes/palm_282.dae_vhacd.obj"/>
             </geometry>
             <contact_coefficients kd="1.0" kp="1000.0" mu="1000"/>
         </collision>
@@ -41,14 +41,14 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/knuckle.dae.stl"/>
+                <mesh filename="./meshes/knuckle.dae_vhacd.obj"/>
             </geometry>
             <material name="Green"/>
         </visual>
         <collision>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/knuckle.dae.stl"/>
+                <mesh filename="./meshes/knuckle.dae_vhacd.obj"/>
             </geometry>
         </collision>
     </link>
@@ -82,14 +82,14 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger.dae.stl"/>
+                <mesh filename="./meshes/finger.dae_vhacd.obj"/>
             </geometry>
             <material name="Blue"/>
         </visual>
         <collision>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger.dae.stl"/>
+                <mesh filename="./meshes/finger.dae_vhacd.obj"/>
             </geometry>
             <contact_coefficients kd="1.0" kp="1000.0" mu="1000"/>
         </collision>
@@ -124,14 +124,14 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger_tip.dae.stl"/>
+                <mesh filename="./meshes/finger_tip.dae_vhacd.obj"/>
             </geometry>
             <material name="Blue"/>
         </visual>
         <collision>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger_tip.dae.stl"/>
+                <mesh filename="./meshes/finger_tip.dae_vhacd.obj"/>
             </geometry>
             <contact_coefficients kd="1.0" kp="1000.0" mu="1000"/>
         </collision>
@@ -168,14 +168,14 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/knuckle.dae.stl"/>
+                <mesh filename="./meshes/knuckle.dae_vhacd.obj"/>
             </geometry>
             <material name="Green"/>
         </visual>
         <collision>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/knuckle.dae.stl"/>
+                <mesh filename="./meshes/knuckle.dae_vhacd.obj"/>
             </geometry>
         </collision>
     </link>
@@ -210,14 +210,14 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger.dae.stl"/>
+                <mesh filename="./meshes/finger.dae_vhacd.obj"/>
             </geometry>
             <material name="Blue"/>
         </visual>
         <collision>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger.dae.stl"/>
+                <mesh filename="./meshes/finger.dae_vhacd.obj"/>
             </geometry>
             <contact_coefficients kd="1.0" kp="1000.0" mu="1000"/>
         </collision>
@@ -252,14 +252,14 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger_tip.dae.stl"/>
+                <mesh filename="./meshes/finger_tip.dae_vhacd.obj"/>
             </geometry>
             <material name="Blue"/>
         </visual>
         <collision>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="./meshes/finger_tip.dae.stl"/>
+                <mesh filename="./meshes/finger_tip.dae_vhacd.obj"/>
             </geometry>
             <contact_coefficients kd="1.0" kp="1000.0" mu="1000"/>
         </collision>
