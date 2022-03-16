@@ -28,7 +28,8 @@ def main():
     # sim.execute_grasp('sawyer', grasp, scene.objects[0], gripper_scale=1.1, gripper_opening_width=1)
     # sim.execute_grasp('robotiq_2f_85', grasp, scene.objects[0], gripper_opening_width=0.9)
     # sim.execute_grasp('robotiq_2f_140', grasp, scene.objects[0], gripper_opening_width=0.8)
-    sim.execute_grasp('rg2', grasp, scene.objects[0], gripper_opening_width=0.8)
+    # sim.execute_grasp('rg2', grasp, scene.objects[0], gripper_opening_width=0.8)
+    sim.execute_grasp('barrett_hand_2f', grasp, scene.objects[0], gripper_opening_width=1.0)
 
 
 if __name__ == '__main__':
