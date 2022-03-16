@@ -33,7 +33,7 @@
       <mass value="0.00853198276973456"/>
       <inertia ixx="2.89328108496468E-06" ixy="-1.57935047237397E-19" ixz="-1.93980378593255E-19" iyy="1.86719750325683E-06" iyz="-1.21858577871576E-06" izz="1.21905238907251E-06"/>
     </inertial>
-    <!--<visual>
+    <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="./meshes/robotiq_arg2f_85_outer_knuckle_vhacd.obj" scale="0.001 0.001 0.001"/>
@@ -41,7 +41,7 @@
       <material name="">
         <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
       </material>
-    </visual>-->
+    </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
@@ -55,7 +55,7 @@
       <mass value="0.022614240507152"/>
       <inertia ixx="1.52518312458174E-05" ixy="9.76583423954399E-10" ixz="-5.43838577022588E-10" iyy="6.17694243867776E-06" iyz="6.78636130740228E-06" izz="1.16494917907219E-05"/>
     </inertial>
-    <!--<visual>
+    <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="./meshes/robotiq_arg2f_85_outer_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
@@ -63,7 +63,7 @@
       <material name="">
         <color rgba="0.1 0.1 0.1 1"/>
       </material>
-    </visual>-->
+    </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
@@ -77,7 +77,7 @@
       <mass value="0.0104003125914103"/>
       <inertia ixx="2.71909453810972E-06" ixy="1.35402465472579E-21" ixz="-7.1817349065269E-22" iyy="7.69100314106116E-07" iyz="6.74715432769696E-07" izz="2.30315190420171E-06"/>
     </inertial>
-    <!--<visual>
+    <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="./meshes/robotiq_arg2f_85_inner_finger_vhacd.obj" scale="0.001 0.001 0.001"/>
@@ -85,7 +85,7 @@
       <material name="">
         <color rgba="0.1 0.1 0.1 1"/>
       </material>
-    </visual>-->
+    </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
