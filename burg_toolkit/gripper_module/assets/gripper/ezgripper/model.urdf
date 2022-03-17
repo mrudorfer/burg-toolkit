@@ -7,16 +7,16 @@
 <robot name="ezgripper_stand_alone" xmlns:xacro="http://ros.org/wiki/xacro">
   <!-- links -->
   <link name="left_ezgripper_palm_link">
-    <visual>
+    <!--<visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Palm_Dual_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Palm_Dual_Gen2_vhacd.obj"/>
       </geometry>
-    </visual>
+    </visual>-->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Palm_Dual_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Palm_Dual_Gen2_vhacd.obj"/>
       </geometry>
     </collision>
     <inertial>
@@ -34,16 +34,16 @@
   </joint>
   -->
   <link name="left_ezgripper_finger_L1_1">
-    <visual>
+    <!--<visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L1_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L1_Gen2_vhacd.obj"/>
       </geometry>
-    </visual>
+    </visual>-->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L1_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L1_Gen2_vhacd.obj"/>
       </geometry>
     </collision>
     <inertial>
@@ -55,13 +55,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L1_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L1_Gen2_vhacd.obj"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L1_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L1_Gen2_vhacd.obj"/>
       </geometry>
     </collision>
     <inertial>
@@ -70,16 +70,16 @@
     </inertial>
   </link>
   <link name="left_ezgripper_finger_L2_1">
-    <visual>
+    <!--<visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L2_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L2_Gen2_vhacd.obj"/>
       </geometry>
-    </visual>
+    </visual>-->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L2_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L2_Gen2_vhacd.obj"/>
       </geometry>
     </collision>
     <inertial>
@@ -91,13 +91,13 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L2_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L2_Gen2_vhacd.obj"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/SAKE_Finger_L2_Gen2.stl"/>
+        <mesh filename="meshes/SAKE_Finger_L2_Gen2_vhacd.obj"/>
       </geometry>
     </collision>
     <inertial>
