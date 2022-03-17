@@ -45,12 +45,12 @@
     <visual>
       <material name="white"/>
       <geometry>
-        <mesh filename="meshes/visual/hand.stl"/>
+        <mesh filename="meshes/hand_vhacd.obj"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="meshes/collision/hand.stl"/>
+        <mesh filename="meshes/hand_vhacd.obj"/>
       </geometry>
     </collision>
   </link>
@@ -63,12 +63,12 @@
     <visual>
       <material name="light_gray"/>
       <geometry>
-        <mesh filename="meshes/visual/finger.stl"/>
+        <mesh filename="meshes/finger_vhacd.obj"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="meshes/visual/finger.stl"/>
+        <mesh filename="meshes/finger_vhacd.obj"/>
       </geometry>
     </collision>
   </link>
@@ -82,13 +82,13 @@
       <material name="light_gray"/>
       <origin rpy="0 0 3.14159265359" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/visual/finger.stl"/>
+        <mesh filename="meshes/finger_vhacd.obj"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 3.14159265359" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/visual/finger.stl"/>
+        <mesh filename="meshes/finger_vhacd.obj"/>
       </geometry>
     </collision>
   </link>
