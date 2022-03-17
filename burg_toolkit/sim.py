@@ -493,12 +493,57 @@ class GraspSimulator(SimulatorBase):
         super().__init__(verbose=verbose)
         self.scene = scene
         self.LIFTING_HEIGHT = 0.3
+        self._reset_scene()
 
     @property
     def bullet_client(self):
         return self._p
 
-    def contact_established(self, gripper, target, min_contacts=2):
+    def _wait_for_user(self):
+        if self.verbose:
+            print('press enter to continue')
+            input()
+
+    def _reset_scene(self):
+        self._reset(plane_and_gravity=True)
+        _log.debug('setting scene...')
+        self.add_scene(self.scene)
+
+    def _check_collisions(self, gripper, target):
+        """
+        Checks collisions with environment objects, target object, and other moving scene objects.
+
+        :param gripper: GripperBase object
+        :param target: ObjectInstance target
+
+        :return: GraspScores value
+        """
+        # checking collisions against environment objects (ground plane)
+        _log.debug('checking collisions with environment bodies')
+        for body_key, body_id in self._env_bodies.items():
+            if self.are_in_collision(gripper.body_id, body_id):
+                _log.debug(f'gripper in collision with {body_key} ({body_id})')
+                return GraspScores.COLLISION_WITH_GROUND
+
+        # checking collisions against target object
+        _log.debug('checking collisions with target')
+        if self.are_in_collision(gripper.body_id, target):
+            _log.debug(f'gripper in collision with target ({target})')
+            return GraspScores.COLLISION_WITH_TARGET
+
+        # checking collisions with other scene objects
+        _log.debug('checking collisions with other bodies')
+        for body_key, body_id in self._moving_bodies.items():
+            if body_id == self.look_up_body_id(target) or body_id == self.look_up_body_id(gripper.body_id):
+                continue
+            if self.are_in_collision(gripper.body_id, body_id):
+                _log.debug(f'gripper in collision with {body_key} ({body_id})')
+                return GraspScores.COLLISION_WITH_CLUTTER
+
+        _log.debug('COLLISION CHECKS PASSED')
+        return GraspScores.SUCCESS
+
+    def _contact_established(self, gripper, target, min_contacts=2):
         """
         checks if there is contact established between the gripper and the target object
 
@@ -526,7 +571,9 @@ class GraspSimulator(SimulatorBase):
 
     def execute_grasp(self, gripper_type, grasp_pose, target, gripper_scale=1.0, gripper_opening_width=1.0):
         """
-        executes a grasp in the scene.
+        Executes a grasp in the scene.
+        The simulator is already set up and will be reset after the grasp is attempted. This ensures that you can
+        register step functions with the simulator (which will be removed after reset).
 
         :param gripper_type: A class that inherits from GripperBase
         :param grasp_pose: A core.Grasp
@@ -536,58 +583,27 @@ class GraspSimulator(SimulatorBase):
 
         :return: GraspScore
         """
-        self._reset(plane_and_gravity=True)
-        _log.debug('loading scene...')
-        self.add_scene(self.scene)
-
         # create gripper, loading at pose, attaching dummy bot
         _log.debug('loading gripper...')
         robot = MountedGripper(self, gripper_type, grasp_pose.pose, gripper_scale, gripper_opening_width)
 
-        ###################################
-        # PHASE 1: CHECK GRIPPER COLLISIONS
-        # checking collisions against environment objects (ground plane)
-        _log.debug('checking collisions with environment bodies')
-        for body_key, body_id in self._env_bodies.items():
-            if self.are_in_collision(robot.gripper.body_id, body_id):
-                _log.debug(f'gripper in collision with {body_key} ({body_id})')
-                return GraspScores.COLLISION_WITH_GROUND
-
-        # checking collisions against target object
-        _log.debug('checking collisions with target')
-        if self.are_in_collision(robot.gripper.body_id, target):
-            _log.debug(f'gripper in collision with target ({target})')
-            if self.verbose:
-                print('enter')
-                input()
-            return GraspScores.COLLISION_WITH_TARGET
-
-        # checking collisions with other scene objects
-        _log.debug('checking collisions with other bodies')
-        for body_key, body_id in self._moving_bodies.items():
-            if body_id == self.look_up_body_id(target) or body_id == self.look_up_body_id(robot.gripper.body_id):
-                continue
-            if self.are_in_collision(robot.gripper.body_id, body_id):
-                _log.debug(f'gripper in collision with {body_key} ({body_id})')
-                return GraspScores.COLLISION_WITH_CLUTTER
-
-        _log.debug('COLLISION CHECKS PASSED')
-        if self.verbose:
-            print('press enter to continue')
-            input()
+        result = self._check_collisions(robot.gripper, target)
+        if result != GraspScores.SUCCESS:
+            self._wait_for_user()
+            self._reset_scene()
+            return result
 
         _log.debug(f'gripper joint states: {robot.gripper.joint_positions()}')
         _log.debug('closing gripper...')
         robot.gripper.close()
         _log.debug('GRIPPER CLOSED')
         _log.debug(f'gripper joint states: {robot.gripper.joint_positions()}')
-        if self.verbose:
-            print('press enter to continue')
-            input()
 
         _log.debug('checking contacts...')
-        if not self.contact_established(robot.gripper, target):
+        if not self._contact_established(robot.gripper, target):
             _log.debug('no contact with target object established')
+            self._wait_for_user()
+            self._reset_scene()
             return GraspScores.NO_CONTACT_ESTABLISHED
         _log.debug('CONTACT ESTABLISHED')
 
@@ -600,13 +616,14 @@ class GraspSimulator(SimulatorBase):
 
         # check again if object is still in contact
         _log.debug('checking contacts...')
-        if not self.contact_established(robot.gripper, target):
+        if not self._contact_established(robot.gripper, target):
             _log.debug('no contact with target object established')
+            self._wait_for_user()
+            self._reset_scene()
             return GraspScores.SLIPPED_DURING_LIFTING
+
         _log.debug('CONTACT CONFIRMED')
         _log.debug('GRASP SUCCESSFUL')
-
-        if self.verbose:
-            print('press enter to finish up')
-            input()
+        self._wait_for_user()
+        self._reset_scene()
         return GraspScores.SUCCESS
