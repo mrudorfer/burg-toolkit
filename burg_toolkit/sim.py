@@ -8,7 +8,7 @@ import pybullet_data
 from pybullet_utils import bullet_client
 from matplotlib import pyplot as plt
 
-from . import util
+from . import util, io
 from .gripper import MountedGripper
 
 
@@ -43,6 +43,8 @@ class SimulatorBase:
 
         self._step_funcs = []  # functions that will be executed on stepping
 
+        self._recording_config = None
+
         self._p = None
         self._reset()
 
@@ -74,7 +76,7 @@ class SimulatorBase:
         self._p.setPhysicsEngineParameter(fixedTimeStep=self.dt, numSolverIterations=self.SOLVER_STEPS)
         if self.verbose:
             self._p.resetDebugVisualizerCamera(cameraDistance=0.4, cameraYaw=0, cameraPitch=-30,
-                                               cameraTargetPosition=[0, 0, 0])
+                                               cameraTargetPosition=[0, 0, 0.1])
         if plane_and_gravity:
             self._load_plane_and_gravity()
 
@@ -378,6 +380,56 @@ class SimulatorBase:
         assert self._simulated_steps > 0, 'SimulatorBase.are_in_contact() can only be called after step()'
         contacts = self._p.getContactPoints(body_id_1, body_id_2, link_id_1, link_id_2)
         return len(contacts) > 0
+
+    def _save_image(self):
+        assert self._recording_config is not None, 'recording not configured'
+
+        fps = self._recording_config['fps']
+        if self._simulated_steps % int(fps / self.dt) != 0:
+            return
+
+        width, height, rgb, depth, seg_mask = self._p.getCameraImage(
+            self._recording_config('w'),
+            self._recording_config('h'),
+            viewMatrix=self._recording_config('view_matrix'),
+            projectionMatrix=self._recording_config('projection_matrix')
+        )
+
+        rgb = rgb[:, :, :3]  # remove alpha
+        index = self._simulated_steps // int(fps / self.dt)
+        filename = self._recording_config['filename'] + f'_{index:04d}.png'
+        io.save_image(filename, rgb)
+
+    def configure_recording(self, filename, camera_pose, camera, fps=24):
+        self._recording_config = None
+
+        # compute projection matrix for given camera
+        znear, zfar = 0.02, 2
+        w, h = camera.resolution
+        cx, cy = camera.intrinsic_parameters['cx'], camera.intrinsic_parameters['cy']
+        fx, fy = camera.intrinsic_parameters['fx'], camera.intrinsic_parameters['fy']
+        projection_matrix = np.array([
+            [2 * fx / w, 0, 0, 0],
+            [0, 2 * fy / h, 0, 0],
+            [-(2 * cx / w - 1), 2 * cy / h - 1, (znear + zfar) / (znear - zfar), -1],
+            [0, 0, (2 * znear * zfar) / (znear - zfar), 0]
+        ])
+
+        # compute view matrix
+        view_matrix = np.linalg.inv(camera_pose).T
+
+        # save config
+        self._recording_config = {
+            'w': w,
+            'h': h,
+            'projection_matrix': projection_matrix.flatten(),
+            'view_matrix': view_matrix.flatten(),
+            'filename': filename,
+            'fps': fps
+        }
+
+        # register save image function
+        self.register_step_func(self._save_image)
 
 
 class GraspScores:

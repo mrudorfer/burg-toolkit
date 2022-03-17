@@ -240,6 +240,18 @@ def save_depth_image(filename, depth, filetype=None):
         pyexr.write(filename, img, channel_names=['R', 'G', 'B'], precision=pyexr.FLOAT)
 
 
+def save_image(filename, image):
+    """
+    Saves the given image to the given filename.
+    Creates the directory if necessary.
+
+    :param filename: path, filename where to save
+    :param image: ndarray with image
+    """
+    make_sure_directory_exists(os.path.dirname(filename))
+    imageio.imwrite(filename, image)
+
+
 class YCBObjectLibraryReader:
     """
     Class to read the YCB objects from a directory into an object library.
