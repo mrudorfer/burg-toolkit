@@ -385,26 +385,38 @@ class SimulatorBase:
         assert self._recording_config is not None, 'recording not configured'
 
         fps = self._recording_config['fps']
-        if self._simulated_steps % int(fps / self.dt) != 0:
+        if self._simulated_steps % int(1/(fps*self.dt)) != 0:
             return
 
         width, height, rgb, depth, seg_mask = self._p.getCameraImage(
-            self._recording_config('w'),
-            self._recording_config('h'),
-            viewMatrix=self._recording_config('view_matrix'),
-            projectionMatrix=self._recording_config('projection_matrix')
+            self._recording_config['w'],
+            self._recording_config['h'],
+            viewMatrix=self._recording_config['view_matrix'],
+            projectionMatrix=self._recording_config['projection_matrix']
         )
 
         rgb = rgb[:, :, :3]  # remove alpha
-        index = self._simulated_steps // int(fps / self.dt)
+        index = self._simulated_steps // int(1/(fps*self.dt))
         filename = self._recording_config['filename'] + f'_{index:04d}.png'
         io.save_image(filename, rgb)
 
-    def configure_recording(self, filename, camera_pose, camera, fps=24):
+    def configure_recording(self, filename, camera, camera_pose, fps=24):
+        """
+        Use this to continuously capture images from the simulation. Afterwards, they can be combined to a gif or
+        mp4 using ffmpeg.
+        Note that if the simulation is reset, the recording configuration is lost. You should hence call this function
+        after the simulation has been set up, but before it starts simulating.
+
+        :param filename: string, base filename of images, including path. Frame index and file type are added
+                         automatically.
+        :param camera: render.Camera object
+        :param camera_pose: ndarray, 4x4
+        :param fps: int, desired frames per second (of simulation time)
+        """
         self._recording_config = None
 
         # compute projection matrix for given camera
-        znear, zfar = 0.02, 2
+        znear, zfar = 0.02, 5
         w, h = camera.resolution
         cx, cy = camera.intrinsic_parameters['cx'], camera.intrinsic_parameters['cy']
         fx, fy = camera.intrinsic_parameters['fx'], camera.intrinsic_parameters['fy']
@@ -430,6 +442,13 @@ class SimulatorBase:
 
         # register save image function
         self.register_step_func(self._save_image)
+
+    def stop_recording(self):
+        """
+        After call to configure_recording(), this can be used to stop the recording again.
+        """
+        self.unregister_step_func(self._save_image)
+        self._recording_config = None
 
 
 class GraspScores:
