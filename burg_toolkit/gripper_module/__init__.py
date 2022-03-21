@@ -1,17 +1,19 @@
+from .base import GripperBase
+
 # 2 fingers
-from .gripper_wsg_50 import GripperWSG50
-from .gripper_wsg_32 import GripperWSG32
-from .gripper_robotiq_2f_85 import GripperRobotiq2F85
-from .gripper_robotiq_2f_140 import GripperRobotiq2F140
-from .gripper_ezgripper import GripperEZGripper
-from .gripper_sawyer import GripperSawyer
-from .gripper_franka import GripperFranka
-from .gripper_rg2 import GripperRG2
-from .gripper_barrett_hand_2f import GripperBarrettHand2F
+from .wsg_50 import GripperWSG50
+from .wsg_32 import GripperWSG32
+from .robotiq_2f_85 import GripperRobotiq2F85
+from .robotiq_2f_140 import GripperRobotiq2F140
+from .ezgripper import GripperEZGripper
+from .sawyer import GripperSawyer
+from .franka import GripperFranka
+from .rg2 import GripperRG2
+from .barrett_hand_2f import GripperBarrettHand2F
 # # 3 fingers
-from .gripper_robotiq_3f import GripperRobotiq3F
-from .gripper_barrett_hand import GripperBarrettHand
-from .gripper_kinova_3f import GripperKinova3F
+from .robotiq_3f import GripperRobotiq3F
+from .barrett_hand import GripperBarrettHand
+from .kinova_3f import GripperKinova3F
 
 
 two_finger_grippers = {

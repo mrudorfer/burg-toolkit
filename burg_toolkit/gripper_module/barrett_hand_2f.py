@@ -1,5 +1,5 @@
 import numpy as np
-from .gripper_base import GripperBase
+from . import GripperBase
 
 
 class GripperBarrettHand2F(GripperBase):
