@@ -1,7 +1,15 @@
 import abc
 import os
+import logging
+
+import numpy as np
+import open3d as o3d
 
 from .. import util
+
+
+_log = logging.getLogger(__name__)
+ASSET_PATH = os.path.join(os.path.dirname(__file__), 'assets/')
 
 
 class GripperBase(abc.ABC):
@@ -107,7 +115,7 @@ class GripperBase(abc.ABC):
 
         :return: Returns full path to the requested file.
         """
-        return os.path.join(os.path.dirname(__file__), 'assets/', gripper_fn)
+        return os.path.join(ASSET_PATH, gripper_fn)
 
     @property
     def body_id(self):
@@ -176,3 +184,212 @@ class GripperBase(abc.ABC):
         for joint in range(self.num_joints):
             pos.append(joint_states[joint][0])
         return pos
+
+
+class ParallelJawGripper:
+    """
+    Represents a general parallel jawed gripper.
+    Fingers are assumed to be cuboids with same width and height (the `finger_thickness`) and a specified
+    `finger_length`.
+    The inside of the fingers are at most `opening_width` apart.
+    All values are given in meters.
+
+    This also serves as a base class for all parallel jawed grippers. It provides a uniform interface as well as
+    capabilities to produce a simplified mesh that can be used for visualization tasks.
+
+    The meshes may be in arbitrary poses, before using they must be transformed using `tf_base_to_TCP` property.
+    After applying this transform, the gripper is said to be TCP-oriented. This means that the TCP will be in origin,
+    the gripper is approaching the grasp from the positive z-direction and the fingers will close in x-direction.
+
+    :param finger_length: Length of the fingers.
+    :param opening_width: Maximum distance between both fingers.
+    :param finger_thickness: Side-lengths of the fingers.
+    :param mesh: A mesh representation of the gripper.
+    :param tf_base_to_TCP: (4, 4) np array with transformation matrix that transforms the grippers mesh and urdf
+                           to the TCP-oriented pose.
+    :param path_to_urdf: path to the URDF file of the gripper which can be used in simulation.
+    """
+
+    def __init__(self, finger_length=0.04, opening_width=0.08, finger_thickness=0.003, mesh=None, tf_base_to_TCP=None,
+                 path_to_urdf=None):
+        self._finger_length = finger_length
+        self._opening_width = opening_width
+        self._finger_thickness = finger_thickness
+        self._mesh = mesh
+        self._simplified_mesh = None
+        if tf_base_to_TCP is None:
+            tf_base_to_TCP = np.eye(4)
+        self._tf_base_to_TCP = tf_base_to_TCP
+        self._path_to_urdf = path_to_urdf
+
+    def _create_simplified_mesh(self):
+        """
+        Creates a simple gripper mesh, consisting of the two fingers and a stem or bridge connecting them.
+
+        :return: The created mesh as o3d.geometry.TriangleMesh.
+        """
+        # boxes spawn with left, front, bottom corner at 0, 0, 0
+        finger1 = o3d.geometry.TriangleMesh.create_box(
+            self.finger_thickness, self.finger_thickness, self.finger_length)
+        finger2 = o3d.geometry.TriangleMesh(finger1)
+        finger1.translate(np.array([-self.finger_thickness - self.opening_width/2, -self.finger_thickness/2, 0]))
+        finger2.translate(np.array([self.opening_width/2, -self.finger_thickness/2, 0]))
+
+        stem = o3d.geometry.TriangleMesh.create_box(
+            self.opening_width + 2 * self.finger_thickness, self.finger_thickness, self.finger_thickness)
+        stem.translate(np.array([-self.finger_thickness - self.opening_width / 2, -self.finger_thickness / 2,
+                                 self.finger_length]))
+
+        mesh = util.merge_o3d_triangle_meshes([finger1, finger2, stem])
+        inv_tf = np.linalg.inv(self._tf_base_to_TCP)
+        mesh.transform(inv_tf)
+        mesh.compute_vertex_normals()
+        return mesh
+
+    @property
+    def finger_thickness(self):
+        return self._finger_thickness
+
+    @property
+    def finger_length(self):
+        return self._finger_length
+
+    @property
+    def opening_width(self):
+        return self._opening_width
+
+    @property
+    def mesh(self):
+        """
+        The mesh representation of this gripper. If gripper has none, a simplified mesh will be provided instead
+        based on the dimensions of the gripper.
+        """
+        if self._mesh is None:
+            return self.simplified_mesh
+        return self._mesh
+
+    @property
+    def simplified_mesh(self):
+        """
+        Provides a simplified mesh based on the dimensions of the gripper.
+        """
+        if self._simplified_mesh is None:
+            self._simplified_mesh = self._create_simplified_mesh()
+        return self._simplified_mesh
+
+    @property
+    def tf_base_to_TCP(self):
+        return self._tf_base_to_TCP
+
+    @property
+    def path_to_urdf(self):
+        return self._path_to_urdf
+
+
+class MountedGripper:
+    """
+    This class represents a gripper on a dummy mount. The mount can be moved linearly in x/y/z but not rotated.
+    The corresponding gripper_type is instantiated in the given pose, where the pose is the grasp center (TCP).
+
+    :param grasp_simulator: sim.GraspSimulator object that is using the MountedGripper
+    :param gripper_type: GripperBase, class implementation of requested gripper type
+    :param grasp_pose: numpy 4x4 pose, grasp center (TCP)
+    :param gripper_scale: float, scale size of gripper
+    :param opening_width: float, between 0.1 and 1.0, sets initial opening width
+    """
+    def __init__(self, grasp_simulator, gripper_type, grasp_pose, gripper_scale=1.0, opening_width=1.0):
+        self._simulator = grasp_simulator
+
+        # create gripper object, load and init
+        self.gripper = gripper_type(grasp_simulator, gripper_scale)
+        self.gripper.load(grasp_pose)
+        self.gripper.set_open_scale(opening_width)
+
+        # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
+        pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper.body_id)
+        mount_urdf = os.path.join(ASSET_PATH, 'dummy_xyz_robot.urdf')
+        self.mount_id, self.robot_joints = self._simulator.load_robot(mount_urdf, position=pos_mount,
+                                                                      orientation=orn_mount, fixed_base=True)
+        # attach gripper to mount
+        self._simulator.bullet_client.createConstraint(
+            self.mount_id, self.robot_joints['end_effector_link']['id'],
+            self.gripper.body_id, -1,
+            jointType=self._simulator.bullet_client.JOINT_FIXED, jointAxis=[0, 0, 0],
+            parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
+            parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
+        )
+        # self._simulator._inspect_body(self.gripper.body_id)  # use this for debugging of grippers
+
+        # control all mount joints to stay at 0 with high force
+        # makes sure gripper stays at the same position while closing
+        mount_joints = [joint for joint in range(self._simulator.bullet_client.getNumJoints(self.mount_id))]
+        self._simulator.bullet_client.setJointMotorControlArray(
+            self.mount_id,
+            mount_joints,
+            self._simulator.bullet_client.POSITION_CONTROL,
+            targetPositions=[0] * len(mount_joints),
+            forces=[1000] * len(mount_joints)
+        )
+
+    def joint_pos(self):
+        mount_joints = range(len(self.robot_joints))
+        joint_states = self._simulator.bullet_client.getJointStates(self.mount_id, mount_joints)
+        pos = []
+        for joint in mount_joints:
+            pos.append(joint_states[joint][0])
+        return np.array(pos)
+
+    def cartesian_pos(self):
+        pos, *_ = self._simulator.bullet_client.getLinkState(
+            self.mount_id,
+            self.robot_joints['end_effector_link']['id']
+        )
+        return np.array(pos)
+
+    def go_to_cartesian_pos(self, target_pos, timeout=5, tolerance=0.001):
+        """
+        Moves the mount (incl. gripper) to the desired cartesian target position.
+
+        :param target_pos: [x, y, z] target position
+        :param timeout: float, timeout in simulated seconds, will return even if position not attained
+        :param tolerance: float, if Euclidean distance between target_pos and current position is smaller than this,
+                          will return success
+
+        :return: bool, True if position attained, False otherwise
+        """
+        _log.debug(f'go_to_cartesian_pos: moving to {target_pos}')
+
+        end_time = self._simulator.simulated_seconds + timeout
+        target_joint_pos = self._simulator.bullet_client.calculateInverseKinematics(
+            self.mount_id,
+            self.robot_joints['end_effector_link']['id'],
+            list(target_pos)
+        )
+
+        pos_gain = 0.2
+        for joint in range(len(self.robot_joints)):
+            self._simulator.bullet_client.setJointMotorControl2(
+                self.mount_id,
+                joint,
+                self._simulator.bullet_client.POSITION_CONTROL,
+                targetPosition=target_joint_pos[joint],
+                force=500,
+                positionGain=pos_gain,
+                maxVelocity=0.2
+            )
+
+        def point_reached(point):
+            return np.linalg.norm(point - self.cartesian_pos()) < tolerance
+
+        while not point_reached(target_pos) and self._simulator.simulated_seconds < end_time:
+            self._simulator.step()
+
+        # end of lifting operation, check if we actually arrived at the goal
+        _log.debug(f'lifting took {self._simulator.simulated_seconds - (end_time - timeout):.3f} seconds')
+        if point_reached(target_pos):
+            _log.debug('goal position reached')
+            return True
+        _log.warning(f'go_to_pose reached timeout before attaining goal pose '
+                     f'(d={np.linalg.norm(target_pos - self.cartesian_pos()):.3f})')
+        _log.debug(f'current cartesian pos: {self.cartesian_pos()}')
+        return False
