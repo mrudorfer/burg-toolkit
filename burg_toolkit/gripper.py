@@ -154,7 +154,8 @@ class MountedGripper:
 
         # create gripper object, load and init
         self.gripper = gripper_module.all_grippers[gripper_type](grasp_simulator, gripper_scale)
-        self.gripper.load(grasp_pose, opening_width)
+        self.gripper.load(grasp_pose)
+        self.gripper.set_open_scale(opening_width)
 
         # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
         pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper.body_id)
