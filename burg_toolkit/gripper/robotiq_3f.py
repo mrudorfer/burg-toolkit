@@ -4,7 +4,7 @@ import time
 import threading
 
 
-class GripperRobotiq3F(GripperBase):
+class Robotiq3F(GripperBase):
     def __init__(self, bullet_client, gripper_size):
         r""" Initialization of robotiq-3f gripper
         specific args for robotiq-3f:

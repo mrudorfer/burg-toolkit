@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperRobotiq2F140(GripperBase):
+class Robotiq2F140(GripperBase):
     def __init__(self, simulator, gripper_size=1.0):
         super().__init__(simulator, gripper_size)
 

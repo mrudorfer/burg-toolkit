@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperBarrettHand2F(GripperBase):
+class BarrettHand2F(GripperBase):
     def __init__(self, simulator, gripper_size=1.0):
         super().__init__(simulator, gripper_size)
 

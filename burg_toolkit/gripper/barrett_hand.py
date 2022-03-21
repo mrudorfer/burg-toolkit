@@ -4,7 +4,7 @@ import time
 import threading
 
 
-class GripperBarrettHand(GripperBase):
+class BarrettHand(GripperBase):
     def __init__(self, bullet_client, gripper_size, palm_joint, palm_joint_another=None):
         r""" Initialization of barrett hand
         specific args for barrett hand:

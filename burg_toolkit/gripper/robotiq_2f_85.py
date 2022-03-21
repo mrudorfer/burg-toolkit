@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperRobotiq2F85(GripperBase):
+class Robotiq2F85(GripperBase):
     """ Robotiq 2F 85
 
     Self-collisions are turned off, as otherwise all the links collide during closing and will get stuck.

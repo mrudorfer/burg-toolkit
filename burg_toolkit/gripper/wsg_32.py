@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperWSG32(GripperBase):
+class WSG32(GripperBase):
     """ WSG 32 Gripper """
     def __init__(self, simulator, gripper_size=1.0):
         super().__init__(simulator, gripper_size)

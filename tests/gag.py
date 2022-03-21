@@ -32,7 +32,7 @@ def main():
     camera = burg.render.Camera.create_kinect_like()
 
     # sim.configure_recording('/home/rudorfem/tmp/grasp-vids/franka/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp(burg.gripper.GripperFranka, grasp, target_obj)
+    sim.execute_grasp(burg.gripper.Franka, grasp, target_obj)
     return
     sim.configure_recording('/home/rudorfem/tmp/grasp-vids/ezgripper/frame', camera, camera_pose, fps=30)
     sim.execute_grasp('ezgripper', grasp, target_obj)

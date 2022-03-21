@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperFranka(GripperBase):
+class Franka(GripperBase):
     def __init__(self, simulator, gripper_size=1.0):
         r""" Initialization of Franka 2 finger gripper
         specific args for Franka:

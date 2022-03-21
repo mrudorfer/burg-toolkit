@@ -4,7 +4,7 @@ import time
 import threading
 
 
-class GripperKinova3F(GripperBase):
+class Kinova3F(GripperBase):
     def __init__(self, bullet_client, gripper_size):
         r""" Initialization of Kinova 3finger gripper
         specific args for Kinova 3finger gripper:

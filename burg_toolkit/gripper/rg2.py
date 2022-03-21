@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperRG2(GripperBase):
+class RG2(GripperBase):
     """ RG2 Gripper
 
     Gripper model collides with itself and gets stuck while closing. Hence, self-collisions are disabled in pybullet.

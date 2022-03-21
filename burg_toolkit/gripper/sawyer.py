@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperSawyer(GripperBase):
+class Sawyer(GripperBase):
     """
     The gripper model is self-colliding and unable to close.
     We therefore disable self-collisions via pybullet, leading the fingertips to overshoot a little when closing.

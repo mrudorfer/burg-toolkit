@@ -2,7 +2,7 @@ import numpy as np
 from . import GripperBase
 
 
-class GripperEZGripper(GripperBase):
+class EZGripper(GripperBase):
     """ EZgripper
 
     There are a couple of different grasping strategies for the EZGripper, as each finger has two independent joints.
