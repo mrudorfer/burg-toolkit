@@ -588,14 +588,14 @@ class GraspSimulator(SimulatorBase):
                 return True
         return False
 
-    def execute_grasp(self, gripper_type, grasp_pose, target, gripper_scale=1.0, gripper_opening_width=1.0):
+    def execute_grasp(self, gripper_type, grasp, target, gripper_scale=1.0, gripper_opening_width=1.0):
         """
         Executes a grasp in the scene.
         The simulator is already set up and will be reset after the grasp is attempted. This ensures that you can
         register step functions with the simulator (which will be removed after reset).
 
         :param gripper_type: A class that inherits from GripperBase
-        :param grasp_pose: A core.Grasp
+        :param grasp: A core.Grasp
         :param target: Must be one of the object instances in the scene which we attempt to grasp
         :param gripper_scale: float, Scaling factor for the gripper
         :param gripper_opening_width: float, Factor for scaling opening width, must be in [0.1, 1.0]
@@ -604,22 +604,25 @@ class GraspSimulator(SimulatorBase):
         """
         # create gripper, loading at pose, attaching dummy bot
         _log.debug('loading gripper...')
-        robot = MountedGripper(self, gripper_type, grasp_pose.pose, gripper_scale, gripper_opening_width)
+        gripper = gripper_type(self, gripper_scale)
+        gripper.load(grasp.pose)
+        gripper.set_open_scale(gripper_opening_width)
+        robot = MountedGripper(self, gripper.body_id)
 
-        result = self._check_collisions(robot.gripper, target)
+        result = self._check_collisions(gripper, target)
         if result != GraspScores.SUCCESS:
             self._wait_for_user()
             self._reset_scene()
             return result
 
-        _log.debug(f'gripper joint states: {robot.gripper.joint_positions}')
+        _log.debug(f'gripper joint states: {gripper.joint_positions}')
         _log.debug('closing gripper...')
-        robot.gripper.close()
+        gripper.close()
         _log.debug('GRIPPER CLOSED')
-        _log.debug(f'gripper joint states: {robot.gripper.joint_positions}')
+        _log.debug(f'gripper joint states: {gripper.joint_positions}')
 
         _log.debug('checking contacts...')
-        if not self._contact_established(robot.gripper, target):
+        if not self._contact_established(gripper, target):
             _log.debug('no contact with target object established')
             self._wait_for_user()
             self._reset_scene()
@@ -635,7 +638,7 @@ class GraspSimulator(SimulatorBase):
 
         # check again if object is still in contact
         _log.debug('checking contacts...')
-        if not self._contact_established(robot.gripper, target):
+        if not self._contact_established(gripper, target):
             _log.debug('no contact with target object established')
             self._wait_for_user()
             self._reset_scene()

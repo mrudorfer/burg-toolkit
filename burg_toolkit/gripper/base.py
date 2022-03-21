@@ -288,37 +288,28 @@ class ParallelJawGripper:
 
 class MountedGripper:
     """
-    This class represents a gripper on a dummy mount. The mount can be moved linearly in x/y/z but not rotated.
-    The corresponding gripper_type is instantiated in the given pose, where the pose is the grasp center (TCP).
+    This class represents a dummy robot which can mount a gripper. It can be moved linearly in x/y/z but not rotated.
 
     :param grasp_simulator: sim.GraspSimulator object that is using the MountedGripper
-    :param gripper_type: GripperBase, class implementation of requested gripper type
-    :param grasp_pose: numpy 4x4 pose, grasp center (TCP)
-    :param gripper_scale: float, scale size of gripper
-    :param opening_width: float, between 0.1 and 1.0, sets initial opening width
+    :param gripper_body_id: The body id of the gripper within the GraspSimulator.
     """
-    def __init__(self, grasp_simulator, gripper_type, grasp_pose, gripper_scale=1.0, opening_width=1.0):
+    def __init__(self, grasp_simulator, gripper_body_id):
         self._simulator = grasp_simulator
 
-        # create gripper object, load and init
-        self.gripper = gripper_type(grasp_simulator, gripper_scale)
-        self.gripper.load(grasp_pose)
-        self.gripper.set_open_scale(opening_width)
-
         # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
-        pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper.body_id)
+        pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(gripper_body_id)
         mount_urdf = os.path.join(ASSET_PATH, 'dummy_xyz_robot.urdf')
         self.mount_id, self.robot_joints = self._simulator.load_robot(mount_urdf, position=pos_mount,
                                                                       orientation=orn_mount, fixed_base=True)
         # attach gripper to mount
         self._simulator.bullet_client.createConstraint(
             self.mount_id, self.robot_joints['end_effector_link']['id'],
-            self.gripper.body_id, -1,
+            gripper_body_id, -1,
             jointType=self._simulator.bullet_client.JOINT_FIXED, jointAxis=[0, 0, 0],
             parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
             parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
-        # self._simulator._inspect_body(self.gripper.body_id)  # use this for debugging of grippers
+        # self._simulator._inspect_body(gripper_body_id)  # use this for debugging of grippers
 
         # control all mount joints to stay at 0 with high force
         # makes sure gripper stays at the same position while closing
