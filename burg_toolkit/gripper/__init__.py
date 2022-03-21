@@ -1,4 +1,4 @@
-from .base import GripperBase, MountedGripper, ParallelJawGripper
+from .base import GripperBase, MountedGripper, TwoFingerGripperVisualisation
 
 # 2 fingers
 from .wsg_50 import WSG50
