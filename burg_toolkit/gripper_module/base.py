@@ -107,7 +107,7 @@ class GripperBase(abc.ABC):
 
         :return: Returns full path to the requested file.
         """
-        return os.path.join(os.path.dirname(__file__), 'assets/gripper', gripper_fn)
+        return os.path.join(os.path.dirname(__file__), 'assets/', gripper_fn)
 
     @property
     def body_id(self):
