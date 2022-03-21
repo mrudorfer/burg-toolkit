@@ -186,106 +186,6 @@ class GripperBase(abc.ABC):
         return pos
 
 
-class ParallelJawGripper:
-    """
-    Represents a general parallel jawed gripper.
-    Fingers are assumed to be cuboids with same width and height (the `finger_thickness`) and a specified
-    `finger_length`.
-    The inside of the fingers are at most `opening_width` apart.
-    All values are given in meters.
-
-    This also serves as a base class for all parallel jawed grippers. It provides a uniform interface as well as
-    capabilities to produce a simplified mesh that can be used for visualization tasks.
-
-    The meshes may be in arbitrary poses, before using they must be transformed using `tf_base_to_TCP` property.
-    After applying this transform, the gripper is said to be TCP-oriented. This means that the TCP will be in origin,
-    the gripper is approaching the grasp from the positive z-direction and the fingers will close in x-direction.
-
-    :param finger_length: Length of the fingers.
-    :param opening_width: Maximum distance between both fingers.
-    :param finger_thickness: Side-lengths of the fingers.
-    :param mesh: A mesh representation of the gripper.
-    :param tf_base_to_TCP: (4, 4) np array with transformation matrix that transforms the grippers mesh and urdf
-                           to the TCP-oriented pose.
-    :param path_to_urdf: path to the URDF file of the gripper which can be used in simulation.
-    """
-
-    def __init__(self, finger_length=0.04, opening_width=0.08, finger_thickness=0.003, mesh=None, tf_base_to_TCP=None,
-                 path_to_urdf=None):
-        self._finger_length = finger_length
-        self._opening_width = opening_width
-        self._finger_thickness = finger_thickness
-        self._mesh = mesh
-        self._simplified_mesh = None
-        if tf_base_to_TCP is None:
-            tf_base_to_TCP = np.eye(4)
-        self._tf_base_to_TCP = tf_base_to_TCP
-        self._path_to_urdf = path_to_urdf
-
-    def _create_simplified_mesh(self):
-        """
-        Creates a simple gripper mesh, consisting of the two fingers and a stem or bridge connecting them.
-
-        :return: The created mesh as o3d.geometry.TriangleMesh.
-        """
-        # boxes spawn with left, front, bottom corner at 0, 0, 0
-        finger1 = o3d.geometry.TriangleMesh.create_box(
-            self.finger_thickness, self.finger_thickness, self.finger_length)
-        finger2 = o3d.geometry.TriangleMesh(finger1)
-        finger1.translate(np.array([-self.finger_thickness - self.opening_width/2, -self.finger_thickness/2, 0]))
-        finger2.translate(np.array([self.opening_width/2, -self.finger_thickness/2, 0]))
-
-        stem = o3d.geometry.TriangleMesh.create_box(
-            self.opening_width + 2 * self.finger_thickness, self.finger_thickness, self.finger_thickness)
-        stem.translate(np.array([-self.finger_thickness - self.opening_width / 2, -self.finger_thickness / 2,
-                                 self.finger_length]))
-
-        mesh = util.merge_o3d_triangle_meshes([finger1, finger2, stem])
-        inv_tf = np.linalg.inv(self._tf_base_to_TCP)
-        mesh.transform(inv_tf)
-        mesh.compute_vertex_normals()
-        return mesh
-
-    @property
-    def finger_thickness(self):
-        return self._finger_thickness
-
-    @property
-    def finger_length(self):
-        return self._finger_length
-
-    @property
-    def opening_width(self):
-        return self._opening_width
-
-    @property
-    def mesh(self):
-        """
-        The mesh representation of this gripper. If gripper has none, a simplified mesh will be provided instead
-        based on the dimensions of the gripper.
-        """
-        if self._mesh is None:
-            return self.simplified_mesh
-        return self._mesh
-
-    @property
-    def simplified_mesh(self):
-        """
-        Provides a simplified mesh based on the dimensions of the gripper.
-        """
-        if self._simplified_mesh is None:
-            self._simplified_mesh = self._create_simplified_mesh()
-        return self._simplified_mesh
-
-    @property
-    def tf_base_to_TCP(self):
-        return self._tf_base_to_TCP
-
-    @property
-    def path_to_urdf(self):
-        return self._path_to_urdf
-
-
 class MountedGripper:
     """
     This class represents a dummy robot which can mount a gripper. It can be moved linearly in x/y/z but not rotated.
@@ -384,3 +284,60 @@ class MountedGripper:
                      f'(d={np.linalg.norm(target_pos - self.cartesian_pos()):.3f})')
         _log.debug(f'current cartesian pos: {self.cartesian_pos()}')
         return False
+
+
+class TwoFingerGripperVisualisation:
+    """
+    Represents a general two-finger parallel-jaw gripper.
+    Fingers are assumed to be cuboids with same width and height (the `finger_thickness`) and a specified
+    `finger_length`.
+    The inside of the fingers are at most `opening_width` apart.
+
+    Note: This is only for visualisation purposes, it does not implement any features from GripperBase, but it uses
+    the same conventions for grasp representations.
+    """
+    def __init__(self, finger_length=0.05, opening_width=0.08, finger_thickness=0.003):
+        self._finger_length = finger_length
+        self._opening_width = opening_width
+        self._finger_thickness = finger_thickness
+        self._mesh = None
+
+    def _create_mesh(self):
+        """
+        Creates a simple gripper mesh, consisting of the two fingers and a stem or bridge connecting them, plus a stick
+        in the approaching direction.
+        Stores the mesh internally.
+        """
+        # boxes spawn with left, front, bottom corner at 0, 0, 0
+        finger1 = o3d.geometry.TriangleMesh.create_box(
+            self._finger_thickness, self._finger_thickness, self._finger_length)
+        finger2 = o3d.geometry.TriangleMesh(finger1)
+        finger1.translate(np.array([-self._finger_thickness - self._opening_width / 2, -self._finger_thickness / 2, 0]))
+        finger2.translate(np.array([self._opening_width / 2, -self._finger_thickness / 2, 0]))
+
+        stem = o3d.geometry.TriangleMesh.create_box(
+            self._opening_width + 2 * self._finger_thickness, self._finger_thickness, self._finger_thickness)
+        stem.translate(np.array([-self._finger_thickness - self._opening_width / 2, -self._finger_thickness / 2,
+                                 self._finger_length]))
+
+        stick_length = 1/2 * self._finger_length
+        end = o3d.geometry.TriangleMesh.create_box(
+            self._finger_thickness, self._finger_thickness, stick_length)
+        end.translate(np.array([-self._finger_thickness / 2, -self._finger_thickness / 2, self._finger_length]))
+
+        mesh = util.merge_o3d_triangle_meshes([finger1, finger2, stem, end])
+        mesh.compute_vertex_normals()
+        self._mesh = mesh
+
+    @property
+    def mesh(self):
+        """
+        :return: The created mesh as o3d.geometry.TriangleMesh.
+        """
+        if self._mesh is None:
+            self._create_mesh()
+        return self._mesh
+
+    @property
+    def opening_width(self):
+        return self._opening_width

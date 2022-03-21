@@ -55,6 +55,8 @@ class AntipodalGraspSampler:
     """
     A sampler for  antipodal grasps. Sampler looks for two contact points that satisfy the antipodal constraints
     for a given friction coefficient mu.
+
+    # todo: currently broken, it is still using gripper model which should not be the case
     """
 
     def __init__(self):

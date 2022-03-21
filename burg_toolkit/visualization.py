@@ -94,7 +94,7 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
 
     :param objects: list of objects to show in the scene, see `show_geometries()` for type info
     :param gs: the GraspSet to visualize (can also be a single Grasp)
-    :param gripper: the gripper to use, if none provided just coordinate frames will be displayed
+    :param gripper: the GripperVisualisation to use, if none provided just coordinate frames will be displayed
     :param n: int number of grasps from set to display, if None, all grasps will be shown
     :param score_color_func: handle to a function that maps the score to a color [0..1, 0..1, 0..1]
                              if None, some coloring scheme will be used irrespective of score
@@ -115,16 +115,15 @@ def show_grasp_set(objects: list, gs, gripper=None, n=None, score_color_func=Non
     for g in gs:
         if gripper is None:
             gripper_vis = create_frame()
-            tf = np.eye(4)
         else:
             gripper_vis = copy.deepcopy(gripper.mesh)
-            tf = gripper.tf_base_to_TCP
 
         tf_squeeze = np.eye(4)
         if use_width:
+            assert gripper is not None, 'gripper must be given for visualisation with width'
             tf_squeeze[0, 0] = (g.width + 0.005) / gripper.opening_width
 
-        gripper_vis.transform(g.pose @ tf_squeeze @ tf)
+        gripper_vis.transform(g.pose @ tf_squeeze)
 
         if score_color_func is not None:
             gripper_vis.paint_uniform_color(score_color_func(g.score))
