@@ -20,7 +20,8 @@ class GripperWSG50(GripperBase):
         self._force = 100
         self._grasp_speed = 0.1
 
-    def load(self, position, orientation, open_scale=1.0):
+    def load(self, grasp_pose, open_scale=1.0):
+        position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
         assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('wsg_50/model.urdf')
         self._body_id = self._bullet_client.loadURDF(

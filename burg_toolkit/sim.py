@@ -612,11 +612,11 @@ class GraspSimulator(SimulatorBase):
             self._reset_scene()
             return result
 
-        _log.debug(f'gripper joint states: {robot.gripper.joint_positions()}')
+        _log.debug(f'gripper joint states: {robot.gripper.joint_positions}')
         _log.debug('closing gripper...')
         robot.gripper.close()
         _log.debug('GRIPPER CLOSED')
-        _log.debug(f'gripper joint states: {robot.gripper.joint_positions()}')
+        _log.debug(f'gripper joint states: {robot.gripper.joint_positions}')
 
         _log.debug('checking contacts...')
         if not self._contact_established(robot.gripper, target):

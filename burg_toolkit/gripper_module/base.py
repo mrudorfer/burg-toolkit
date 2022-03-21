@@ -1,11 +1,17 @@
 import abc
 import os
 
+from .. import util
+
 
 class GripperBase(abc.ABC):
-    r"""Base class for all grippers.
-    Any gripper should subclass this class.
-    You have to implement the following class method:
+    """
+    Base class for all grippers that can be used in simulation.
+    After initialisation, call load() to actually load the gripper at a certain pose in the sim environment.
+
+    :param simulator: burg.sim.GraspSimulator instance, as we need access to bullet_client and other sim funcs
+    :param gripper_size: float, scale factor for loading the gripper model
+
         - load(): load URDF and configure gripper according to open_scale
         - close(): close gripper
         - get_pos_offset(): return [x, y, z], the coordinate of the grasping center relative to the base
@@ -22,23 +28,65 @@ class GripperBase(abc.ABC):
         self.__mass = None
 
     @abc.abstractmethod
-    def load(self, position, orientation, open_scale):
+    def load(self, grasp_pose, open_scale):
+        """
+        Loads the gripper in the simulation, configures friction and mass, sets the desired opening scale and registers
+        constraints with the simulator.
+        Only after loading, other methods can return reasonable output (e.g. body_id etc.) - check status with is_loaded
+
+        :param grasp_pose: pose of the grasping center
+        :param open_scale: scale for opening the gripper, between 0.1 and 1.0, implementations should default to 1.0
+        """
         pass
+
+    def is_loaded(self):
+        """
+        returns True, if the gripper instance has been added to a simulation
+        """
+        return self.body_id is not None
+
+    def _get_pos_orn_from_grasp_pose(self, grasp_pose):
+        """
+        Given the pose of a grasping center, will compute the position and orientation for placing the gripper in
+        simulation.
+
+        :param grasp_pose: 4x4 transformation matrix
+
+        :return: pos [x, y, z], orn [x, y, z, w]
+        """
+        tf2hand = util.tf_from_pos_quat(self.get_pos_offset(), self.get_orn_offset(), convention='pybullet')
+        gripper_pose = grasp_pose @ tf2hand
+        pos_gripper, orn_gripper = util.position_and_quaternion_from_tf(gripper_pose, convention='pybullet')
+        return pos_gripper, orn_gripper
 
     @abc.abstractmethod
     def close(self):
+        """
+        Uses the simulator to execute the grasp and close the gripper. Shall return after the gripper is closed.
+        """
         pass
 
     @abc.abstractmethod
     def get_pos_offset(self):
+        """
+        Returns the position offset [x, y, z] of the grasping center relative to the base
+        """
         pass
 
     @abc.abstractmethod
     def get_orn_offset(self):
+        """
+        Returns the orientation [x, y, z, w] of the grasping center relative to the base
+        """
         pass
 
     @abc.abstractmethod
     def get_contact_link_ids(self):
+        """
+        Returns the link/joint ids which are expected to be in contact with the object when grasped.
+        List can be nested, e.g. [link1, [link3, link4]] means that contact with link1 is required, and contact with
+        either link3 or link4 is required in order to successfully grasp the object.
+        """
         pass
 
     @abc.abstractmethod
@@ -47,20 +95,25 @@ class GripperBase(abc.ABC):
 
     @staticmethod
     def get_asset_path(gripper_fn):
+        """
+        :param gripper_fn: Filename within assets/gripper folder.
+
+        :return: Returns full path to the requested file.
+        """
         return os.path.join(os.path.dirname(__file__), 'assets/gripper', gripper_fn)
 
     @property
     def body_id(self):
+        """
+        Gives the body id, will be None if the gripper has not been loaded in simulation.
+        """
         return self._body_id
-
-    def is_loaded(self):
-        """
-        returns True, if the gripper instance has been added to a simulation
-        """
-        return self.body_id is not None
 
     @property
     def mass(self):
+        """
+        :return: The summed mass of all links of this gripper.
+        """
         if self.__mass is None:
             assert self.is_loaded(), 'can only get mass after gripper is loaded in simulation'
 
@@ -109,6 +162,7 @@ class GripperBase(abc.ABC):
         for i in range(self.num_joints):
             self._bullet_client.changeDynamics(self.body_id, i, mass=combined_finger_mass/self.num_joints)
 
+    @property
     def joint_positions(self):
         joint_states = self._bullet_client.getJointStates(self.body_id, range(self.num_joints))
         pos = []

@@ -37,7 +37,8 @@ class GripperEZGripper(GripperBase):
         driver_pos = open_scale*self._joint_lower + (1-open_scale)*self._joint_upper
         return [driver_pos, self._joint_upper-driver_pos, driver_pos, self._joint_upper-driver_pos]
 
-    def load(self, position, orientation, open_scale=1.0):
+    def load(self, grasp_pose, open_scale=1.0):
+        position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
         assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('ezgripper/model.urdf')
         self._body_id = self._bullet_client.loadURDF(

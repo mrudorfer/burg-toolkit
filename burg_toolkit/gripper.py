@@ -152,15 +152,9 @@ class MountedGripper:
     def __init__(self, grasp_simulator, gripper_type, grasp_pose, gripper_scale=1.0, opening_width=1.0):
         self._simulator = grasp_simulator
 
-        # create gripper object
+        # create gripper object, load and init
         self.gripper = gripper_module.all_grippers[gripper_type](grasp_simulator, gripper_scale)
-
-        # compute gripper pose, load and init gripper
-        tf2hand = util.tf_from_pos_quat(self.gripper.get_pos_offset(), self.gripper.get_orn_offset(),
-                                        convention='pybullet')
-        gripper_pose = grasp_pose @ tf2hand
-        pos_gripper, orn_gripper = util.position_and_quaternion_from_tf(gripper_pose, convention='pybullet')
-        self.gripper.load(pos_gripper, orn_gripper, opening_width)
+        self.gripper.load(grasp_pose, opening_width)
 
         # we want to place the mount at the base of the gripper (which differs from pos_gripper, orn_gripper!)
         pos_mount, orn_mount = self._simulator.bullet_client.getBasePositionAndOrientation(self.gripper.body_id)
@@ -176,7 +170,7 @@ class MountedGripper:
             parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
         )
         self._simulator._inspect_body(self.gripper.body_id)  # todo: temp
-        print('gripper joint pos:', self.gripper.joint_positions())
+        print('gripper joint pos:', self.gripper.joint_positions)
 
         # control all mount joints to stay at 0 with high force
         # makes sure gripper stays at the same position while closing

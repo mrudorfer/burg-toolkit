@@ -28,7 +28,8 @@ class GripperBarrettHand2F(GripperBase):
 
         self._contact_joint_ids = [2, 5]
 
-    def load(self, position, orientation, open_scale=1.0):
+    def load(self, grasp_pose, open_scale=1.0):
+        position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
         assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('barrett_hand_2f/model.urdf')
         self._body_id = self._bullet_client.loadURDF(
