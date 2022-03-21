@@ -11,13 +11,6 @@ class GripperBase(abc.ABC):
 
     :param simulator: burg.sim.GraspSimulator instance, as we need access to bullet_client and other sim funcs
     :param gripper_size: float, scale factor for loading the gripper model
-
-        - load(): load URDF and configure gripper according to open_scale
-        - close(): close gripper
-        - get_pos_offset(): return [x, y, z], the coordinate of the grasping center relative to the base
-        - get_orn_offset(): the base orientation (in quaternion) when loading the gripper
-        - get_contact_link_ids(): list of contacting finger links. if multiple links per finger, then use nested lists
-        - get_vis_pts(open_scale): [(x0, y0), (x1, y1), (x2, y2s), ...], contact points for visualization (in world coordinate)
     """
     @abc.abstractmethod
     def __init__(self, simulator, gripper_size):
@@ -28,14 +21,23 @@ class GripperBase(abc.ABC):
         self.__mass = None
 
     @abc.abstractmethod
-    def load(self, grasp_pose, open_scale):
+    def load(self, grasp_pose):
         """
-        Loads the gripper in the simulation, configures friction and mass, sets the desired opening scale and registers
-        constraints with the simulator.
-        Only after loading, other methods can return reasonable output (e.g. body_id etc.) - check status with is_loaded
+        Loads the gripper in the simulation, configures friction and mass, and registers constraints with the simulator.
+        Only after loading, other methods can return reasonable output (e.g. body_id etc.) - check status with
+        is_loaded(). Per default, the gripper will be loaded fully opened. Use set_open_scale() to adjust for that.
 
         :param grasp_pose: pose of the grasping center
-        :param open_scale: scale for opening the gripper, between 0.1 and 1.0, implementations should default to 1.0
+        """
+        pass
+
+    @abc.abstractmethod
+    def set_open_scale(self, open_scale):
+        """
+        Sets the open scale of the gripper, i.e. resets joints to match the scaling factor.
+        Should be called after the gripper is loaded, but before the simulation starts.
+
+        :param open_scale: float, between 0.1 and 1.0, determines how much the gripper is opened
         """
         pass
 
@@ -91,6 +93,11 @@ class GripperBase(abc.ABC):
 
     @abc.abstractmethod
     def get_vis_pts(self, open_scale):
+        """
+        This method is currently unused by us.
+
+        :return: [(x0, y0), (x1, y1), (x2, y2s), ...], contact points for visualization (in world coordinate)
+        """
         pass
 
     @staticmethod

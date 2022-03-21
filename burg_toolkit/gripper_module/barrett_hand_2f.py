@@ -28,9 +28,8 @@ class GripperBarrettHand2F(GripperBase):
 
         self._contact_joint_ids = [2, 5]
 
-    def load(self, grasp_pose, open_scale=1.0):
+    def load(self, grasp_pose):
         position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
-        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('barrett_hand_2f/model.urdf')
         self._body_id = self._bullet_client.loadURDF(
             gripper_urdf,
@@ -39,11 +38,14 @@ class GripperBarrettHand2F(GripperBase):
             basePosition=position,
             baseOrientation=orientation
         )
-        # self.set_color([0.5, 0.5, 0.5])
+        self.set_color([0.5, 0.5, 0.5])
         self.configure_friction()
-        # self.configure_mass()
+        self.configure_mass()
+        self.set_open_scale(1.0)
+        self._sim.register_step_func(self.step_constraints)
 
-        # open gripper according to open_scale
+    def set_open_scale(self, open_scale):
+        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         driver_pos = open_scale * self._joint_lower + (1 - open_scale) * self._joint_upper
         follower_pos = self._get_follower_pos(driver_pos)
         self._bullet_client.resetJointState(self.body_id, self._driver_joint_id, targetValue=driver_pos)
@@ -52,8 +54,6 @@ class GripperBarrettHand2F(GripperBase):
         # also set finger rotations
         for i in self._palm_joint_ids:
             self._bullet_client.resetJointState(self.body_id, i, targetValue=self._finger_rotation)
-
-        self._sim.register_step_func(self.step_constraints)
 
     @staticmethod
     def _get_follower_pos(driver_pos):

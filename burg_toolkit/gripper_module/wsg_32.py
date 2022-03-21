@@ -22,9 +22,8 @@ class GripperWSG32(GripperBase):
         self._force = 100
         self._grasp_speed = 0.1
 
-    def load(self, grasp_pose, open_scale=1.0):
+    def load(self, grasp_pose):
         position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
-        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('wsg_32/model.urdf')
         self._body_id = self._bullet_client.loadURDF(
             gripper_urdf,  flags=self._bullet_client.URDF_USE_SELF_COLLISION,
@@ -35,13 +34,14 @@ class GripperWSG32(GripperBase):
         self.set_color([0.5, 0.5, 0.5])
         self.configure_friction()
         self.configure_mass()
+        self.set_open_scale(1.0)
+        self._sim.register_step_func(self.step_constraints)
 
-        # open gripper according to open_scale
+    def set_open_scale(self, open_scale):
+        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         target_pos = [-self._finger_open_distance * open_scale, self._finger_open_distance * open_scale]
         for joint, pos in zip(self._moving_joint_ids, target_pos):
             self._bullet_client.resetJointState(self.body_id, joint, pos)
-
-        self._sim.register_step_func(self.step_constraints)
 
     def step_constraints(self):
         # use this only when switching to velocity control...

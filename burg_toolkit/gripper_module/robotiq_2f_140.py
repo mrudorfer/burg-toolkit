@@ -22,9 +22,8 @@ class GripperRobotiq2F140(GripperBase):
         self._driver_joint_upper = 0.7
         self._contact_joints = [3, 8]
 
-    def load(self, grasp_pose, open_scale=1.0):
+    def load(self, grasp_pose):
         position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
-        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('robotiq_2f_140/model.urdf')
         self._body_id = self._bullet_client.loadURDF(
             gripper_urdf,
@@ -35,15 +34,16 @@ class GripperRobotiq2F140(GripperBase):
         )
         self.configure_friction()
         self.configure_mass()
+        self.set_open_scale(1.0)
+        self._sim.register_step_func(self.step_constraints)
 
-        # set initial joint pos
+    def set_open_scale(self, open_scale):
+        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         driver_pos = open_scale*self._driver_joint_lower + (1-open_scale)*self._driver_joint_upper
         follower_pos = driver_pos * np.array(self._follower_joint_sign)
         self._bullet_client.resetJointState(self.body_id, self._driver_joint_id, targetValue=driver_pos)
         for i, pos in zip(self._follower_joint_ids, follower_pos):
             self._bullet_client.resetJointState(self.body_id, i, targetValue=pos)
-
-        self._sim.register_step_func(self.step_constraints)
 
     def step_constraints(self):
         pos = self._bullet_client.getJointState(self.body_id, self._driver_joint_id)[0]

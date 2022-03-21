@@ -27,9 +27,8 @@ class GripperSawyer(GripperBase):
         self._force = 100
         self._grasp_speed = 0.1
 
-    def load(self, grasp_pose, open_scale=1.0):
+    def load(self, grasp_pose):
         position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
-        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         gripper_urdf = self.get_asset_path('sawyer/model.urdf')
         self._body_id = self._bullet_client.loadURDF(
             gripper_urdf,  # flags=self._bullet_client.URDF_USE_SELF_COLLISION,
@@ -40,13 +39,14 @@ class GripperSawyer(GripperBase):
         self.set_color([0.5, 0.5, 0.5])
         self.configure_friction()
         self.configure_mass()
+        self.set_open_scale(1.0)
+        self._sim.register_step_func(self.step_constraints)
 
-        # open gripper according to open_scale
+    def set_open_scale(self, open_scale):
+        assert 0.1 <= open_scale <= 1.0, 'open_scale is out of range'
         driver_pos, follower_pos = self._get_target_joint_pos(open_scale)
         self._bullet_client.resetJointState(self.body_id, self._driver_joint_id, driver_pos)
         self._bullet_client.resetJointState(self.body_id, self._follower_joint_id, follower_pos)
-
-        self._sim.register_step_func(self.step_constraints)
 
     def _get_target_joint_pos(self, open_scale):
         driver_pos = (self._upper_limit - self._lower_limit) * (1 - open_scale)
