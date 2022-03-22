@@ -30,26 +30,27 @@ def main():
     look_at[2] += 0.1
     camera_pose = burg.util.look_at(position=camera_position, target=look_at, flip=True)
     camera = burg.render.Camera.create_kinect_like()
+    # burg.visualization.show_grasp_set(objects=[scene], gs=grasp,
+    #                                   gripper=burg.gripper.TwoFingerGripperVisualisation())
 
-    # sim.configure_recording('/home/rudorfem/tmp/grasp-vids/franka/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp(burg.gripper.Franka, grasp, target_obj)
-    return
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/ezgripper/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('ezgripper', grasp, target_obj)
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/wsg_32/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('wsg_32', grasp, target_obj, gripper_scale=1.45, gripper_opening_width=1)
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/wsg_50/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('wsg_50', grasp, target_obj, gripper_opening_width=1)
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/sawyer/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('sawyer', grasp, target_obj, gripper_scale=1.1, gripper_opening_width=1)
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/robotiq_2f_85/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('robotiq_2f_85', grasp, target_obj, gripper_opening_width=0.9)
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/robotiq_2f_140/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('robotiq_2f_140', grasp, target_obj, gripper_opening_width=0.8)
-    sim.configure_recording('/home/rudorfem/tmp/grasp-vids/barrett_hand_2f/frame', camera, camera_pose, fps=30)
-    sim.execute_grasp('barrett_hand_2f', grasp, target_obj, gripper_opening_width=1.0)
+    grippers = {
+        burg.gripper.BarrettHand2F: [1.0, 1.0],
+        burg.gripper.BarrettHand: [1.0, 1.0],
+        burg.gripper.EZGripper: [1.0, 1.0],
+        burg.gripper.Robotiq3F: [1.0, 1.0],
+        burg.gripper.Kinova3F: [1.0, 1.0],
+        burg.gripper.Franka: [1.0, 1.0],
+        burg.gripper.WSG32: [1.45, 1.0],
+        burg.gripper.WSG50: [1.0, 1.0],
+        burg.gripper.Sawyer: [1.1, 1.0],
+        burg.gripper.Robotiq2F85: [1.0, 0.9],
+        burg.gripper.Robotiq2F140: [1.0, 0.8],
+    }
 
-    # sim.execute_grasp('rg2', grasp, target_obj, gripper_opening_width=0.8)
+    for gripper, [gripper_size, open_scale] in grippers.items():
+        print(gripper.__name__)
+        # sim.configure_recording(f'/home/rudorfem/tmp/grasp-vids/{gripper.__name__}/', camera, camera_pose, fps=30)
+        sim.execute_grasp(gripper, grasp, target_obj, gripper_scale=gripper_size, gripper_opening_width=open_scale)
 
 
 if __name__ == '__main__':

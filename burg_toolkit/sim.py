@@ -646,6 +646,6 @@ class GraspSimulator(SimulatorBase):
 
         _log.debug('CONTACT CONFIRMED')
         _log.debug('GRASP SUCCESSFUL')
-        self._wait_for_user()
+        # self._wait_for_user()
         self._reset_scene()
         return GraspScores.SUCCESS
