@@ -394,6 +394,7 @@ class ObjectLibrary(UserDict, io.YAMLObject):
                 'urdf_fn': io.get_rel_path(item.urdf_fn, lib_dir),
                 'mass': item.mass,
                 'friction_coeff': item.friction_coeff,
+                'scale': item.scale,
                 'stable_poses': stable_poses
             }
             lib_dict['objects'].append(obj_dict)
