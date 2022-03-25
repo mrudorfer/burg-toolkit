@@ -99,7 +99,7 @@ class ObjectType:
     """
 
     def __init__(self, identifier, name=None, mesh=None, mesh_fn=None, thumbnail_fn=None, vhacd_fn=None, urdf_fn=None,
-                 mass=None, friction_coeff=None, stable_poses=None):
+                 mass=None, friction_coeff=None, stable_poses=None, scale=None):
         self.identifier = identifier
         self.name = name or identifier  # just duplicate identifier if no name given
         if mesh is not None and mesh_fn is not None:
@@ -121,6 +121,7 @@ class ObjectType:
             self.stable_poses = None
         else:
             raise ValueError(f'unrecognised type of stable_poses: {type(stable_poses)}')
+        self._scale = scale or 1.0
 
     @property
     def mesh(self):
@@ -132,6 +133,10 @@ class ObjectType:
     @mesh.setter
     def mesh(self, mesh):
         self._mesh = mesh
+
+    @property
+    def scale(self):
+        return self._scale
 
     def has_all_attributes(self):
         """
