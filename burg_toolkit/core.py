@@ -398,7 +398,7 @@ class ObjectLibrary(UserDict, io.YAMLObject):
             }
             lib_dict['objects'].append(obj_dict)
 
-        self.dump_yaml_data(yaml_fn, lib_dict)
+        self.dump_yaml_data(self.filename, lib_dict)
 
     def _prepare_directory(self, directory, default):
         """
