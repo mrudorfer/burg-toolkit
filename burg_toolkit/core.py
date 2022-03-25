@@ -168,7 +168,7 @@ class ObjectType:
 
         # more documentation on this here: https://github.com/kmammou/v-hacd
         p = bullet_client.BulletClient(pybullet.DIRECT)
-        p.vhacd(mesh_file, vhacd_fn, log_file)
+        p.vhacd(mesh_file, vhacd_fn, log_file, resolution=8000000, maxNumVerticesPerCH=256, minVolumePerCH=0.0)
         p.disconnect()
 
         self.vhacd_fn = vhacd_fn
