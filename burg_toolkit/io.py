@@ -128,7 +128,8 @@ def save_mesh(fn, mesh_obj, overwrite_existing=True):
     o3d.io.write_triangle_mesh(fn, mesh, write_vertex_normals=False, write_vertex_colors=False)
 
 
-def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, friction=0.24, overwrite_existing=True):
+def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, friction=0.24, scale=1.0,
+              overwrite_existing=True):
     """
     Creates a urdf file with given parameters.
 
@@ -140,6 +141,7 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, fr
     :param com: [x,y,z] center of mass of mesh, if None then [0, 0, 0] will be used
     :param mass: float, mass of object (default 0, which means object is fixed in space)
     :param friction: float, friction coefficient (defaults to 0.24)
+    :param scale: float, global scaling factor (defaults to 1.0)
     :param overwrite_existing: bool, indicating whether to overwrite existing file (defaults to True)
     """
     if not overwrite_existing and os.path.exists(fn):
@@ -160,7 +162,7 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, fr
         # collision
         urdf.write(f'\t\t<collision>\n')
         urdf.write(f'\t\t\t<geometry>\n')
-        urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}"/>\n')
+        urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}" scale="{scale} {scale} {scale}"/>\n')
         urdf.write(f'\t\t\t</geometry>\n')
         urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
         urdf.write(f'\t\t\t<contact_coefficients mu="{friction}" />\n')
@@ -169,7 +171,7 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, fr
         # visual
         urdf.write(f'\t\t<visual>\n')
         urdf.write(f'\t\t\t<geometry>\n')
-        urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}"/>\n')
+        urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn} scale="{scale} {scale} {scale}""/>\n')
         urdf.write(f'\t\t\t</geometry>\n')
         urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
         urdf.write(f'\t\t</visual>\n')

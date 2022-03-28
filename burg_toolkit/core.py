@@ -96,6 +96,7 @@ class ObjectType:
     :param mass: mass of object in kg (defaults to 0, which means fixed in space in simulations)
     :param friction_coeff: friction coefficient, defaults to 0.24
     :param stable_poses: either dataclass StablePoses or dict with probabilities and poses (or None)
+    :param scale: A scale factor that needs be applied to the mesh in mesh_fn to get the actual object mesh.
     """
 
     def __init__(self, identifier, name=None, mesh=None, mesh_fn=None, thumbnail_fn=None, vhacd_fn=None, urdf_fn=None,
@@ -128,6 +129,7 @@ class ObjectType:
         """Loads the mesh from file the first time it is used."""
         if self._mesh is None:
             self._mesh = io.load_mesh(mesh_fn=self.mesh_fn)
+            self._mesh.scale(scale=self.scale, center=[0, 0, 0])
         return self._mesh
 
     @mesh.setter
@@ -197,10 +199,7 @@ class ObjectType:
         :param use_vhacd: Whether to use the vhacd (True, default) or the actual mesh (False).
         """
         _log.debug(f'generating urdf for {self.identifier}')
-        name = self.identifier
-        mass = self.mass
-        origin = [0, 0, 0]  # mesh origin will be placed at origin when loading urdf in simulation
-        inertia, com = mesh_processing.compute_mesh_inertia(self.mesh, mass)
+        inertia, com = mesh_processing.compute_mesh_inertia(self.mesh, self.mass)
         _log.debug(f'inertia: {inertia}')
         _log.debug(f'com: {com}')
         _log.debug(f'center: {self.mesh.get_center()}')
@@ -208,7 +207,7 @@ class ObjectType:
         if use_vhacd:
             if self.vhacd_fn is None:
                 # we can just generate the vhacd here, assume same path as urdf
-                vhacd_fn = os.path.join(os.path.dirname(urdf_fn), f'{name}_vhacd.obj')
+                vhacd_fn = os.path.join(os.path.dirname(urdf_fn), f'{self.identifier}_vhacd.obj')
                 _log.debug(f'creating VHACD at {vhacd_fn}')
                 self.generate_vhacd(vhacd_fn)
             rel_mesh_fn = os.path.relpath(self.vhacd_fn, os.path.dirname(urdf_fn))
@@ -217,7 +216,9 @@ class ObjectType:
                 raise ValueError('ObjectType has no mesh_fn, but need mesh_fn linked in urdf (or use_vhacd)')
             rel_mesh_fn = os.path.relpath(self.mesh_fn, os.path.dirname(urdf_fn))
 
-        io.save_urdf(urdf_fn, rel_mesh_fn, name, origin, inertia, com, mass)
+        io.save_urdf(urdf_fn, mesh_fn=rel_mesh_fn, name=self.identifier, origin=[0, 0, 0], inertia=inertia,
+                     com=com, mass=self.mass, friction=self.friction_coeff, scale=self.scale,
+                     overwrite_existing=True)
         self.urdf_fn = urdf_fn
 
     def generate_thumbnail(self, thumbnail_fn, engine=None):
