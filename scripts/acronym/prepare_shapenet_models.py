@@ -17,6 +17,7 @@ import pathlib
 import shutil
 import subprocess
 from functools import partial
+from collections import defaultdict
 
 import numpy as np
 import tqdm
@@ -197,10 +198,35 @@ def populate_target_dir(shapes_by_category, source_dir, acronym_dir):
     return missing
 
 
+def filter_extracted_shapes(shapes_by_cat, acronym_dir):
+    """
+    for each shape in shapes_by_cat, this method looks in the acronym_dir/meshes folder and check if a mesh is present.
+    returns a dict of same structure as shapes_by_cat, containing only those shapes for which no mesh could be found.
+    """
+    missing_shapes_by_cat = defaultdict(list)
+    mesh_dir = os.path.join(acronym_dir, 'meshes')
+    for category, shapes in shapes_by_cat.items():
+        cat_dir = os.path.join(mesh_dir, category)
+        for shape in shapes:
+            mesh_fn = os.path.join(cat_dir, f'{shape}.obj')
+            if not os.path.isfile(mesh_fn):
+                missing_shapes_by_cat[category].append(shape)
+
+    return missing_shapes_by_cat
+
+
 def main(args):
     shapes_by_cat = identify_shapes_and_categories(args.acronym_dir)
     print('based on target data structure, looking for following shapes by categories:')
     print_shapes_by_categories(shapes_by_cat)
+
+    shapes_by_cat = filter_extracted_shapes(shapes_by_cat, args.acronym_dir)
+    print('-'*10)
+    print('comparing with the shapes that are already extracted, you are missing the following:')
+    print_shapes_by_categories(shapes_by_cat)
+    # for cat, shapes in shapes_by_cat.items():
+    #     for shape in shapes:
+    #         print(f'{cat}_{shape}')
 
     all_shapes = np.array([item for values in list(shapes_by_cat.values()) for item in values])
     unique_shapes, frequencies = np.unique(all_shapes, return_counts=True)
@@ -239,6 +265,8 @@ def main(args):
     populate_target_dir(shapes_by_cat, tmp_dir, args.acronym_dir)
 
     print('done. if all went well, the tmp directories should be empty. you can delete them.')
+    print('manifold/simplify fails silently in rare cases. running this script again will show you if there are any '
+          'shapes missing.')
     print('-' * 10)
 
     # the following only applied for the dataset of 6dof GraspNet, perhaps not for ACRONYM:
