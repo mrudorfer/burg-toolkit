@@ -10,12 +10,13 @@ from functools import partial
 import h5py
 import numpy as np
 import burg_toolkit as burg
-from tqdm.contrib.concurrent import process_map
+import concurrent.futures
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--acronym_dir', type=str, default='/home/rudorfem/datasets/acronym/')
+    parser.add_argument('--max_workers', type=int, default=24)
     return parser.parse_args()
 
 
@@ -65,15 +66,45 @@ def create_object_type(grasp_filename, acronym_dir):
 
 def main(args):
     acronym_dir = args.acronym_dir
+    max_workers = args.max_workers
+
     lib = burg.ObjectLibrary(name='ACRONYM objects',
                              description='objects from ShapeNetSem, used for ACRONYM')
     lib.to_yaml(os.path.join(acronym_dir, 'object_library.yml'))
 
     grasp_annotation_dir = os.path.join(acronym_dir, 'grasps')
-    filenames = os.listdir(grasp_annotation_dir)
 
-    # execute concurrently, will take a while...
-    object_types = process_map(partial(create_object_type, acronym_dir=acronym_dir), filenames, chunksize=10)
+    # let's do some magic to the filenames to avoid same shapes being processed in parallel (as this would lead to a
+    # concurrent.futures.process.BrokenProcessPool error).
+    # note that there are not more than two ObjectTypes that share the same mesh
+    # we sort the list, make a list of odd indices and one of even indices and concatenate them
+    # this places the neighboring onces as far apart as possible
+    sorted_filenames = sorted(os.listdir(grasp_annotation_dir))
+    filenames = sorted_filenames[0::2] + sorted_filenames[1::2]
+
+    # some shapes do not work.. let's keep track which ones and remove them right from the start
+    ignore_shapes = [
+        'TV_907b90beaf5e8edfbaf98569d8276423',              # vhacd segfaults, shape has weird dimensions
+        'Bowl_fca9fcb710592311d291861d5bc3e7c8',            # not processed by manifold/simplify
+        'PottedPlant_f01872cde4d81403504721639e19f609',     # not processed by manifold/simplify
+        'PottedPlant_a7a42a3c8bb28103604096c107e7cc16',     # not processed by manifold/simplify
+        'PottedPlant_dc6922b9eece4ab7e3f7a74e12a274ef',     # not processed by manifold/simplify
+        'Washer_8ef93a18aca9f3bc69569e953575ec69',          # not processed by manifold/simplify
+        'Ship_36fba9c2f4c256dc4387c5ea62cbbe8b',            # not processed by manifold/simplify
+    ]
+    for ignore_shape in ignore_shapes:
+        filenames = [file for file in filenames if not file.startswith(ignore_shape)]
+
+    multi_process = True
+    if multi_process:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # execute concurrently, will take a while...
+            object_types = executor.map(partial(create_object_type, acronym_dir=acronym_dir), filenames, chunksize=10)
+    else:
+        object_types = []
+        for filename in filenames:
+            object_types.append(create_object_type(filename, acronym_dir=acronym_dir))
+
     for obj in object_types:
         lib[obj.identifier] = obj
     lib.to_yaml()
