@@ -171,7 +171,7 @@ def save_urdf(fn, mesh_fn, name, origin=None, inertia=None, com=None, mass=0, fr
         # visual
         urdf.write(f'\t\t<visual>\n')
         urdf.write(f'\t\t\t<geometry>\n')
-        urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn} scale="{scale} {scale} {scale}""/>\n')
+        urdf.write(f'\t\t\t\t<mesh filename="{mesh_fn}" scale="{scale} {scale} {scale}"/>\n')
         urdf.write(f'\t\t\t</geometry>\n')
         urdf.write(f'\t\t\t<origin xyz="{" ".join(map(str, origin))}"/>\n')
         urdf.write(f'\t\t</visual>\n')
