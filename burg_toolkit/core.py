@@ -5,6 +5,7 @@ import copy
 from collections import UserDict
 
 import numpy as np
+import trimesh
 import yaml
 import pybullet
 from pybullet_utils import bullet_client
@@ -130,6 +131,11 @@ class ObjectType:
     @mesh.setter
     def mesh(self, mesh):
         self._mesh = mesh
+
+    @property
+    def trimesh(self):
+        """ Loads the mesh from file in trimesh format. """
+        return trimesh.load_mesh(self.mesh_fn)
 
     def has_all_attributes(self):
         """
@@ -267,6 +273,14 @@ class ObjectInstance:
             raise ValueError('no mesh associated with this object type')
         mesh = copy.deepcopy(self.object_type.mesh)
         mesh.transform(self.pose)
+        return mesh
+
+    def get_trimesh(self):
+        """
+        :return: trimesh.Trimesh
+        """
+        mesh = self.object_type.trimesh
+        mesh.apply_transform(self.pose)
         return mesh
 
 
@@ -594,25 +608,32 @@ class Scene(io.YAMLObject):
 
         return scene, object_library, printout_obj
 
-    def get_mesh_list(self, with_bg_objects=True, with_plane=True):
+    def get_mesh_list(self, with_bg_objects=True, with_plane=True, as_trimesh=False):
         """
         provides the scene objects as meshes (i.e. transformed according to the pose in the scene)
 
         :param with_bg_objects: Whether or not to include the background objects.
         :param with_plane: If True, will also create a mesh to visualise the ground area.
+        :param as_trimesh: If True, will return trimesh.Trimesh instead of o3d.geometry.TriangleMesh
 
         :return: list of o3d.geometry.TriangleMesh of the object instances in this scene
         """
         meshes = []
         if with_plane:
-            meshes.append(visualization.create_plane(size=self.ground_area, centered=False))
+            plane = visualization.create_plane(size=self.ground_area, centered=False)
+            if as_trimesh:
+                plane = mesh_processing.as_trimesh(plane)
+            meshes.append(plane)
 
         bg_objects = []
         if with_bg_objects:
             bg_objects = self.bg_objects
 
         for instance in [*self.objects, *bg_objects]:
-            meshes.append(instance.get_mesh())
+            if as_trimesh:
+                meshes.append(instance.get_trimesh())
+            else:
+                meshes.append(instance.get_mesh())
 
         return meshes
 
