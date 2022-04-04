@@ -405,9 +405,11 @@ class PrintoutDetector:
                                             distortion_coefficients, rvec=self.rvec, tvec=self.tvec,
                                             useExtrinsicGuess=self.rvec is not None)
 
-            # drawing markers
+            # drawing markers, board frame and scene frame
             frame = cv2.aruco.drawDetectedMarkers(image, corners, ids)
             frame = cv2.aruco.drawAxis(frame, camera_matrix, distortion_coefficients, self.rvec, self.tvec, 20)
+            scene_tvec = np.linalg.inv(self.get_camera_pose_cv())[0:3, 3] * 1000
+            frame = cv2.aruco.drawAxis(frame, camera_matrix, distortion_coefficients, self.rvec, scene_tvec, 20)
             return frame
 
         # if no markers detected
