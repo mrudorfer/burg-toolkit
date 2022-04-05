@@ -10,6 +10,7 @@ from functools import partial
 import h5py
 import numpy as np
 import burg_toolkit as burg
+import trimesh
 import concurrent.futures
 
 
@@ -40,6 +41,17 @@ def create_object_type(grasp_filename, acronym_dir):
         scale=scale
     )
 
+    # we also need to subtract the mean from the meshes and the center of mass
+    mesh = trimesh.load(mesh_fn, file_type='obj')
+    if isinstance(mesh, list):
+        # do concatenation, this is fixed in a newer trimesh version:
+        # https://github.com/mikedh/trimesh/issues/69
+        mesh = trimesh.util.concatenate(mesh)
+    tmesh_mean = np.mean(mesh.vertices, 0)
+    mesh.vertices -= np.expand_dims(tmesh_mean, 0)
+    mesh.visual = trimesh.visual.ColorVisuals()  # to prevent creation of a mtl file
+    mesh.export(mesh_fn)
+
     # create vhacd
     # duplicate shapes with different scales will have same VHACD file, as it is scaled during loading
     vhacd_dir = os.path.join(acronym_dir, 'vhacd', cat)
@@ -55,12 +67,15 @@ def create_object_type(grasp_filename, acronym_dir):
     burg.io.make_sure_directory_exists(urdf_dir)
     urdf_fn = os.path.join(urdf_dir, f'{shape}_{scale}.urdf')
     rel_mesh_fn = os.path.relpath(vhacd_fn, os.path.dirname(urdf_fn))
+    com = np.array(grasps['object/com'])
+    com -= tmesh_mean   # apply same offset as for mesh and vhacd
 
     burg.io.save_urdf(urdf_fn, mesh_fn=rel_mesh_fn, name=obj.identifier, origin=[0, 0, 0],
-                      inertia=np.array(grasps['object/inertia']), com=np.array(grasps['object/com']),
+                      inertia=np.array(grasps['object/inertia']), com=com,
                       mass=obj.mass, friction=obj.friction_coeff, scale=obj.scale,
                       overwrite_existing=True)
     obj.urdf_fn = urdf_fn
+    print(f'completed {obj.identifier}')
     return obj
 
 
