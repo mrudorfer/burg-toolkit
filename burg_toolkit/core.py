@@ -129,7 +129,10 @@ class ObjectType:
         """Loads the mesh from file the first time it is used."""
         if self._mesh is None:
             self._mesh = io.load_mesh(mesh_fn=self.mesh_fn)
-            self._mesh.scale(scale=self.scale, center=[0, 0, 0])
+            if self.scale is not None and self.scale != 1.0:
+                tf = np.eye(4)
+                tf[:3, :3] *= self.scale
+                self._mesh.transform(tf)
         return self._mesh
 
     @mesh.setter
