@@ -10,7 +10,7 @@ in the scope of [BURG project](#references). Features are:
 - visualization of scenes and grasps using open3d
 - dataset creation
 
-It is the backend to the [BURG Setup Tool](https://github.com/markus-suchi/burg-toolkit-gui).
+It is the backend to the [BURG Setup Tool](https://github.com/markus-suchi/burg-setuptool).
 
 ## project structure
 
