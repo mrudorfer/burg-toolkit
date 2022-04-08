@@ -293,6 +293,92 @@ class YCBObjectLibraryReader:
         return object_library
 
 
+class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch dataset?
+    def __init__(self, acronym_dir, object_library):
+        self.acronym_dir = acronym_dir
+        self.object_library = object_library
+
+    def _get_identifier_from_lib(self, category, shape, scale):
+        candidates = [key for key in self.object_library.keys() if key.startswith(f'{category}_{shape}')]
+        for candidate in candidates:
+            # check if scales are more or less the same
+            if np.isclose(self.object_library[candidate].scale, scale):
+                return candidate
+
+        _log.warning(f'shape {category}_{shape}_{scale} not in object library; candidates were: {candidates}')
+        return None
+
+    def get_scene(self, scene_idx):
+        """
+        Loads a scene with the given index.
+        All objects and grasps are transformed, they are put on the ground plane (z=0) and shifted in x/y.
+        Furthermore, the grasps are transformed to the grasp-center oriented convention instead of the panda hand
+        convention used by ACRONYM.
+
+        :param scene_idx: int, index of scene, see acronym/scene_contacts folder for available indices (0-10015 for CGN)
+
+        :return: core.Scene, dict of grasp sets, the dict keys are the object instances in the scene, the dict values
+                 are the grasp sets corresponding to that object instance
+        """
+        scene_fn = os.path.join(self.acronym_dir, 'scene_contacts', f'{scene_idx:06d}.npz')
+        try:
+            npz = np.load(scene_fn, allow_pickle=False)
+            print('loaded scene info contains:', list(npz.keys()))
+            scene_info = {'scene_contact_points': npz['scene_contact_points'],
+                          'obj_paths': npz['obj_paths'],
+                          'obj_transforms': npz['obj_transforms'],
+                          'obj_scales': npz['obj_scales'],
+                          'grasp_transforms': npz['grasp_transforms'],
+                          'grasp_indices': npz['obj_grasp_idcs']}
+        except:
+            _log.warning(f'scene {scene_idx}: data cannot be loaded, file corrupt? returning None.')
+            return None
+
+        # construct object identifiers
+        identifiers = []
+        for path, scale in zip(scene_info['obj_paths'], scene_info['obj_scales']):
+            _, category, mesh_fn = os.path.normpath(path).split(os.sep)
+            assert mesh_fn.endswith('.obj'), f'mesh_fn has unexpected filetype: {mesh_fn}'
+            shape = mesh_fn[:-len('.obj')]
+            identifier = self._get_identifier_from_lib(category, shape, scale)
+            identifiers.append(identifier)
+
+        # check if all objects have been identified
+        if None in identifiers:
+            _log.warning(f'scene {scene_idx} cannot be loaded due to missing shapes. returning None.')
+            return None
+
+        grasps = scene_info['grasp_transforms']
+        # apply same offsets as in object poses
+        grasps[:, 2, 3] -= 0.3
+        grasps[:, 0:2, 3] += 0.3
+        # transform from their gripper coordinate system https://github.com/NVlabs/6dof-graspnet/issues/8 to our
+        # center-point oriented system
+        # apply offset in z axis
+        grasps[:, 0:3, 3] += 0.103 * grasps[:, 0:3, 2]  # todo: check if 10.3cm is correct
+        # flip z and y axes
+        grasps[:, 0:3, 1] *= -1
+        grasps[:, 0:3, 2] *= -1
+
+        scene = core.Scene(ground_area=(0.6, 0.6))
+        last_idx = None
+        grasp_sets = {}
+        for identifier, pose, grasp_idx in zip(identifiers, scene_info['obj_transforms'], scene_info['grasp_indices']):
+            # pose offset:
+            #   their scenes are on a table-support cube with 0.6x0.6x0.6
+            #   i.e. their ground plane is at z=0.3, we move it to z=0
+            #   their scenes are centered around z-axis, we move the ground plane to be in positive x/y space
+            pose[2, 3] -= 0.3
+            pose[0:2, 3] += 0.3
+            instance = core.ObjectInstance(object_type=self.object_library[identifier], pose=pose)
+            scene.objects.append(instance)
+
+            grasp_sets[instance] = grasp.GraspSet.from_poses(grasps[last_idx:grasp_idx])
+            last_idx = grasp_idx
+
+        return scene, grasp_sets
+
+
 class BaseviMatlabScenesReader:
     """
     Reader for files that are related to the MATLAB scene generation pipeline of Basevi (unpublished).
