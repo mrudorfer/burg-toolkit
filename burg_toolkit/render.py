@@ -311,8 +311,8 @@ class PyRenderEngine(RenderEngine):
         )
 
         self._render_scene = pyrender.Scene(ambient_light=ambient_light)
-        for mesh in scene.get_mesh_list(with_plane=with_plane):
-            self._render_scene.add(pyrender.Mesh.from_trimesh(mesh_processing.as_trimesh(mesh)))
+        for mesh in scene.get_mesh_list(with_plane=with_plane, as_trimesh=True):
+            self._render_scene.add(pyrender.Mesh.from_trimesh(mesh))
         self._render_scene.add_node(self._cam_node)
 
         resolution = camera.resolution

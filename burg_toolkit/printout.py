@@ -357,3 +357,91 @@ class Printout:
                 os.close(img_file_handle), os.remove(img_file)  # clear temporary
 
         pdf.output(filename, 'F')
+
+
+class PrintoutDetector:
+    def __init__(self, printout):
+        # get aruco info
+        self.aruco_dict = printout.marker_info.get_dictionary()
+        self.aruco_board = printout.marker_info.get_board()
+        self.marker_frame = printout.get_marker_frame()
+        self.parameters = cv2.aruco.DetectorParameters_create()  # default params
+
+        # remember predictions from the latest frame
+        self.tvec = None
+        self.rvec = None
+
+    def detect(self, image, camera_matrix, distortion_coefficients):
+        """
+        attempts to detect markers in the given image.
+
+        :param image: ndarray as opencv image, either 2-dim (gray image) or 3-dim (bgr image).
+        :param camera_matrix: ndarray (3, 3), the camera matrix K
+        :param distortion_coefficients: list or ndarray (5), the distortion coefficients D
+
+        :return: ndarray as opencv image or None, ndarray with drawn in markers, None if no markers detected
+        """
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        elif len(image.shape) == 2:
+            gray = image
+        else:
+            raise ValueError(f'image has unexpected shape: {image.shape} (expected 2 or 3 dims)')
+
+        corners, ids, rejected_image_points = \
+            cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=self.parameters, cameraMatrix=camera_matrix,
+                                    distCoeff=distortion_coefficients)
+
+        # only if any markers have been found
+        if len(corners) > 0:
+            # try to refine the detection - since we have grid board, we know where to expect markers
+            corners, ids, rejected_image_points, recovered_indices = \
+                cv2.aruco.refineDetectedMarkers(gray, self.aruco_board, corners, ids, rejected_image_points,
+                                                camera_matrix, distortion_coefficients)
+
+            # estimate pose of the board using all detected markers
+            num_markers, self.rvec, self.tvec = \
+                cv2.aruco.estimatePoseBoard(corners, ids, self.aruco_board, camera_matrix,
+                                            distortion_coefficients, rvec=self.rvec, tvec=self.tvec,
+                                            useExtrinsicGuess=self.rvec is not None)
+
+            # drawing markers, board frame and scene frame
+            frame = cv2.aruco.drawDetectedMarkers(image, corners, ids)
+            frame = cv2.aruco.drawAxis(frame, camera_matrix, distortion_coefficients, self.rvec, self.tvec, 20)
+            scene_tvec = np.linalg.inv(self.get_camera_pose_cv())[0:3, 3] * 1000
+            frame = cv2.aruco.drawAxis(frame, camera_matrix, distortion_coefficients, self.rvec, scene_tvec, 20)
+            return frame
+
+        # if no markers detected
+        self.rvec = None
+        self.tvec = None
+        return None
+
+    def get_camera_pose_cv(self):
+        """
+        z-axis points towards the scene, y-axis points down.
+        """
+        if self.rvec is None or self.tvec is None:
+            raise ValueError('call to detect must be successful in order to get camera pose. current pose unknown.')
+
+        # rvec tvec are pose of markers wrt camera
+        pose = np.eye(4)
+        pose[0:3, 0:3] = cv2.Rodrigues(self.rvec)[0]
+        pose[0:3, 3] = self.tvec.flatten() / 1000  # marker size was given in mm
+
+        # compute camera wrt to markers and account for offset of markers in scene
+        # camera_frame = self.marker_frame @ np.linalg.inv(pose)
+        camera_frame = self.marker_frame @ np.linalg.inv(pose)
+        return camera_frame
+
+    def get_camera_pose_opengl(self):
+        """
+        z-axis pointing away from the scene, y-axis points up.
+        """
+        camera_frame = self.get_camera_pose_cv()
+
+        # flip axes to have OpenGL camera
+        camera_frame[0:3, 2] = -camera_frame[0:3, 2]  # z away from scene
+        camera_frame[0:3, 1] = -camera_frame[0:3, 1]  # y up
+
+        return camera_frame
