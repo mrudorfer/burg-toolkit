@@ -1,13 +1,12 @@
 import os
 from timeit import default_timer as timer
 import numpy as np
-import configparser
 
 import open3d as o3d
 
 import burg_toolkit as burg
 
-SAVE_FILE = os.path.join('..', 'sampled_grasps.npy')
+SAVE_FILE = os.path.join('..', 'data', 'sampled_grasps.npy')
 
 
 def test_distance_and_coverage():
@@ -66,22 +65,28 @@ def test_distance_and_coverage():
 
 
 def test_new_antipodal_grasp_sampling():
-    gripper_model = burg.gripper.ParallelJawGripper(finger_length=0.03,
-                                                    finger_thickness=0.003)
-    mesh_fn = '../data/samples/flathead-screwdriver/flatheadScrewdriverMediumResolution.ply'
+    scene, lib, _ = burg.Scene.from_yaml('/home/rudorfem/datasets/BURG-scenes/scene-001.yaml')
 
-    ags = burg.sampling.AntipodalGraspSampler()
-    ags.mesh = burg.io.load_mesh(mesh_fn)
-    ags.gripper = gripper_model
-    ags.n_orientations = 18
-    ags.verbose = True
-    ags.max_targets_per_ref_point = 1
-    graspset, contacts = ags.sample(100)
-    # gs.scores = ags.check_collisions(gs, use_width=False)  # need to install python-fcl
-    print('len graspset', len(graspset))
-    print('contacts.shape', contacts.shape)
-    burg.visualization.show_grasp_set([ags.mesh], graspset, gripper=gripper_model, use_width=False,
-                                      score_color_func=lambda s: [s, 1-s, 0], with_plane=True)
+    target_object = scene.objects[1]
+    print('targeting object', target_object.object_type.identifier)
+
+    opening_width = 0.08
+    gripper = burg.gripper.TwoFingerGripperVisualisation(opening_width=opening_width)
+
+    ags = burg.sampling.AntipodalGraspSampler(n_orientations=7)
+    print('starting to sample grasps')
+    graspset, contacts = ags.sample(target_object, n=500, max_gripper_width=opening_width)
+    print(f'done, sampled {len(graspset)} grasps')
+    burg.visualization.show_grasp_set([scene], graspset, gripper=gripper)
+
+    print('checking collisions with simple gripper model...')
+    graspset.scores = ags.check_collisions(graspset, scene, gripper_mesh=gripper.mesh)  # need python-fcl
+    burg.visualization.show_grasp_set([scene], graspset, gripper=gripper,
+                                      score_color_func=lambda s: [s, 1-s, 0])
+    graspset = graspset[graspset.scores == 0]
+    print('remaining grasps:', len(graspset))
+    burg.visualization.show_grasp_set([scene], graspset, gripper=gripper,
+                                      score_color_func=lambda s: [s, 1 - s, 0])
 
 
 def test_rotation_to_align_vectors():
@@ -142,7 +147,7 @@ if __name__ == "__main__":
     # test_rotation_to_align_vectors()
     # test_angles()
     # test_cone_sampling()
-    #test_new_antipodal_grasp_sampling()
-    #show_grasp_pose_definition()
-    visualise_perturbations()
+    test_new_antipodal_grasp_sampling()
+    # show_grasp_pose_definition()
+    # visualise_perturbations()
     print('bye')

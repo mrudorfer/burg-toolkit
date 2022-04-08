@@ -59,20 +59,16 @@ class AntipodalGraspSampler:
     # todo: currently broken, it is still using gripper model which should not be the case
     """
 
-    def __init__(self):
-        self.gripper = None
-        self.mu = 0.25
-        self.n_orientations = 12
-        self.n_rays = 100
-        self.min_grasp_width = 0.002
-        self.width_tolerance = 0.005
-        self.max_targets_per_ref_point = 1
-        self.only_grasp_from_above = False
-        self.no_contact_below_z = None
-        self.verbose = True
-        self.verbose_debug = False
-        self.mesh = None
-        self._trimesh = None
+    def __init__(self, mu=0.25, n_orientations=12, n_rays=100, max_targets_per_ref_point=1, only_grasp_from_above=True,
+                 no_contact_below_z=0.02, min_grasp_width=0.001, verbose=False):
+        self.mu = mu
+        self.n_orientations = n_orientations
+        self.n_rays = n_rays
+        self.min_grasp_width = min_grasp_width
+        self.max_targets_per_ref_point = max_targets_per_ref_point
+        self.only_grasp_from_above = only_grasp_from_above
+        self.no_contact_below_z = no_contact_below_z
+        self.verbose = verbose
 
     @staticmethod
     def construct_halfspace_grasp_set(reference_point, target_points, n_orientations):
@@ -187,35 +183,39 @@ class AntipodalGraspSampler:
 
         return gs
 
-    def sample(self, n=10):
-        # probably do some checks before starting... is gripper None? is mesh None? ...
-        if self.verbose:
-            print('preparing to sample grasps...')
-        # we need collision operations which are not available in o3d yet
-        # hence convert the mesh to trimesh
-        self._trimesh = mesh_processing.as_trimesh(self.mesh)
-        intersector = trimesh.ray.ray_triangle.RayMeshIntersector(self._trimesh)
+    def sample(self, object_instance, n=10, max_gripper_width=0.08):
+        """
+        Samples n grasps for the given object_instance.
 
-        # we need to sample reference points from the mesh
-        # since uniform sampling methods seem to go deterministically through the triangles and sample randomly within
-        # triangles, we cannot sample individual points (as this would get very similar points all the time).
+        :param object_instance: core.ObjectInstance
+        :param n: integer, number of grasps to sample
+        :param max_gripper_width: float, maximum opening width of gripper, ie grasps with contact points that are
+                                  farther apart than this will not be considered
+
+        :return: grasp.GraspSet
+        """
+        _log.debug('preparing to sample grasps...')
+
+        # we make use of both open3d and trimesh, therefore keep both representations in memory...
+        mesh = object_instance.get_mesh()
+        _trimesh = mesh_processing.as_trimesh(mesh)
+        intersector = trimesh.ray.ray_triangle.RayMeshIntersector(_trimesh)
+
+        # we first sample reference points (first contact point) from the mesh surface
         # therefore, we first sample many points at once and then just use some of these at random
-        # let's have a wild guess of how many are many ...
-        n_sample = np.max([n, 1000, len(self.mesh.triangles)])
-        ref_points = util.o3d_pc_to_numpy(mesh_processing.poisson_disk_sampling(self.mesh, n_points=n_sample))
+        n_sample = np.max([n, 1000, len(mesh.triangles)])
+        ref_points = util.o3d_pc_to_numpy(mesh_processing.poisson_disk_sampling(mesh, n_points=n_sample))
         np.random.shuffle(ref_points)
 
         if self.no_contact_below_z is not None:
             keep = ref_points[:, 2] > self.no_contact_below_z
             ref_points = ref_points[keep]
 
-        if self.verbose:
-            print(f'sampled {len(ref_points)} first contact point candidates, beginning to find grasps.')
+        _log.debug(f'sampled {len(ref_points)} first contact point candidates, beginning to find grasps.')
 
         # determine some parameters for casting rays in a friction cone
         angle = np.arctan(self.mu)
-        if self.verbose_debug:
-            print('mu is', self.mu, 'hence angle of friction cone is', np.rad2deg(angle), '°')
+        _log.debug('mu is', self.mu, 'hence angle of friction cone is', np.rad2deg(angle), '°')
 
         gs = grasp.GraspSet()
         gs_contacts = np.empty((0, 2, 3))
@@ -223,11 +223,13 @@ class AntipodalGraspSampler:
 
         with tqdm(total=n, disable=not self.verbose) as progress_bar:
             while len(gs) < n:
-                # todo check if ref point still in range
+                if i_ref_point >= len(ref_points):
+                    _log.info('ran out of ref_points, sampling more grasps would likely yield only more of the same')
+                    break
+
                 p_r = ref_points[i_ref_point, 0:3]
                 n_r = ref_points[i_ref_point, 3:6]
-                if self.verbose_debug:
-                    print(f'sampling ref point no {i_ref_point}: point {p_r}, normal {n_r}')
+                _log.debug(f'sampling ref point no {i_ref_point}: point {p_r}, normal {n_r}')
                 i_ref_point = (i_ref_point + 1) % len(ref_points)
 
                 # cast random rays from p_r within the friction cone to identify potential contact points
@@ -235,8 +237,7 @@ class AntipodalGraspSampler:
                 ray_origins = np.tile(p_r, (self.n_rays, 1))
                 locations, _, index_tri = intersector.intersects_location(
                     ray_origins, ray_directions, multiple_hits=True)
-                if self.verbose_debug:
-                    print(f'* casting {self.n_rays} rays, leading to {len(locations)} intersection locations')
+                _log.debug(f'* casting {self.n_rays} rays, leading to {len(locations)} intersection locations')
                 if len(locations) == 0:
                     continue
 
@@ -244,26 +245,24 @@ class AntipodalGraspSampler:
                 mask_is_not_origin = ~np.isclose(locations, p_r, atol=1e-11).all(axis=-1)
                 locations = locations[mask_is_not_origin]
                 index_tri = index_tri[mask_is_not_origin]
-                if self.verbose_debug:
-                    print(f'* ... of which {len(locations)} are not with ref point')
+                _log.debug(f'* ... of which {len(locations)} are not with ref point')
                 if len(locations) == 0:
                     continue
 
                 # eliminate contact points too far or too close
                 distances = np.linalg.norm(locations - p_r, axis=-1)
                 mask_is_within_distance = \
-                    (distances <= self.gripper.opening_width - self.width_tolerance)\
+                    (distances <= max_gripper_width)\
                     | (distances >= self.min_grasp_width)
                 locations = locations[mask_is_within_distance]
                 index_tri = index_tri[mask_is_within_distance]
-                if self.verbose_debug:
-                    print(f'* ... of which {len(locations)} are within gripper width constraints')
+                _log.debug(f'* ... of which {len(locations)} are within gripper width constraints')
                 if len(locations) == 0:
                     continue
 
-                normals = mesh_processing.compute_interpolated_vertex_normals(self._trimesh, locations, index_tri)
+                normals = mesh_processing.compute_interpolated_vertex_normals(_trimesh, locations, index_tri)
 
-                if self.verbose_debug:
+                if self.verbose:
                     # visualize candidate points and normals
 
                     sphere_vis = o3d.geometry.TriangleMesh.create_sphere(radius=0.005)
@@ -271,7 +270,7 @@ class AntipodalGraspSampler:
                     sphere_vis.compute_vertex_normals()
 
                     o3d_pc = util.numpy_pc_to_o3d(np.concatenate([locations, normals], axis=1))
-                    obj_list = [self.mesh, sphere_vis, o3d_pc]
+                    obj_list = [mesh, sphere_vis, o3d_pc]
                     arrow = o3d.geometry.TriangleMesh.create_arrow(
                         cylinder_radius=1 / 10000,
                         cone_radius=1.5 / 10000,
@@ -301,8 +300,7 @@ class AntipodalGraspSampler:
                 locations = locations[mask_faces_correct_direction]
                 normals = normals[mask_faces_correct_direction]
                 angles = angles[mask_faces_correct_direction]
-                if self.verbose_debug:
-                    print(f'* ... of which {len(locations)} are generally facing in opposing directions')
+                _log.debug(f'* ... of which {len(locations)} are generally facing in opposing directions')
                 if len(locations) == 0:
                     continue
 
@@ -311,8 +309,7 @@ class AntipodalGraspSampler:
                 locations = locations[mask_friction_cone]
                 normals = normals[mask_friction_cone]
                 angles = angles[mask_friction_cone]
-                if self.verbose_debug:
-                    print(f'* ... of which {len(locations)} are satisfying the friction constraint')
+                _log.debug(f'* ... of which {len(locations)} are satisfying the friction constraint')
                 if len(locations) == 0:
                     continue
 
@@ -322,21 +319,17 @@ class AntipodalGraspSampler:
                     locations = locations[mask_below_z]
                     normals = normals[mask_below_z]
                     angles = angles[mask_below_z]
-                    if self.verbose_debug:
-                        print(f'* ... of which {len(locations)} are above the specified z value')
+                    _log.debug(f'* ... of which {len(locations)} are above the specified z value')
                     if len(locations) == 0:
                         continue
 
-                # actually construct all the grasps (with n_orientations)
-                # todo: maybe we can choose more intelligently here
-                #       e.g. some farthest point sampling so grasps are likely to be more diverse
+                # make sure we do not use more than max_targets_per_ref_point
                 if len(locations) > self.max_targets_per_ref_point:
-                    indices = np.arange(len(locations))
-                    np.random.shuffle(indices)
-                    locations = locations[indices[:self.max_targets_per_ref_point]]
-                if self.verbose_debug:
-                    print(f'* ... of which we randomly choose {len(locations)} to construct grasps')
+                    indices = farthest_point_sampling(locations, self.max_targets_per_ref_point)
+                    locations = locations[indices]
+                    _log.debug(f'* ... of which we sample {len(locations)} to construct grasps')
 
+                # now proceed to construct all the grasps (with n_orientations)
                 if self.only_grasp_from_above:
                     grasps = self.construct_halfspace_grasp_set(p_r, locations, self.n_orientations)
                 else:
@@ -350,54 +343,39 @@ class AntipodalGraspSampler:
 
                 gs_contacts = np.concatenate([gs_contacts, contacts], axis=0)
                 gs.add(grasps)
-                if self.verbose_debug:
-                    print(f'* added {len(grasps)} grasps (with {self.n_orientations} orientations for each point pair)')
+                _log.debug(f'* added {len(grasps)} grasps (with {self.n_orientations} orientations for each point pair)')
                 progress_bar.update(len(grasps))
 
         return gs, gs_contacts
 
-    def check_collisions(self, graspset, use_width=True, width_tolerance=0.01, additional_objects=None,
-                         exclude_shape=False):
+    def check_collisions(self, graspset, scene, gripper_mesh, with_plane=False):
         """
-        This will check collisions for the given graspset using the gripper mesh of the object's gripper.
+        This will check collisions for the given graspset with a given gripper mesh.
 
         :param graspset: The n-elem grasp.GraspSet to check collisions for
-        :param use_width: If True, will squeeze the gripper mesh to fit the opening width plus width_tolerance
-        :param width_tolerance: As squeezing the gripper to the distance of the contact points will most certainly lead
-                                to collisions, this tolerance is added to the opening width.
-        :param additional_objects: list of o3d meshes that should be included in the collision manager (e.g. plane)
-        :param exclude_shape: bool, if True will only check collisions with provided additional objects. Note that if
-                              this is set to True additional objects must be provided.
+        :param scene: core.Scene containing the objects in the scene
+        :param gripper_mesh: open3d.geometry.TriangleMesh to check collisions against (gripper)
+        :param with_plane: bool, whether to also check collisions with the ground plane
+
+        :return: ndarray (n,) of dtype=bool
         """
-        if not additional_objects and exclude_shape:
-            raise ValueError('no collision objects specified.')
-
-        # we need collision operations which are not available in o3d yet
-        # hence use trimesh
+        # we need collision operations which are not available in o3d, hence use trimesh
         manager = trimesh.collision.CollisionManager()
-        if not exclude_shape:
-            self._trimesh = mesh_processing.as_trimesh(self.mesh)
-            manager.add_object('shape', self._trimesh)
 
-        # additional objects
-        if additional_objects:
-            for i, obj in enumerate(additional_objects):
-                manager.add_object(f'add_obj_{i}', mesh_processing.as_trimesh(obj))
+        # add scene objects
+        meshes = scene.get_mesh_list(with_bg_objects=True, with_plane=with_plane)  # todo: get directly as trimesh
+        for i, obj in enumerate(meshes):
+            manager.add_object(f'add_obj_{i}', mesh_processing.as_trimesh(obj))
 
-        gripper_mesh = copy.deepcopy(self.gripper.mesh)
-        tf = self.gripper.tf_base_to_TCP
-        gripper_mesh.transform(tf)
+        # prepare gripper mesh
+        gripper_mesh = copy.deepcopy(gripper_mesh)
         gripper_mesh = mesh_processing.as_trimesh(gripper_mesh)
 
         collision_array = np.empty(len(graspset), dtype=np.bool)
 
-        if self.verbose:
-            print('checking collisions...')
+        _log.debug('checking collisions...')
         for i, g in tqdm(enumerate(graspset), disable=not self.verbose):
-            tf_squeeze = np.eye(4)
-            if use_width:
-                tf_squeeze[0, 0] = (g.width + width_tolerance) / self.gripper.opening_width
-            collision_array[i] = manager.in_collision_single(gripper_mesh, transform=g.pose @ tf_squeeze)
+            collision_array[i] = manager.in_collision_single(gripper_mesh, transform=g.pose)
 
         return collision_array
 
