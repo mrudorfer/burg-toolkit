@@ -18,6 +18,7 @@ def main():
         # simulate scene
         sim = burg.scene_sim.SceneSimulator(verbose=True)
         sim.simulate_scene(scene)
+        sim.dismiss()
 
         # for instance in scene.objects:
         #     print('target object:', instance.object_type.identifier)
