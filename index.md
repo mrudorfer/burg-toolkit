@@ -13,11 +13,15 @@ The toolkit includes the following components:
 - [SetupTool](#setuptool), Blender add-on for creating physically plausible scenes using 3D object models
 - [SceneVisualizer](#scenevisualizer), ROS package for arranging real scenes with Augmented Reality
 
-![BURG-Toolkit overview](assets/burg-toolkit-overview.png)
+<p align="center">
+<img src='assets/burg-toolkit-overview.png'/>
+</p>
 
 An exemplary workflow using the BURG-Toolkit:
 
-![Exemplary workflow](assets/exemplary-workflow.png)
+<p align="center">
+<img src='assets/exemplary-workflow.png'/>
+</p>
 
 (a-c) After creating the virtual scene using
 the SetupTool, we can sample grasps and execute them in a physics-based
@@ -51,19 +55,19 @@ The [SetupTool](https://github.com/markus-suchi/burg-setuptool) is a graphical f
 - visualization of collision and out of bound checks of individual objects
 - saving of printout sheets of virtual scenes
 
-![Scene composition](https://github.com/markus-suchi/burg-setuptool/raw/master/doc/example.png)
+<img style='height: 100%; width: 100%; object-fit: contain' src="https://github.com/markus-suchi/burg-setuptool/raw/master/doc/example.png" alt="Scene composition"/>
 
 Scenes can be created in various sizes, the templates automatically adjust.
 If necessary, the templates can be split up for printing to the desired page size.
 
-![Printouts](https://github.com/markus-suchi/burg-setuptool/raw/master/doc/printouts.png)
+<img style='height: 100%; width: 100%; object-fit: contain' src="https://github.com/markus-suchi/burg-setuptool/raw/master/doc/printouts.png" alt="Printouts"/>
 
 ## SceneVisualizer
 
 The [SceneVisualizer](https://github.com/mrudorfer/burg_scene_visualizer) is a ROS package for arranging the objects for real-world experiments.
 It uses Augmented Reality to project the objects into the real scene.
 
-![Setup of a Scene](https://github.com/mrudorfer/burg_scene_visualizer/raw/main/assets/setup_scene.png)
+<img style='height: 100%; width: 100%; object-fit: contain' src="https://github.com/mrudorfer/burg_scene_visualizer/raw/main/assets/setup_scene.png" alt="Setup of a Scene"/>
 
 
 ## Acknowledgments
