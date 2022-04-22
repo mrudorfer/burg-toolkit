@@ -53,6 +53,11 @@ class SimulatorBase:
         """Gives the simulated time in seconds."""
         return self._simulated_steps * self.dt
 
+    @property
+    def bullet_client(self):
+        """Gives the bullet_client for direct control."""
+        return self._p
+
     def _reset(self, plane_and_gravity=False):
         """
         This method resets the simulation to the starting point. Shall be used to clean up after a simulation run.
@@ -533,10 +538,6 @@ class GraspSimulator(SimulatorBase):
         self.scene = scene
         self.LIFTING_HEIGHT = 0.3
         self._reset_scene()
-
-    @property
-    def bullet_client(self):
-        return self._p
 
     def _wait_for_user(self):
         if self.verbose:
