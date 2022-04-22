@@ -500,6 +500,26 @@ class GraspScores:
     def score2color_name(cls, score):
         return cls._retrieve(score, 2)
 
+    @classmethod
+    def summary(cls, array_of_scores):
+        summary = {}
+        for score in array_of_scores:
+            desc = cls.score2description(score)
+            if desc not in summary.keys():
+                summary[desc] = 1
+            else:
+                summary[desc] += 1
+        summary['total'] = len(array_of_scores)
+        return summary
+
+    @classmethod
+    def print_summary(cls, array_of_scores):
+        summary = cls.summary(array_of_scores)
+
+        for key, value in summary.items():
+            print(f'{value} {key}')
+        return summary
+
 
 class GraspSimulator(SimulatorBase):
     """
@@ -628,6 +648,7 @@ class GraspSimulator(SimulatorBase):
             self._reset_scene()
             return GraspScores.NO_CONTACT_ESTABLISHED
         _log.debug('CONTACT ESTABLISHED')
+        self._wait_for_user()
 
         # start lifting
         _log.debug('lifting object...')
