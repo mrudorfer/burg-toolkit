@@ -11,7 +11,7 @@ from .grasp import Grasp, GraspSet
 
 # import all other modules
 from . import constants, gripper, io, mesh_processing, metrics, render, sampling, sim, scene_sim, util, visualization
-from . import printout
+from . import printout, robots
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
