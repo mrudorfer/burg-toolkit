@@ -1,3 +1,5 @@
+import os
+
 import cv2
 
 SIZE_A4 = (0.297, 0.210)
@@ -28,3 +30,5 @@ ARUCO_DICT = {
     'DICT_APRILTAG_36h10': cv2.aruco.DICT_APRILTAG_36h10,
     'DICT_APRILTAG_36h11': cv2.aruco.DICT_APRILTAG_36h11
 }
+
+ASSET_PATH = os.path.join(os.path.dirname(__file__), 'assets/')
