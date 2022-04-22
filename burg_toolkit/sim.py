@@ -8,8 +8,7 @@ import pybullet_data
 from pybullet_utils import bullet_client
 from matplotlib import pyplot as plt
 
-from . import util, io
-from .gripper import MountedGripper
+from . import util, io, robots
 
 
 _log = logging.getLogger(__name__)
@@ -609,6 +608,20 @@ class GraspSimulator(SimulatorBase):
                 return True
         return False
 
+    def _load_gripper_mount_and_attach(self, gripper_id):
+        # we want to place the robot at the base of the gripper
+        pos_mount, orn_mount = self._p.getBasePositionAndOrientation(gripper_id)
+        robot = robots.XYZRobot(self, pos_mount, orn_mount)
+
+        # attach gripper to robot
+        self._p.createConstraint(
+            robot.body_id, robot.end_effector_link_id, gripper_id, -1,
+            jointType=self._p.JOINT_FIXED, jointAxis=[0, 0, 0],
+            parentFramePosition=[0, 0, 0], childFramePosition=[0, 0, 0],
+            parentFrameOrientation=[0, 0, 0, 1], childFrameOrientation=[0, 0, 0, 1]
+        )
+        return robot
+
     def execute_grasp(self, gripper_type, grasp, target, gripper_scale=1.0, gripper_opening_width=1.0):
         """
         Executes a grasp in the scene.
@@ -628,7 +641,8 @@ class GraspSimulator(SimulatorBase):
         gripper = gripper_type(self, gripper_scale)
         gripper.load(grasp.pose)
         gripper.set_open_scale(gripper_opening_width)
-        robot = MountedGripper(self, gripper.body_id)
+
+        robot = self._load_gripper_mount_and_attach(gripper.body_id)
 
         result = self._check_collisions(gripper, target)
         if result != GraspScores.SUCCESS:
@@ -653,9 +667,12 @@ class GraspSimulator(SimulatorBase):
 
         # start lifting
         _log.debug('lifting object...')
-        curr_pos = robot.cartesian_pos()
-        curr_pos[2] += 0.3
-        robot.go_to_cartesian_pos(curr_pos)
+        target_pos = robot.end_effector_pos()
+        target_pos[2] += 0.3
+        plan = robots.TrajectoryPlanner(self, robot).lin(target_pos)
+        arrived = robot.execute_joint_trajectory(plan)
+        if not arrived:
+            _log.warning('did not arrive at desired target position, will still continue though...')
         _log.debug('DONE LIFTING')
 
         # check again if object is still in contact
