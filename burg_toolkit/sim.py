@@ -2,6 +2,9 @@ import logging
 import time
 import os
 
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+
 import numpy as np
 import pybullet as p
 import pybullet_data
@@ -688,3 +691,21 @@ class GraspSimulator(SimulatorBase):
         # self._wait_for_user()
         self._reset_scene()
         return GraspScores.SUCCESS
+
+    @classmethod
+    def simulate_single_grasp(cls, grasp, scene, target_object, gripper_type):
+        sim = cls(scene, verbose=False)
+        grasp_score = sim.execute_grasp(gripper_type, grasp, target_object)
+        sim.dismiss()
+        return grasp_score
+
+    @classmethod
+    def simulate_graspset(cls, graspset, scene, target_object, gripper_type, max_workers=None):
+        pool = ProcessPoolExecutor(max_workers=max_workers)
+        grasp_scores = list(pool.map(
+            partial(cls.simulate_single_grasp, scene=scene, target_object=target_object,
+                    gripper_type=gripper_type),
+            graspset
+        ))
+
+        return grasp_scores
