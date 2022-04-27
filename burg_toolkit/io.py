@@ -323,7 +323,7 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
         scene_fn = os.path.join(self.acronym_dir, 'scene_contacts', f'{scene_idx:06d}.npz')
         try:
             npz = np.load(scene_fn, allow_pickle=False)
-            print('loaded scene info contains:', list(npz.keys()))
+            # print('loaded scene info contains:', list(npz.keys()))
             scene_info = {'scene_contact_points': npz['scene_contact_points'],
                           'obj_paths': npz['obj_paths'],
                           'obj_transforms': npz['obj_transforms'],
@@ -332,7 +332,7 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
                           'grasp_indices': npz['obj_grasp_idcs']}
         except:
             _log.warning(f'scene {scene_idx}: data cannot be loaded, file corrupt? returning None.')
-            return None
+            return None, None
 
         # construct object identifiers
         identifiers = []
@@ -346,7 +346,7 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
         # check if all objects have been identified
         if None in identifiers:
             _log.warning(f'scene {scene_idx} cannot be loaded due to missing shapes. returning None.')
-            return None
+            return None, None
 
         grasps = scene_info['grasp_transforms']
         # apply same offsets as in object poses
