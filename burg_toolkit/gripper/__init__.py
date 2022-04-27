@@ -26,14 +26,14 @@ two_finger_grippers = [
     EZGripper,
     Sawyer,
     # RG2,  # skip as it does not work properly
-    BarrettHand2F,
+    # BarrettHand2F,  # skip for now as it jumps around
 ]
 
 # these are not implemented yet
 three_finger_grippers = [
     Kinova3F,
     Robotiq3F,
-    # BarrettHand  # skip for now because it has different signature
+    # BarrettHand  # skip for now as it jumps around
 ]
 
 all_grippers = [
