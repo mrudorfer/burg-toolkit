@@ -465,9 +465,9 @@ class GraspScores:
 
     _s2c_dict = {
         SUCCESS: ([0.1, 0.8, 0.1], 'successfully lifted', 'green'),
-        COLLISION_WITH_GROUND: ([0.8, 0.1, 0.1], 'collision with ground', 'red'),
-        COLLISION_WITH_TARGET: ([0.4, 0.1, 0.1], 'collision with target object', 'dark red'),
-        COLLISION_WITH_CLUTTER: ([0.1, 0.1, 0.8], 'collision with clutter', 'blue'),
+        COLLISION_WITH_GROUND: ([0.4, 0.1, 0.1], 'collision with ground', 'dark red'),
+        COLLISION_WITH_TARGET: ([0.8, 0.1, 0.1], 'collision with target', 'red'),
+        COLLISION_WITH_CLUTTER: ([1.0, 0.3, 0.3], 'collision with clutter', 'light red'),
         NO_CONTACT_ESTABLISHED: ([0.1, 0.1, 0.4], 'no contact established', 'dark blue'),
         SLIPPED_DURING_LIFTING: ([0.1, 0.4, 0.1], 'object slipped', 'dark green'),
     }
