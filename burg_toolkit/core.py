@@ -141,6 +141,23 @@ class ObjectType:
     def mesh(self, mesh):
         self._mesh = mesh
 
+    def __getstate__(self):
+        """
+        This allows to serialise the object.
+        See https://docs.python.org/3/library/pickle.html#object.__getstate__
+
+        Background:
+        When using multiprocessing, objects are automatically serialised to move them to another process. This happens
+        with ObjectType e.g. when using the GraspSimulator. The problem is that open3d types are not serialisable, see
+        the discussion here: https://github.com/isl-org/Open3D/issues/218. To solve this issue, we serialise a version
+        of the object in which the TriangleMesh is not cached. If the process requires the mesh, it will need to load
+        it from file (which will happen automatically).
+        Once the Open3D issue is resolved, we may change this behavior again.
+        """
+        obj_state = self.__dict__
+        obj_state['_mesh'] = None
+        return obj_state
+
     @property
     def scale(self):
         return self._scale
