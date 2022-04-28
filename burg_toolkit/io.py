@@ -308,7 +308,7 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
         _log.warning(f'shape {category}_{shape}_{scale} not in object library; candidates were: {candidates}')
         return None
 
-    def get_scene(self, scene_idx):
+    def get_scene(self, scene_idx, with_grasps=False, with_contacts=False):
         """
         Loads a scene with the given index.
         All objects and grasps are transformed, they are put on the ground plane (z=0) and shifted in x/y.
@@ -316,9 +316,12 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
         convention used by ACRONYM.
 
         :param scene_idx: int, index of scene, see acronym/scene_contacts folder for available indices (0-10015 for CGN)
+        :param with_grasps: bool, whether to return grasps as well
+        :param with_contacts: bool, whether to return contact points as well
 
-        :return: core.Scene, dict of grasp sets, the dict keys are the object instances in the scene, the dict values
-                 are the grasp sets corresponding to that object instance
+        :return: core.Scene, scene
+                 (opt) dict of grasp sets, keys are the object instances in the scene, values are burg.grasp.GraspSet
+                 (opt) dict of contacts, keys are the object instances in the scene, values are ndarrays (k, 2, 3)
         """
         scene_fn = os.path.join(self.acronym_dir, 'scene_contacts', f'{scene_idx:06d}.npz')
         try:
@@ -330,9 +333,9 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
                           'obj_scales': npz['obj_scales'],
                           'grasp_transforms': npz['grasp_transforms'],
                           'grasp_indices': npz['obj_grasp_idcs']}
-        except:
-            _log.warning(f'scene {scene_idx}: data cannot be loaded, file corrupt? returning None.')
-            return None, None
+        except Exception as error:
+            _log.warning(f'scene {scene_idx}: data cannot be loaded, file corrupt?')
+            raise error
 
         # construct object identifiers
         identifiers = []
@@ -345,38 +348,60 @@ class ACRONYMSceneReader:  # perhaps make this an iterable, like a list or torch
 
         # check if all objects have been identified
         if None in identifiers:
-            _log.warning(f'scene {scene_idx} cannot be loaded due to missing shapes. returning None.')
-            return None, None
+            raise NotImplementedError(f'scene {scene_idx} cannot be loaded due to missing shapes.')
 
-        grasps = scene_info['grasp_transforms']
-        # apply same offsets as in object poses
-        grasps[:, 2, 3] -= 0.3
-        grasps[:, 0:2, 3] += 0.3
-        # transform from their gripper coordinate system https://github.com/NVlabs/6dof-graspnet/issues/8 to our
-        # center-point oriented system
-        # apply offset in z axis
-        grasps[:, 0:3, 3] += 0.103 * grasps[:, 0:3, 2]  # todo: check if 10.3cm is correct
-        # flip z and y axes
-        grasps[:, 0:3, 1] *= -1
-        grasps[:, 0:3, 2] *= -1
-
+        # create scene
+        #   The scenes are on a table-support cube with 0.6x0.6x0.6
+        #   i.e. their ground plane is at z=0.3, we move it to z=0
+        #   their scenes are centered around z-axis, we move the ground plane to be in positive x/y space, also by 0.3,
+        #   so that they are in line with our conventions
         scene = core.Scene(ground_area=(0.6, 0.6))
-        last_idx = None
-        grasp_sets = {}
-        for identifier, pose, grasp_idx in zip(identifiers, scene_info['obj_transforms'], scene_info['grasp_indices']):
-            # pose offset:
-            #   their scenes are on a table-support cube with 0.6x0.6x0.6
-            #   i.e. their ground plane is at z=0.3, we move it to z=0
-            #   their scenes are centered around z-axis, we move the ground plane to be in positive x/y space
+        for identifier, pose in zip(identifiers, scene_info['obj_transforms']):
             pose[2, 3] -= 0.3
             pose[0:2, 3] += 0.3
             instance = core.ObjectInstance(object_type=self.object_library[identifier], pose=pose)
             scene.objects.append(instance)
 
-            grasp_sets[instance] = grasp.GraspSet.from_poses(grasps[last_idx:grasp_idx])
-            last_idx = grasp_idx
+        ret_val = [scene]
 
-        return scene, grasp_sets
+        if with_grasps:
+            grasps = scene_info['grasp_transforms']
+            # apply same offsets as in object poses
+            grasps[:, 2, 3] -= 0.3
+            grasps[:, 0:2, 3] += 0.3
+            # transform from their gripper coordinate system https://github.com/NVlabs/6dof-graspnet/issues/8 to our
+            # center-point oriented system:
+            #   1. apply offset in z axis of 10.3cm
+            #   2. flip z and y axes
+            grasps[:, 0:3, 3] += 0.103 * grasps[:, 0:3, 2]
+            grasps[:, 0:3, 1] *= -1
+            grasps[:, 0:3, 2] *= -1
+
+            # assign the grasps to the object instances in the scene
+            last_idx = None
+            grasp_sets = {}
+            for instance, grasp_idx in zip(scene.objects, scene_info['grasp_indices']):
+                grasp_sets[instance] = grasp.GraspSet.from_poses(grasps[last_idx:grasp_idx])
+                last_idx = grasp_idx
+
+            ret_val.append(grasp_sets)
+
+        if with_contacts:
+            contacts = scene_info['scene_contact_points']
+            # apply same offsets as in object poses
+            contacts[:, :, 2] -= 0.3
+            contacts[:, :, 0:2] += 0.3
+
+            # assign the contacts to the object instances in the scene
+            last_idx = None
+            contacts_per_instance = {}
+            for instance, grasp_idx in zip(scene.objects, scene_info['grasp_indices']):
+                contacts_per_instance[instance] = contacts[last_idx:grasp_idx]
+                last_idx = grasp_idx
+
+            ret_val.append(contacts_per_instance)
+
+        return ret_val[0] if len(ret_val)==1 else tuple(ret_val)
 
 
 class BaseviMatlabScenesReader:
