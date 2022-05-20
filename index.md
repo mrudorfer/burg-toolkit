@@ -70,6 +70,17 @@ It uses Augmented Reality to project the objects into the real scene.
 <img style='height: 100%; width: 100%; object-fit: contain' src="https://github.com/mrudorfer/burg_scene_visualizer/raw/main/assets/setup_scene.png" alt="Setup of a Scene"/>
 
 
+## Citation
+
+Our work will be presented at the [ICRA 2022 Workshop on Releasing Robots into the Wild: Simulations, Benchmarks, and Deployment](https://www.dynsyslab.org/releasing-robots-into-the-wild-workshop/) on May 27, 2022.
+
+We will soon make the final version of the article public and provide a link here.
+
+The files required to reproduce the experiments in that paper are available for download [here](/assets/experiment_files.zip) [zip, 49.9MB].
+Feel free to get in touch if you have any questions.
+
+
+
 ## Acknowledgments
 
 This work was conducted within the [BURG research project](https://burg.acin.tuwien.ac.at/) which is supported by CHIST-ERA under EPSRC grant no. EP/S032487/1 and FWF grant no. I3967-N30.
