@@ -3,10 +3,10 @@
 BURG-Toolkit: Reproducible Robot Grasping Experiments in Simulation and the Real World
 </p>
 <p align="center" style="font-size:18px;color:#222222;letter-spacing:-1px;">
-Martin Rudorfer<sup>1</sup>, Markus Suchi<sup>2</sup>, Mohan Sridharan<sup>1</sup>, Markus Vincze<sup>2</sup>, Aleš Leonardis<sup>1</sup>
+Martin Rudorfer<sup>1</sup>, Markus Suchi<sup>2</sup>, Mohan Sridharan<sup>1</sup>, Markus Vincze<sup>2</sup>, Aleš Leonardis$^1$
 </p>
 <p align="center" style="font-size:11px;color:#222222;letter-spacing:-1px;">
-<sup>1</sup>School of Computer Science, University of Birmingham, UK</br>
+<sup>1</sup>School of Computer Science, University of Birmingham, UK<br/>
 <sup>2</sup>Automation and Control Institue, TU Vienna, Austria
 </p>
 
