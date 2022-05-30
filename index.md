@@ -18,7 +18,7 @@ Our tools allow researchers to:
 
 ## Quick Links
 
-- [Presentation](https://www.youtube.com/embed/hsEkcbFItRQ?start=14201) (YouTube) at the [ICRA 2022 Workshop on Releasing Robots into the Wild](https://www.dynsyslab.org/releasing-robots-into-the-wild-workshop/)
+- [Presentation](https://www.youtube.com/watch?v=hsEkcbFItRQ&t=14201s) (YouTube) at the [ICRA 2022 Workshop on Releasing Robots into the Wild](https://www.dynsyslab.org/releasing-robots-into-the-wild-workshop/)
 - [Paper](https://arxiv.org/abs/2205.14099) on arxiv
 - Files required to reproduce the experiments in thr paper are available [here](/assets/experiment_files.zip) [zip, 49.9MB]
 - Repositories:
