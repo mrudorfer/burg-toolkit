@@ -1,9 +1,24 @@
 
+<iframe width="500" height="281" src="https://www.youtube.com/embed/hsEkcbFItRQ?start=14201" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+
 The BURG-Toolkit is a set of open-source tools for  **B**enchmarking and **U**nderstanding **R**obotic **G**rasping.
 Our tools allow researchers to: 
 1. create virtual scenes for generating training data and performing grasping in simulation, 
 2. recreate the scene by arranging the corresponding objects accurately in the physical world for real robot experiments, supporting an analysis of the sim-to-real gap, and 
 3. share the scenes with other researchers to foster comparability and reproducibility of experimental results.
+
+## Quick Links
+
+- [Paper](https://arxiv.org/abs/2205.14099)
+- [Presentation on Youtube](https://www.youtube.com/embed/hsEkcbFItRQ?start=14201) at the [ICRA 2022 Workshop on Releasing Robots into the Wild: Simulations, Benchmarks, and Deployment](https://www.dynsyslab.org/releasing-robots-into-the-wild-workshop/)
+- Repositories:
+    - [BURG-Toolkit](https://github.com/mrudorfer/burg-toolkit)
+    - [SetupTool](https://github.com/markus-suchi/burg-setuptool)
+    - [SceneVisualizer](https://github.com/mrudorfer/burg_scene_visualizer)
+- Files required to reproduce the experiments in thr paper are available [here](/assets/experiment_files.zip) [zip, 49.9MB]
+
+Feel free to get in touch if you have any questions.
 
 
 ## Overview
@@ -68,16 +83,6 @@ The [SceneVisualizer](https://github.com/mrudorfer/burg_scene_visualizer) is a R
 It uses Augmented Reality to project the objects into the real scene.
 
 <img style='height: 100%; width: 100%; object-fit: contain' src="https://github.com/mrudorfer/burg_scene_visualizer/raw/main/assets/setup_scene.png" alt="Setup of a Scene"/>
-
-
-## Citation
-
-Our work will be presented at the [ICRA 2022 Workshop on Releasing Robots into the Wild: Simulations, Benchmarks, and Deployment](https://www.dynsyslab.org/releasing-robots-into-the-wild-workshop/) on May 27, 2022.
-
-We will soon make the final version of the article public and provide a link here.
-
-The files required to reproduce the experiments in that paper are available for download [here](/assets/experiment_files.zip) [zip, 49.9MB].
-Feel free to get in touch if you have any questions.
 
 
 
