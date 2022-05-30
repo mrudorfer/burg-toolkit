@@ -3,12 +3,18 @@
 BURG-Toolkit: Reproducible Robot Grasping Experiments in Simulation and the Real World
 </p>
 <p align="center" style="font-size:18px;color:#222222;letter-spacing:-1px;">
-Martin Rudorfer<sup>1</sup>, Markus Suchi<sup>2</sup>, Mohan Sridharan<sup>1</sup>, Markus Vincze<sup>2</sup>, Aleš Leonardis$^1$
+Martin Rudorfer<span style="vertical-align:super;font-size:0.83em">1</span>, 
+Markus Suchi<span style="vertical-align:super;font-size:0.83em">2</span>, 
+Mohan Sridharan<span style="vertical-align:super;font-size:0.83em">1</span>, 
+Markus Vincze<span style="vertical-align:super;font-size:0.83em">2</span>, 
+Aleš Leonardis<span style="vertical-align:super;font-size:0.83em">1</span>
 </p>
 <p align="center" style="font-size:11px;color:#222222;letter-spacing:-1px;">
-<sup>1</sup>School of Computer Science, University of Birmingham, UK<br/>
-<sup>2</sup>Automation and Control Institue, TU Vienna, Austria
+<span style="vertical-align:super;font-size:0.83em">1</span>School of Computer Science, University of Birmingham, UK<br/>
+<span style="vertical-align:super;font-size:0.83em">2</span>Automation and Control Institue, TU Vienna, Austria
 </p>
+
+
 
 The BURG-Toolkit is a set of open-source tools for  **B**enchmarking and **U**nderstanding **R**obotic **G**rasping.
 Our tools allow researchers to: 
