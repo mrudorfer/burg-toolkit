@@ -3,15 +3,15 @@
 BURG-Toolkit: Reproducible Robot Grasping Experiments in Simulation and the Real World
 </p>
 <p align="center" style="font-size:18px;color:#222222;letter-spacing:-1px;">
-Martin Rudorfer<span style="vertical-align:super;font-size:0.83em">1</span>, 
-Markus Suchi<span style="vertical-align:super;font-size:0.83em">2</span>, 
-Mohan Sridharan<span style="vertical-align:super;font-size:0.83em">1</span>, 
-Markus Vincze<span style="vertical-align:super;font-size:0.83em">2</span>, 
-Aleš Leonardis<span style="vertical-align:super;font-size:0.83em">1</span>
+Martin Rudorfer<span style="vertical-align:super;font-size:0.8em">1</span>, 
+Markus Suchi<span style="vertical-align:super;font-size:0.8em">2</span>, 
+Mohan Sridharan<span style="vertical-align:super;font-size:0.8em">1</span>, 
+Markus Vincze<span style="vertical-align:super;font-size:0.8em">2</span>, 
+Aleš Leonardis<span style="vertical-align:super;font-size:0.8em">1</span>
 </p>
-<p align="center" style="font-size:11px;color:#222222;letter-spacing:-1px;">
-<span style="vertical-align:super;font-size:0.83em">1</span>School of Computer Science, University of Birmingham, UK<br/>
-<span style="vertical-align:super;font-size:0.83em">2</span>Automation and Control Institue, TU Vienna, Austria
+<p align="center" style="font-size:12px;color:#222222;">
+<span style="vertical-align:super;font-size:0.8em">1</span>School of Computer Science, University of Birmingham, UK<br/>
+<span style="vertical-align:super;font-size:0.8em">2</span>Automation and Control Institue, TU Vienna, Austria
 </p>
 
 
