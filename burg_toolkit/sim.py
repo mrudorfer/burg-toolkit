@@ -278,6 +278,21 @@ class SimulatorBase:
         # nothing found...
         raise ValueError(f'could not find a body with the corresponding key: {body_key}')
 
+    def look_up_key_for_body_id(self, body_id):
+        """
+        Tries to find the key that corresponds to a given body id.
+        Will raise a ValueError if not found.
+
+        :return: object, the key corresponding to the given body id can have arbitrary type
+        """
+        if body_id in self._moving_bodies.values():
+            return list(self._moving_bodies.keys())[list(self._moving_bodies.values()).index(body_id)]
+
+        if body_id in self._env_bodies.values():
+            return list(self._env_bodies.keys())[list(self._env_bodies.values()).index(body_id)]
+
+        raise ValueError(f'no key found for body_id {body_id}')
+
     def get_body_pose(self, body_id, convert2burg=False):
         """
         Returns the base position and orientation of the body with respect to center of mass frame as used by
