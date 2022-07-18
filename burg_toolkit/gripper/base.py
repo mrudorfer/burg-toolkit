@@ -55,6 +55,16 @@ class GripperBase(abc.ABC):
         """
         return self.body_id is not None
 
+    def reset_pose(self, grasp_pose):
+        """
+        resets the gripper to the new grasp pose without changing any other properties.
+        assumes the gripper is loaded.
+        note that if the gripper is attached to a mount, this might give undesired behaviour.
+        """
+        assert self.is_loaded(), 'gripper not loaded'
+        position, orientation = self._get_pos_orn_from_grasp_pose(grasp_pose)
+        self._bullet_client.resetBasePositionAndOrientation(self.body_id, position, orientation)
+
     def _get_pos_orn_from_grasp_pose(self, grasp_pose):
         """
         Given the pose of a grasping center, will compute the position and orientation for placing the gripper in
