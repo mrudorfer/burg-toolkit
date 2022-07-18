@@ -550,10 +550,11 @@ class GraspSimulator(SimulatorBase):
     :param scene: the scene for which to execute grasps
     :param verbose: optional, whether to show GUI
     """
-    def __init__(self, scene, verbose=False):
+    def __init__(self, scene, verbose=False, plane_and_gravity=True):
         super().__init__(verbose=verbose)
         self.scene = scene
         self.LIFTING_HEIGHT = 0.3
+        self.plane_and_gravity = plane_and_gravity
         self._reset_scene()
 
     def _wait_for_user(self):
@@ -562,11 +563,11 @@ class GraspSimulator(SimulatorBase):
             input()
 
     def _reset_scene(self):
-        self._reset(plane_and_gravity=True)
+        self._reset(self.plane_and_gravity)
         _log.debug('setting scene...')
         self.add_scene(self.scene)
 
-    def _check_collisions(self, gripper, target):
+    def check_collisions(self, gripper, target):
         """
         Checks collisions with environment objects, target object, and other moving scene objects.
 
@@ -662,7 +663,7 @@ class GraspSimulator(SimulatorBase):
 
         robot = self._load_gripper_mount_and_attach(gripper.body_id)
 
-        result = self._check_collisions(gripper, target)
+        result = self.check_collisions(gripper, target)
         if result != GraspScores.SUCCESS:
             self._wait_for_user()
             self._reset_scene()
@@ -708,18 +709,18 @@ class GraspSimulator(SimulatorBase):
         return GraspScores.SUCCESS
 
     @classmethod
-    def simulate_single_grasp(cls, grasp, scene, target_object, gripper_type):
-        sim = cls(scene, verbose=False)
+    def simulate_single_grasp(cls, grasp, scene, target_object, gripper_type, plane_and_gravity=True):
+        sim = cls(scene, verbose=False, plane_and_gravity=plane_and_gravity)
         grasp_score = sim.execute_grasp(gripper_type, grasp, target_object)
         sim.dismiss()
         return grasp_score
 
     @classmethod
-    def simulate_graspset(cls, graspset, scene, target_object, gripper_type, max_workers=None):
+    def simulate_graspset(cls, graspset, scene, target_object, gripper_type, plane_and_gravity=True, max_workers=None):
         pool = ProcessPoolExecutor(max_workers=max_workers)
         grasp_scores = list(pool.map(
             partial(cls.simulate_single_grasp, scene=scene, target_object=target_object,
-                    gripper_type=gripper_type),
+                    gripper_type=gripper_type, plane_and_gravity=plane_and_gravity),
             graspset
         ))
 
