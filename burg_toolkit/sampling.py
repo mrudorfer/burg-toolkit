@@ -481,6 +481,10 @@ def farthest_point_sampling(point_cloud, k):
 def sample_scene(object_library, ground_area, instances_per_scene, instances_per_object=1, max_tries=20):
     """
     Samples a physically plausible scene using the objects in the given object_library.
+    Note that although we only use stable poses of the objects, using the sampled scenes does not necessarily yield
+    scenes that are stable in pybullet simulation. Because pybullet uses the VHACD as approximation for the meshes,
+    and due to the varying probability of the objects' stable poses, the objects might actually move in simulation.
+    If you require stable poses in simulation, use the SceneSimulator to update the sampled scenes.
 
     :param object_library: core.ObjectLibrary, which objects to sample from
     :param ground_area: (l, w) length (x-axis) and width (y-axis) of the ground area
@@ -500,12 +504,15 @@ def sample_scene(object_library, ground_area, instances_per_scene, instances_per
 
     manager = trimesh.collision.CollisionManager()
 
-    # try to add each object to the scene
+    # the approach here is pretty stupid.
+    # try to add each object to the scene, if it doesn't fit we try another pose, if it doesn't fit max_tries times
+    # then we don't add it and continue with the next object
+    # especially if the first object is large and occupies the whole scene, this approach costs a lot of time.
     for i, object_type in enumerate(obj_types):
         success = False
-        for n_tries in range(max_tries):
-            n_tries += 1
-
+        # let's read the mesh only once, object_type does not cache the trimesh, so we don't accumulate memory
+        obj_type_mesh = object_type.trimesh
+        for try_count in range(max_tries):
             # choose random rotation around z-axis and random stable pose of the object
             angle = rng.random() * np.pi * 2
             tf_rot = np.eye(4)
@@ -514,40 +521,37 @@ def sample_scene(object_library, ground_area, instances_per_scene, instances_per
 
             # now sample some xy displacement on ground plane
             # to find the correct range for the offset, we need to account for the mesh bounds
-            instance = core.ObjectInstance(object_type, pose)
-            mesh = instance.get_mesh()
-            min_x, min_y, _ = mesh.get_min_bound()
-            max_x, max_y, _ = mesh.get_max_bound()
+            mesh = copy.deepcopy(obj_type_mesh)
+            mesh.apply_transform(pose)
+            min_x, min_y, _ = mesh.bounds[0]
+            max_x, max_y, _ = mesh.bounds[1]
             range_x, range_y = ground_area[0] - (max_x - min_x), ground_area[1] - (max_y - min_y)
             if range_x < 0 or range_y < 0:
                 # ground plane is too small to place object within bounds
                 continue
 
             x, y = rng.random() * range_x - min_x, rng.random() * range_y - min_y
-
-            instance.pose[0, 3] = x + pose[0, 3]
-            instance.pose[1, 3] = y + pose[1, 3]
+            tf_trans = np.eye(4)
+            tf_trans[0:2, 3] = x, y
+            pose = tf_trans @ pose
+            mesh.apply_transform(tf_trans)
 
             # check collision
             # note: trimesh docs say by using the same name for an object, the manager replaces the object if it has
             # been previously added, however, this does not seem to work properly, so we explicitly remove the object
-            manager.add_object(f'obj{i}', mesh_processing.as_trimesh(instance.get_mesh()))
+            manager.add_object(f'obj{i}', mesh)
             if manager.in_collision_internal():
                 manager.remove_object(f'obj{i}')
             else:
                 # can add to scene and do next object
-                scene.objects.append(instance)
+                scene.objects.append(core.ObjectInstance(object_type, pose))
+                # print(f'succeeded at try {try_count}')
                 success = True
                 break
 
         if not success:
-            _log.warning(f'Could not add object to scene, exceeded number of max_tries ({max_tries}). Returning ' +
-                         f'scene with fewer object instances than requested.')
+            _log.warning(f'Could not add object {i+1} to scene, exceeded number of max_tries ({max_tries}). '
+                         f'Returning scene with fewer object instances than requested.')
 
-    # todo: simulate scene to make sure it's stable
-    # since objects are not touching, this should actually not be necessary.
-    # however, just to be sure...
-    # question is, do we do this in this function? it is actually separate from sampling, so potentially we should
-    # do this somewhere else (the caller shall decide)
     return scene
 
