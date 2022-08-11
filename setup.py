@@ -11,7 +11,6 @@ requirements_default = [
     'scipy',       # kdtrees (might check out those from open3d instead), rotations
     'matplotlib',  # vis
     'h5py',        # dataset io
-    'mat73',       # matlab files io
     'pyyaml',      # object library io
     'numba',       # speedup for numpy-quaternion
     'numpy-quaternion',  # numpy integration for quaternions
