@@ -39,6 +39,17 @@ extras_require = {
 # also create a full installation with all extras
 extras_require['full'] = set(itertools.chain.from_iterable(extras_require.values()))
 
+# add assets so that those files get distributed as well
+# create the paths required for our grippers:
+gripper_names = ['barrett_hand', 'barrett_hand_2f', 'ezgripper', 'franka', 'kinova_3f', 'rg2', 'robotiq_2f_85',
+                 'robotiq_2f_140', 'robotiq_3f', 'sawyer', 'wsg_32', 'wsg_50']
+gripper_asset_dirs = [f'assets/{gripper_dir}/*' for gripper_dir in gripper_names]
+gripper_asset_dirs.extend([f'assets/{gripper_dir}/meshes/*' for gripper_dir in gripper_names])
+package_data = {
+    'burg_toolkit': ['assets/*'],
+    'burg_toolkit.gripper': gripper_asset_dirs,
+}
+
 setuptools.setup(
     name='BURG-toolkit',
     version='0.2.0',
@@ -46,6 +57,7 @@ setuptools.setup(
     install_requires=requirements_default,
     extras_require=extras_require,
     packages=setuptools.find_packages(),
+    package_data=package_data,
     url='https://github.com/mrudorfer/burg-toolkit',
     license='',
     author='Martin Rudorfer',
