@@ -371,7 +371,7 @@ class AntipodalGraspSampler:
         gripper_mesh = copy.deepcopy(gripper_mesh)
         gripper_mesh = mesh_processing.as_trimesh(gripper_mesh)
 
-        collision_array = np.empty(len(graspset), dtype=np.bool)
+        collision_array = np.empty(len(graspset), dtype=bool)
 
         _log.debug('checking collisions...')
         for i, g in tqdm(enumerate(graspset), disable=not self.verbose):

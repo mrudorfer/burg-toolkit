@@ -246,7 +246,7 @@ def merge_o3d_triangle_meshes(meshes):
     :return: a merged o3d.geometry.TriangleMesh
     """
     vertices = np.empty(shape=(0, 3), dtype=np.float64)
-    triangles = np.empty(shape=(0, 3), dtype=np.int)
+    triangles = np.empty(shape=(0, 3), dtype=int)
     for mesh in meshes:
         v = np.asarray(mesh.vertices)  # float list (n, 3)
         t = np.asarray(mesh.triangles)  # int list (n, 3)
