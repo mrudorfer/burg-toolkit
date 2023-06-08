@@ -65,7 +65,9 @@ def test_distance_and_coverage():
 
 
 def test_new_antipodal_grasp_sampling():
-    scene, lib, _ = burg.Scene.from_yaml('/home/rudorfem/datasets/BURG-scenes/scene-001.yaml')
+    scene_fn = '../examples/scenes/scene01.yaml'
+    print('trying to load scene from: ', scene_fn)
+    scene, lib, _ = burg.Scene.from_yaml(scene_fn)
 
     target_object = scene.objects[1]
     print('targeting object', target_object.object_type.identifier)
@@ -75,7 +77,7 @@ def test_new_antipodal_grasp_sampling():
 
     ags = burg.sampling.AntipodalGraspSampler(n_orientations=7)
     print('starting to sample grasps')
-    graspset, contacts = ags.sample(target_object, n=500, max_gripper_width=opening_width)
+    graspset, contacts = ags.sample(target_object, n=200, max_gripper_width=opening_width)
     print(f'done, sampled {len(graspset)} grasps')
     burg.visualization.show_grasp_set([scene], graspset, gripper=gripper)
 
