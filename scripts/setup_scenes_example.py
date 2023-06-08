@@ -85,7 +85,7 @@ def main(object_library_fn, skip, override):
     print('next action: sampling scenes with object instances in stable poses, and visualise.')
     print('note: you need to close the open3d window to continue. (not the simulation window later on, though!)')
     dim = (1, 0.5)
-    n_instances = 5
+    n_instances = min(5, len(object_library))
     print(f'{n_instances} instances will be placed in ground area of {dim}')
     wait_for_user(skip)
     scene = burg.sampling.sample_scene(
