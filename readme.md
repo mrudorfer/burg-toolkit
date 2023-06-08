@@ -50,12 +50,15 @@ Sometimes, especially if numpy has already been installed in the environment, th
 ### install options
 
 There are some dependencies not included in the default installation.
-These are mostly packages that are either not required for regular usage or not installing smoothly on all platforms.
+These are mostly packages that are either not required for regular usage.
 The following extras are available (general installation procedure as above, explanation in the subsequent sections):
 ```
 pip install -e .['docs']  # includes packages required to build documentation
-pip install -e .['collision']  # mesh-mesh collision checks
+```
+```
 pip install -e .['openexr']  # read/write .exr image files
+```
+```
 pip install -e .['full']  # install all optional dependencies
 ```
 
@@ -73,14 +76,6 @@ make html  # linux
 
 The docs can then be found in `docs/_build/html`folder.
 
-
-#### collision
-
-Mesh-mesh collisions currently rely on `python-fcl` which is only available for linux.
-There are some efforts to bring `python-fcl` to Windows, e.g. there are packages like
-`python-fcl-win32` and `python-fcl-win32-nr`, but there seem to be issues installing those, see:
- https://github.com/BerkeleyAutomation/python-fcl/issues/17.
-So far I have not been able to install either of those packages with `pip`.
 
 #### openexr
 

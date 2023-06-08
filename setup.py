@@ -20,6 +20,7 @@ requirements_default = [
     'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
     'pyrender',       # rendering
     'pybullet',       # for the simulation module
+    'python-fcl',     # collision checks with trimesh
     'fpdf',           # creating pdf files
 ]
 
@@ -27,9 +28,6 @@ extras_require = {
     'docs': [
         'Sphinx',  # tool for creating docs
         'm2r2'    # for automatically parsing the python modules
-    ],
-    'collision': [
-        'python-fcl'   # collision checks with trimesh, on linux only
     ],
     'openexr': [
         'pyexr'     # relies on openexr, which must be manually installed on the system prior to pip install
