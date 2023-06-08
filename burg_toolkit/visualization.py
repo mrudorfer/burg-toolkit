@@ -57,7 +57,7 @@ def show_geometries(geometry_list, colorize=True):
 
     if colorize:
         _colorize_o3d_objects(o3d_objs)
-    o3d.visualization.draw(o3d_objs)
+    o3d.visualization.draw_geometries(o3d_objs)
 
 
 def _colorize_o3d_objects(o3d_objects, colormap_name='tab20'):
