@@ -376,6 +376,10 @@ class PyBulletRenderEngine(sim.SimulatorBase, RenderEngine):
         )
         self.segmentation_mask = seg_mask  # to allow retrieval (?)
 
+        # returned images might be tuples
+        rgb = np.reshape(rgb, (h, w, 4))
+        depth = np.reshape(depth, (h, w))
+
         # post-processing
         rgb = rgb[:, :, :3]  # remove alpha
 
