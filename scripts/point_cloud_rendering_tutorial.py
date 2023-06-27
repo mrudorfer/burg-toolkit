@@ -150,15 +150,17 @@ def create_point_clouds_from_depth_images(scene):
     print('Using the camera and the camera pose, we can now render an RGB and a depth image of the scene.\n'
           'Note that the RGB image (on the left) is not very realistic, as we are not using any textures.\n'
           'The depth image (on the right) encodes the distance to each pixel as colour.')
-    print('(Note that your object library needs to have the URDF and VHACD files. Read the comments in this\n'
+    print('(Note that your object library may need to have the URDF and VHACD files. Read the comments in this\n'
           'script and check out the setup_scene_example.py if you get an error.)')
 
     # in order to render images, we are creating a render-engine object
-    # this is utilising PyBullet again, so the objects from our object library need to have the URDF and VHACD files
+    # there are two render engines available in the BURG toolkit, PyRenderEngine and PyBulletRenderEngine.
+    # the latter is utilising PyBullet, so the objects from our object library need to have the URDF and VHACD files
     # if they are missing, check out the setup_scene_example.py on how to create them (note that the example does not
     # overwrite the original library, and instead creates another one with the suffix _roundtrip - so you might need to
     # do that manually.)
-    render_engine = burg.render.PyBulletRenderEngine()  # requires urdf + vhacd
+    # render_engine = burg.render.PyBulletRenderEngine()  # requires urdf + vhacd
+    render_engine = burg.render.PyRenderEngine()  # does not require urdf + vhacd
     render_engine.setup_scene(scene, camera, with_plane=True)  # we can also disable the plane
     rgb_image, depth_image = render_engine.render(camera_pose)  # later, we can re-use the render engine to create more
 
