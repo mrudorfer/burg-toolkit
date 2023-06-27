@@ -34,13 +34,12 @@ def configure_visualizer_mode(visualizer_mode=VisualizerMode.DEFAULT_VIEWER):
     :param visualizer_mode: VisualizerMode enum
     """
     global _drawing_func
-    assert visualizer_mode in [
-        VisualizerMode.DEFAULT_VIEWER, VisualizerMode.CONFIGURABLE_VIEWER, VisualizerMode.CONFIGURABLE_VIEWER]
     func_map = {
         VisualizerMode.DEFAULT_VIEWER: o3d.visualization.draw_geometries,
         VisualizerMode.CONFIGURABLE_VIEWER: o3d.visualization.draw,
         VisualizerMode.IPYNB_VIEWER: o3d.visualization.draw_plotly
     }
+    assert visualizer_mode in func_map.keys()
     _drawing_func = func_map[visualizer_mode]
 
 
@@ -93,7 +92,7 @@ def show_geometries(geometry_list, colorize=True):
         _colorize_o3d_objects(o3d_objs)
 
     if _drawing_func is None:
-        configure_visualiser_mode()
+        configure_visualizer_mode()
     _drawing_func(o3d_objs)
 
 
