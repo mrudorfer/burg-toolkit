@@ -1,4 +1,5 @@
 import copy
+from enum import Enum
 
 import open3d as o3d
 import numpy as np
@@ -8,6 +9,39 @@ from matplotlib import pyplot as plt
 from . import core
 from . import util
 from . import grasp
+
+
+class VisualiserMode(Enum):
+    """
+    Depending on how the BURG toolkit is used, we offer different modes of visualisation.
+    DEFAULT_VIEWER: simple o3d visualiser window with the best compatibility. see the following o3d issue for AMD GPUs
+             https://github.com/isl-org/Open3D/issues/4852
+    CONFIGURABLE_VIEWER: a configurable viewer, generally the better choice, but has issues with AMD GPUs
+    IPYNB_VIEWER: works on Jupyter/Colab notebooks
+    """
+    DEFAULT_VIEWER = 1
+    CONFIGURABLE_VIEWER = 2
+    IPYNB_VIEWER = 3
+
+
+_drawing_func = None
+
+
+def configure_visualiser_mode(visualiser_mode=VisualiserMode.DEFAULT_VIEWER):
+    """
+    Sets the visualiser mode, provide a VisualiserMode enum.
+
+    :param visualiser_mode: VisualiserMode enum
+    """
+    global _drawing_func
+    assert visualiser_mode in [
+        VisualiserMode.DEFAULT_VIEWER, VisualiserMode.CONFIGURABLE_VIEWER, VisualiserMode.CONFIGURABLE_VIEWER]
+    func_map = {
+        VisualiserMode.DEFAULT_VIEWER: o3d.visualization.draw_geometries,
+        VisualiserMode.CONFIGURABLE_VIEWER: o3d.visualization.draw,
+        VisualiserMode.IPYNB_VIEWER: o3d.visualization.draw_plotly
+    }
+    _drawing_func = func_map[visualiser_mode]
 
 
 def _convert_geometries_to_o3d_objects(geometry_list):
@@ -57,7 +91,10 @@ def show_geometries(geometry_list, colorize=True):
 
     if colorize:
         _colorize_o3d_objects(o3d_objs)
-    o3d.visualization.draw_geometries(o3d_objs)
+
+    if _drawing_func is None:
+        configure_visualiser_mode()
+    _drawing_func(o3d_objs)
 
 
 def _colorize_o3d_objects(o3d_objects, colormap_name='tab20'):
