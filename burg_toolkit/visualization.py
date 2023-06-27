@@ -11,10 +11,10 @@ from . import util
 from . import grasp
 
 
-class VisualiserMode(Enum):
+class VisualizerMode(Enum):
     """
-    Depending on how the BURG toolkit is used, we offer different modes of visualisation.
-    DEFAULT_VIEWER: simple o3d visualiser window with the best compatibility. see the following o3d issue for AMD GPUs
+    Depending on how the BURG toolkit is used, we offer different modes of visualization.
+    DEFAULT_VIEWER: simple o3d visualizer window with the best compatibility. see the following o3d issue for AMD GPUs
              https://github.com/isl-org/Open3D/issues/4852
     CONFIGURABLE_VIEWER: a configurable viewer, generally the better choice, but has issues with AMD GPUs
     IPYNB_VIEWER: works on Jupyter/Colab notebooks
@@ -27,21 +27,21 @@ class VisualiserMode(Enum):
 _drawing_func = None
 
 
-def configure_visualiser_mode(visualiser_mode=VisualiserMode.DEFAULT_VIEWER):
+def configure_visualizer_mode(visualizer_mode=VisualizerMode.DEFAULT_VIEWER):
     """
-    Sets the visualiser mode, provide a VisualiserMode enum.
+    Sets the visualizer mode, provide a VisualizerMode enum.
 
-    :param visualiser_mode: VisualiserMode enum
+    :param visualizer_mode: VisualizerMode enum
     """
     global _drawing_func
-    assert visualiser_mode in [
-        VisualiserMode.DEFAULT_VIEWER, VisualiserMode.CONFIGURABLE_VIEWER, VisualiserMode.CONFIGURABLE_VIEWER]
+    assert visualizer_mode in [
+        VisualizerMode.DEFAULT_VIEWER, VisualizerMode.CONFIGURABLE_VIEWER, VisualizerMode.CONFIGURABLE_VIEWER]
     func_map = {
-        VisualiserMode.DEFAULT_VIEWER: o3d.visualization.draw_geometries,
-        VisualiserMode.CONFIGURABLE_VIEWER: o3d.visualization.draw,
-        VisualiserMode.IPYNB_VIEWER: o3d.visualization.draw_plotly
+        VisualizerMode.DEFAULT_VIEWER: o3d.visualization.draw_geometries,
+        VisualizerMode.CONFIGURABLE_VIEWER: o3d.visualization.draw,
+        VisualizerMode.IPYNB_VIEWER: o3d.visualization.draw_plotly
     }
-    _drawing_func = func_map[visualiser_mode]
+    _drawing_func = func_map[visualizer_mode]
 
 
 def _convert_geometries_to_o3d_objects(geometry_list):
