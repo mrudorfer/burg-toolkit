@@ -4,7 +4,7 @@ import itertools
 with open("readme.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
     
-python_versions = '>=3.6, <3.9'  # restricted by availability of open3d 0.12.0
+python_versions = '>=3.7, <3.11'  # restricted by open3d
 
 requirements_default = [
     'numpy',       # for all datastructures
@@ -16,7 +16,7 @@ requirements_default = [
     'numpy-quaternion',  # numpy integration for quaternions
     'tqdm',         # progress bars
     'opencv-contrib-python',  # image processing
-    'open3d==0.12.0',      # point clouds and processing
+    'open3d',         # point clouds and processing
     'trimesh[easy]',  # this works on windows and linux, as opposed to trimesh[all]
     'pyrender',       # rendering
     'pybullet',       # for the simulation module
@@ -50,7 +50,7 @@ package_data = {
 
 setuptools.setup(
     name='BURG-toolkit',
-    version='0.2.0',
+    version='0.3.0',
     python_requires=python_versions,
     install_requires=requirements_default,
     extras_require=extras_require,
