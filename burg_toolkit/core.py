@@ -165,7 +165,8 @@ class ObjectType:
     @property
     def trimesh(self):
         """ Loads the mesh from file in trimesh format, i.e. always provides a copy. """
-        mesh = trimesh.load_mesh(self.mesh_fn)
+        mesh = trimesh.load(self.mesh_fn, force='mesh')
+        assert isinstance(mesh, trimesh.Trimesh), f'loaded mesh is of type {type(mesh)}, must be trimesh.Trimesh'
         if self.scale is not None and self.scale != 1.0:
             tf = np.eye(4)
             tf[:3, :3] *= self.scale
